@@ -679,22 +679,9 @@ void createSyncObjects() {
         }
 
         device.destroyCommandPool(commandPool);
-
-        for (auto framebuffer : swapChainFramebuffers) {
-            device.destroyFramebuffer(framebuffer);
-        }
-
-        device.destroyPipeline(graphicsPipeline);
-        device.destroyPipelineLayout(pipelineLayout);
-        device.destroyRenderPass(renderPass);
-
-        for (auto imageView : swapChainImageViews) {
-            device.destroyImageView(imageView);
-        }
-
-        device.destroySwapchainKHR(swapChain);
         device.destroyBuffer(vertexBuffer);
         device.freeMemory(vertexBufferMemory);
+
         device.destroy();
         instance.destroySurfaceKHR(surface);
         instance.destroy();
