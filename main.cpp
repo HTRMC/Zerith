@@ -66,6 +66,8 @@ private:
     vk::CommandPool commandPool;
     vk::Buffer vertexBuffer;
     vk::DeviceMemory vertexBufferMemory;
+    vk::Buffer indexBuffer;
+    vk::DeviceMemory indexBufferMemory;
     std::vector<vk::CommandBuffer> commandBuffers;
     std::vector<vk::Semaphore> imageAvailableSemaphores;
     std::vector<vk::Semaphore> renderFinishedSemaphores;
@@ -75,9 +77,15 @@ private:
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
     const std::vector<Vertex> vertices = {
-        {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-        {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-        {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
+        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
+        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // Top-right
+        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}   // Top-left
+    };
+
+    const std::vector<uint16_t> indices = {
+        0, 1, 2,    // First triangle
+        2, 3, 0     // Second triangle
     };
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -142,6 +150,8 @@ private:
         createFramebuffers();
         createCommandPool();
         createVertexBuffer();
+        createIndexBuffer();
+        createFramebuffers();
         createCommandBuffers();
         createSyncObjects();
     }
@@ -554,6 +564,29 @@ void createImageViews() {
         device.unmapMemory(vertexBufferMemory);
     }
 
+    void createIndexBuffer() {
+        vk::BufferCreateInfo bufferInfo{};
+        bufferInfo.size = sizeof(indices[0]) * indices.size();
+        bufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
+        bufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+        indexBuffer = device.createBuffer(bufferInfo);
+
+        vk::MemoryRequirements memRequirements = device.getBufferMemoryRequirements(indexBuffer);
+
+        vk::MemoryAllocateInfo allocInfo{};
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+
+        indexBufferMemory = device.allocateMemory(allocInfo);
+        device.bindBufferMemory(indexBuffer, indexBufferMemory, 0);
+
+        void* data = device.mapMemory(indexBufferMemory, 0, bufferInfo.size);
+        memcpy(data, indices.data(), (size_t) bufferInfo.size);
+        device.unmapMemory(indexBufferMemory);
+    }
+
     void createCommandBuffers() {
         commandBuffers.resize(swapChainFramebuffers.size());
 
@@ -585,8 +618,9 @@ void createImageViews() {
             vk::Buffer vertexBuffers[] = {vertexBuffer};
             vk::DeviceSize offsets[] = {0};
             commandBuffers[i].bindVertexBuffers(0, 1, vertexBuffers, offsets);
+            commandBuffers[i].bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint16);
+            commandBuffers[i].drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
-            commandBuffers[i].draw(static_cast<uint32_t>(vertices.size()), 1, 0, 0);
             commandBuffers[i].endRenderPass();
             commandBuffers[i].end();
         }
@@ -681,6 +715,8 @@ void createSyncObjects() {
         device.destroyCommandPool(commandPool);
         device.destroyBuffer(vertexBuffer);
         device.freeMemory(vertexBufferMemory);
+        device.destroyBuffer(indexBuffer);
+        device.freeMemory(indexBufferMemory);
 
         device.destroy();
         instance.destroySurfaceKHR(surface);
