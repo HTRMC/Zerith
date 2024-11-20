@@ -14,6 +14,8 @@ find_package(Vulkan REQUIRED)
 # Find GLFW
 find_package(glfw3 REQUIRED)
 
+find_package(glm REQUIRED)
+
 # Shader compilation
 find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/bin)
 

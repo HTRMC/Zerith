@@ -1,15 +1,20 @@
 // main.cpp
 #include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <vector>
 #include <optional>
 #include <set>
 #include <fstream>
 #include <array>
+#include <chrono>
 
 struct Vertex {
-    float pos[2];
+    float pos[3];
     float color[3];
 
     static vk::VertexInputBindingDescription getBindingDescription() {
@@ -25,7 +30,7 @@ struct Vertex {
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = vk::Format::eR32G32Sfloat;
+        attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
         attributeDescriptions[1].binding = 0;
@@ -37,7 +42,7 @@ struct Vertex {
     }
 };
 
-class VulkanApp {
+class Zerith {
 public:
     void run() {
         initWindow();
@@ -69,6 +74,12 @@ private:
     vk::Buffer indexBuffer;
     vk::DeviceMemory indexBufferMemory;
     std::vector<vk::CommandBuffer> commandBuffers;
+    std::vector<vk::Buffer> uniformBuffers;
+    std::vector<vk::DeviceMemory> uniformBuffersMemory;
+    std::vector<void*> uniformBuffersMapped;
+    vk::DescriptorPool descriptorPool;
+    vk::DescriptorSetLayout descriptorSetLayout;
+    vk::DescriptorSet descriptorSet;
     std::vector<vk::Semaphore> imageAvailableSemaphores;
     std::vector<vk::Semaphore> renderFinishedSemaphores;
     std::vector<vk::Fence> inFlightFences;
@@ -77,10 +88,10 @@ private:
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
-        {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
-        {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},   // Top-right
-        {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}   // Top-left
+        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
+        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
+        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},   // Top-right
+        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}}   // Top-left
     };
 
     const std::vector<uint16_t> indices = {
@@ -88,8 +99,81 @@ private:
         2, 3, 0     // Second triangle
     };
 
+    struct UniformBufferObject {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+    };
+
+    struct CameraData {
+        glm::vec3 pos = glm::vec3(0.0f, 0.0f, 3.0f);
+        glm::vec3 front = glm::vec3(0.0f, 0.0f, -1.0f);
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        float yaw = -90.0f;
+        float pitch = 0.0f;
+        float lastX = 400.0f;
+        float lastY = 300.0f;
+        bool firstMouse = true;
+        float speed = 2.5f;
+    } camera;
+
+    static void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
+        auto app = reinterpret_cast<Zerith*>(glfwGetWindowUserPointer(window));
+        app->processMouseMovement(xpos, ypos);
+    }
+
+    void processMouseMovement(double xpos, double ypos) {
+        if (camera.firstMouse) {
+            camera.lastX = xpos;
+            camera.lastY = ypos;
+            camera.firstMouse = false;
+        }
+
+        float xoffset = xpos - camera.lastX;
+        float yoffset = camera.lastY - ypos;
+        camera.lastX = xpos;
+        camera.lastY = ypos;
+
+        const float sensitivity = 0.1f;
+        xoffset *= sensitivity;
+        yoffset *= sensitivity;
+
+        camera.yaw += xoffset;
+        camera.pitch += yoffset;
+
+        if (camera.pitch > 89.0f) camera.pitch = 89.0f;
+        if (camera.pitch < -89.0f) camera.pitch = -89.0f;
+
+        glm::vec3 direction;
+        direction.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+        direction.y = sin(glm::radians(camera.pitch));
+        direction.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+        camera.front = glm::normalize(direction);
+    }
+
+    void processInput() {
+        float deltaTime = 0.016f; // Assuming ~60 FPS
+        float velocity = camera.speed * deltaTime;
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+            camera.pos += velocity * camera.front;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+            camera.pos -= velocity * camera.front;
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            camera.pos -= glm::normalize(glm::cross(camera.front, camera.up)) * velocity;
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * velocity;
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
+            camera.pos += camera.up * velocity;
+        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+            camera.pos -= camera.up * velocity;
+
+        // Update the uniform buffer with new camera position
+        updateUniformBuffer(currentFrame);
+    }
+
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<VulkanApp*>(glfwGetWindowUserPointer(window));
+        auto app = reinterpret_cast<Zerith*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
     }
 
@@ -99,6 +183,8 @@ private:
         window = glfwCreateWindow(800, 600, "Zerith", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+        glfwSetCursorPosCallback(window, mouseCallback);
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     }
 
         void cleanupSwapChain() {
@@ -146,11 +232,15 @@ private:
         createSwapChain();
         createImageViews();
         createRenderPass();
+        createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
         createVertexBuffer();
         createIndexBuffer();
+        createUniformBuffers();
+        createDescriptorPool();
+        createDescriptorSet();
         createFramebuffers();
         createCommandBuffers();
         createSyncObjects();
@@ -439,8 +529,8 @@ void createImageViews() {
         vk::Viewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
-        viewport.width = (float) swapChainExtent.width;
-        viewport.height = (float) swapChainExtent.height;
+        viewport.width = static_cast<float>(swapChainExtent.width);
+        viewport.height = static_cast<float>(swapChainExtent.height);
         viewport.minDepth = 0.0f;
         viewport.maxDepth = 1.0f;
 
@@ -459,8 +549,8 @@ void createImageViews() {
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = vk::PolygonMode::eFill;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = vk::CullModeFlagBits::eBack;
-        rasterizer.frontFace = vk::FrontFace::eClockwise;
+        rasterizer.cullMode = vk::CullModeFlagBits::eNone;
+        rasterizer.frontFace = vk::FrontFace::eCounterClockwise;
         rasterizer.depthBiasEnable = VK_FALSE;
 
         vk::PipelineMultisampleStateCreateInfo multisampling{};
@@ -477,6 +567,9 @@ void createImageViews() {
         colorBlending.pAttachments = &colorBlendAttachment;
 
         vk::PipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+
         pipelineLayout = device.createPipelineLayout(pipelineLayoutInfo);
 
         vk::GraphicsPipelineCreateInfo pipelineInfo{};
@@ -587,6 +680,106 @@ void createImageViews() {
         device.unmapMemory(indexBufferMemory);
     }
 
+    void createUniformBuffers() {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+
+        uniformBuffers.resize(swapChainImages.size());
+        uniformBuffersMemory.resize(swapChainImages.size());
+        uniformBuffersMapped.resize(swapChainImages.size());
+
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            vk::BufferCreateInfo bufferInfo{};
+            bufferInfo.size = bufferSize;
+            bufferInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer;
+            bufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+            uniformBuffers[i] = device.createBuffer(bufferInfo);
+
+            vk::MemoryRequirements memRequirements = device.getBufferMemoryRequirements(uniformBuffers[i]);
+
+            vk::MemoryAllocateInfo allocInfo{};
+            allocInfo.allocationSize = memRequirements.size;
+            allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+
+            uniformBuffersMemory[i] = device.allocateMemory(allocInfo);
+            device.bindBufferMemory(uniformBuffers[i], uniformBuffersMemory[i], 0);
+            uniformBuffersMapped[i] = device.mapMemory(uniformBuffersMemory[i], 0, bufferSize);
+        }
+    }
+
+    void updateUniformBuffer(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>
+            (currentTime - startTime).count();
+
+        UniformBufferObject ubo{};
+        ubo.model = glm::mat4(1.0f);
+        ubo.view = glm::lookAt(camera.pos, camera.pos + camera.front, camera.up);
+        ubo.proj = glm::perspective(glm::radians(45.0f),
+            swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        ubo.proj[1][1] *= -1;  // Flip Y coordinate for Vulkan
+
+        memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+    }
+
+    void createDescriptorSetLayout() {
+        vk::DescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+        vk::DescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+
+        descriptorSetLayout = device.createDescriptorSetLayout(layoutInfo);
+    }
+
+    void createDescriptorPool() {
+        vk::DescriptorPoolSize poolSize{};
+        poolSize.type = vk::DescriptorType::eUniformBuffer;
+        poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+
+        vk::DescriptorPoolCreateInfo poolInfo{};
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+
+        descriptorPool = device.createDescriptorPool(poolInfo);
+    }
+
+    void createDescriptorSet() {
+        std::vector<vk::DescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+        vk::DescriptorSetAllocateInfo allocInfo{};
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
+        allocInfo.pSetLayouts = layouts.data();
+
+        std::vector<vk::DescriptorSet> descriptorSets = device.allocateDescriptorSets(allocInfo);
+
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            vk::DescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = uniformBuffers[i];
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(UniformBufferObject);
+
+            vk::WriteDescriptorSet descriptorWrite{};
+            descriptorWrite.dstSet = descriptorSets[i];
+            descriptorWrite.dstBinding = 0;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+
+            device.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
+        }
+
+        descriptorSet = descriptorSets[0];
+    }
+
     void createCommandBuffers() {
         commandBuffers.resize(swapChainFramebuffers.size());
 
@@ -614,6 +807,8 @@ void createImageViews() {
 
             commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
             commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
+            commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
             vk::Buffer vertexBuffers[] = {vertexBuffer};
             vk::DeviceSize offsets[] = {0};
@@ -698,6 +893,7 @@ void createSyncObjects() {
     void mainLoop() {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
+            processInput();
             drawFrame();
         }
         device.waitIdle();
@@ -713,10 +909,19 @@ void createSyncObjects() {
         }
 
         device.destroyCommandPool(commandPool);
+
         device.destroyBuffer(vertexBuffer);
         device.freeMemory(vertexBufferMemory);
         device.destroyBuffer(indexBuffer);
         device.freeMemory(indexBufferMemory);
+
+        for (size_t i = 0; i < uniformBuffers.size(); i++) {
+            device.destroyBuffer(uniformBuffers[i]);
+            device.freeMemory(uniformBuffersMemory[i]);
+        }
+
+        device.destroyDescriptorPool(descriptorPool);
+        device.destroyDescriptorSetLayout(descriptorSetLayout);
 
         device.destroy();
         instance.destroySurfaceKHR(surface);
@@ -728,7 +933,7 @@ void createSyncObjects() {
 };
 
 int main() {
-    VulkanApp app;
+    Zerith app;
 
     try {
         app.run();
