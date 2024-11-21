@@ -129,7 +129,14 @@ private:
     std::vector<LineVertex> selectionVertices;
 
     void updateSelectionBuffer() {
-        if (!selectedBlock.hasSelection) return;
+        if (!selectedBlock.hasSelection) {
+            // Clear the selection buffer
+            selectionVertices.clear();
+            void* data = device.mapMemory(selectionBufferMemory, 0, sizeof(LineVertex) * 24);
+            memset(data, 0, sizeof(LineVertex) * 24);
+            device.unmapMemory(selectionBufferMemory);
+            return;
+        }
 
         // Define the vertices for the block outline
         glm::vec3 pos = selectedBlock.position;
@@ -365,81 +372,86 @@ private:
     }
 
     bool raycastBlock(glm::vec3& hitPosition, glm::vec3& hitNormal, bool& hit) {
-        glm::vec3 rayStart = camera.pos;
-        glm::vec3 rayDir = glm::normalize(camera.front);
+    glm::vec3 rayStart = camera.pos;
+    glm::vec3 rayDir = glm::normalize(camera.front);
 
-        float closest = MAX_REACH;
-        hit = false;
-        bool selectionChanged = false;
+    float closest = MAX_REACH;
+    hit = false;
+    bool selectionChanged = false;
 
-        for (const auto& block : blocks) {
-            if (!block.exists) continue;
+    for (const auto& block : blocks) {
+        if (!block.exists) continue;
 
-            glm::vec3 mins = block.position;
-            glm::vec3 maxs = block.position + glm::vec3(1.0f);
+        glm::vec3 mins = block.position;
+        glm::vec3 maxs = block.position + glm::vec3(1.0f);
 
-            float tmin = (mins.x - rayStart.x) / rayDir.x;
-            float tmax = (maxs.x - rayStart.x) / rayDir.x;
+        float tmin = (mins.x - rayStart.x) / rayDir.x;
+        float tmax = (maxs.x - rayStart.x) / rayDir.x;
 
-            if (tmin > tmax) std::swap(tmin, tmax);
+        if (tmin > tmax) std::swap(tmin, tmax);
 
-            float tymin = (mins.y - rayStart.y) / rayDir.y;
-            float tymax = (maxs.y - rayStart.y) / rayDir.y;
+        float tymin = (mins.y - rayStart.y) / rayDir.y;
+        float tymax = (maxs.y - rayStart.y) / rayDir.y;
 
-            if (tymin > tymax) std::swap(tymin, tymax);
+        if (tymin > tymax) std::swap(tymin, tymax);
 
-            if ((tmin > tymax) || (tymin > tmax)) continue;
+        if ((tmin > tymax) || (tymin > tmax)) continue;
 
-            tmin = std::max(tmin, tymin);
-            tmax = std::min(tmax, tymax);
+        tmin = std::max(tmin, tymin);
+        tmax = std::min(tmax, tymax);
 
-            float tzmin = (mins.z - rayStart.z) / rayDir.z;
-            float tzmax = (maxs.z - rayStart.z) / rayDir.z;
+        float tzmin = (mins.z - rayStart.z) / rayDir.z;
+        float tzmax = (maxs.z - rayStart.z) / rayDir.z;
 
-            if (tzmin > tzmax) std::swap(tzmin, tzmax);
+        if (tzmin > tzmax) std::swap(tzmin, tzmax);
 
-            if ((tmin > tzmax) || (tzmin > tmax)) continue;
+        if ((tmin > tzmax) || (tzmin > tmax)) continue;
 
-            tmin = std::max(tmin, tzmin);
-            tmax = std::min(tmax, tzmax);
+        tmin = std::max(tmin, tzmin);
+        tmax = std::min(tmax, tzmax);
 
-            if (tmin < 0) {
-                if (tmax < 0) continue;
-                tmin = tmax;
-            }
-
-            if (tmin < closest) {
-                closest = tmin;
-                hitPosition = rayStart + rayDir * tmin;
-
-                glm::vec3 center = block.position + glm::vec3(0.5f);
-                glm::vec3 diff = hitPosition - center;
-                float x = abs(diff.x);
-                float y = abs(diff.y);
-                float z = abs(diff.z);
-
-                if (x > y && x > z)
-                    hitNormal = glm::vec3(diff.x > 0 ? 1 : -1, 0, 0);
-                else if (y > z)
-                    hitNormal = glm::vec3(0, diff.y > 0 ? 1 : -1, 0);
-                else
-                    hitNormal = glm::vec3(0, 0, diff.z > 0 ? 1 : -1);
-
-                hit = true;
-                if (!selectedBlock.hasSelection || selectedBlock.position != block.position) {
-                    selectedBlock.hasSelection = true;
-                    selectedBlock.position = block.position;
-                    selectionChanged = true;
-                }
-            }
+        if (tmin < 0) {
+            if (tmax < 0) continue;
+            tmin = tmax;
         }
 
-        if (selectionChanged) {
-            updateSelectionBuffer();
-        }
+        if (tmin < closest) {
+            closest = tmin;
+            hitPosition = rayStart + rayDir * tmin;
 
-        return hit;
+            glm::vec3 center = block.position + glm::vec3(0.5f);
+            glm::vec3 diff = hitPosition - center;
+            float x = abs(diff.x);
+            float y = abs(diff.y);
+            float z = abs(diff.z);
+
+            if (x > y && x > z)
+                hitNormal = glm::vec3(diff.x > 0 ? 1 : -1, 0, 0);
+            else if (y > z)
+                hitNormal = glm::vec3(0, diff.y > 0 ? 1 : -1, 0);
+            else
+                hitNormal = glm::vec3(0, 0, diff.z > 0 ? 1 : -1);
+
+            hit = true;
+            if (!selectedBlock.hasSelection || selectedBlock.position != block.position) {
+                selectedBlock.hasSelection = true;
+                selectedBlock.position = block.position;
+                selectionChanged = true;
+            }
+        }
     }
+
+    if (!hit && selectedBlock.hasSelection) {
+        selectedBlock.hasSelection = false;
+        selectionChanged = true;
+    }
+
+    if (selectionChanged) {
+        updateSelectionBuffer();
+    }
+
+    return hit;
+}
 
     void handleBlockInteraction() {
         static bool leftPressed = false;
