@@ -127,6 +127,67 @@ private:
     vk::Buffer selectionBuffer;
     vk::DeviceMemory selectionBufferMemory;
     std::vector<LineVertex> selectionVertices;
+    vk::Image depthImage;
+    vk::DeviceMemory depthImageMemory;
+    vk::ImageView depthImageView;
+
+    vk::Format findDepthFormat() {
+        std::vector<vk::Format> candidates = {
+            vk::Format::eD32Sfloat,
+            vk::Format::eD32SfloatS8Uint,
+            vk::Format::eD24UnormS8Uint
+        };
+
+        for (vk::Format format : candidates) {
+            vk::FormatProperties props = physicalDevice.getFormatProperties(format);
+            if ((props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) == vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+                return format;
+            }
+        }
+        throw std::runtime_error("failed to find supported depth format!");
+    }
+
+    void createDepthResources() {
+        vk::Format depthFormat = findDepthFormat();
+
+        vk::ImageCreateInfo imageInfo{};
+        imageInfo.imageType = vk::ImageType::e2D;
+        imageInfo.extent.width = swapChainExtent.width;
+        imageInfo.extent.height = swapChainExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = depthFormat;
+        imageInfo.tiling = vk::ImageTiling::eOptimal;
+        imageInfo.initialLayout = vk::ImageLayout::eUndefined;
+        imageInfo.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment;
+        imageInfo.samples = vk::SampleCountFlagBits::e1;
+        imageInfo.sharingMode = vk::SharingMode::eExclusive;
+
+        depthImage = device.createImage(imageInfo);
+
+        auto memRequirements = device.getImageMemoryRequirements(depthImage);
+
+        vk::MemoryAllocateInfo allocInfo{};
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+            vk::MemoryPropertyFlagBits::eDeviceLocal);
+
+        depthImageMemory = device.allocateMemory(allocInfo);
+        device.bindImageMemory(depthImage, depthImageMemory, 0);
+
+        vk::ImageViewCreateInfo viewInfo{};
+        viewInfo.image = depthImage;
+        viewInfo.viewType = vk::ImageViewType::e2D;
+        viewInfo.format = depthFormat;
+        viewInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        depthImageView = device.createImageView(viewInfo);
+    }
 
     void updateSelectionBuffer() {
         if (!selectedBlock.hasSelection) {
@@ -140,45 +201,46 @@ private:
 
         // Define the vertices for the block outline
         glm::vec3 pos = selectedBlock.position;
+        float expand = 0.002f;
         selectionVertices = {
             // Front face
-            {{pos.x, pos.y, pos.z}},
-            {{pos.x + 1.0f, pos.y, pos.z}},
+            {{pos.x - expand, pos.y - expand, pos.z - expand}},
+            {{pos.x + 1.0f + expand, pos.y - expand, pos.z - expand}},
 
-            {{pos.x + 1.0f, pos.y, pos.z}},
-            {{pos.x + 1.0f, pos.y + 1.0f, pos.z}},
+            {{pos.x + 1.0f + expand, pos.y - expand, pos.z - expand}},
+            {{pos.x + 1.0f + expand, pos.y + 1.0f + expand, pos.z - expand}},
 
-            {{pos.x + 1.0f, pos.y + 1.0f, pos.z}},
-            {{pos.x, pos.y + 1.0f, pos.z}},
+            {{pos.x + 1.0f + expand, pos.y + 1.0f + expand, pos.z - expand}},
+            {{pos.x - expand, pos.y + 1.0f + expand, pos.z - expand}},
 
-            {{pos.x, pos.y + 1.0f, pos.z}},
-            {{pos.x, pos.y, pos.z}},
+            {{pos.x - expand, pos.y + 1.0f + expand, pos.z - expand}},
+            {{pos.x - expand, pos.y - expand, pos.z - expand}},
 
             // Back face
-            {{pos.x, pos.y, pos.z + 1.0f}},
-            {{pos.x + 1.0f, pos.y, pos.z + 1.0f}},
+            {{pos.x - expand, pos.y - expand, pos.z + 1.0f + expand}},
+            {{pos.x + 1.0f + expand, pos.y - expand, pos.z + 1.0f + expand}},
 
-            {{pos.x + 1.0f, pos.y, pos.z + 1.0f}},
-            {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}},
+            {{pos.x + 1.0f + expand, pos.y - expand, pos.z + 1.0f + expand}},
+            {{pos.x + 1.0f + expand, pos.y + 1.0f + expand, pos.z + 1.0f + expand}},
 
-            {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}},
-            {{pos.x, pos.y + 1.0f, pos.z + 1.0f}},
+            {{pos.x + 1.0f + expand, pos.y + 1.0f + expand, pos.z + 1.0f + expand}},
+            {{pos.x - expand, pos.y + 1.0f + expand, pos.z + 1.0f + expand}},
 
-            {{pos.x, pos.y + 1.0f, pos.z + 1.0f}},
-            {{pos.x, pos.y, pos.z + 1.0f}},
+            {{pos.x - expand, pos.y + 1.0f + expand, pos.z + 1.0f + expand}},
+            {{pos.x - expand, pos.y - expand, pos.z + 1.0f + expand}},
 
             // Connecting lines
-            {{pos.x, pos.y, pos.z}},
-            {{pos.x, pos.y, pos.z + 1.0f}},
+            {{pos.x - expand, pos.y - expand, pos.z - expand}},
+            {{pos.x - expand, pos.y - expand, pos.z + 1.0f + expand}},
 
-            {{pos.x + 1.0f, pos.y, pos.z}},
-            {{pos.x + 1.0f, pos.y, pos.z + 1.0f}},
+            {{pos.x + 1.0f + expand, pos.y - expand, pos.z - expand}},
+            {{pos.x + 1.0f + expand, pos.y - expand, pos.z + 1.0f + expand}},
 
-            {{pos.x + 1.0f, pos.y + 1.0f, pos.z}},
-            {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}},
+            {{pos.x + 1.0f + expand, pos.y + 1.0f + expand, pos.z - expand}},
+            {{pos.x + 1.0f + expand, pos.y + 1.0f + expand, pos.z + 1.0f + expand}},
 
-            {{pos.x, pos.y + 1.0f, pos.z}},
-            {{pos.x, pos.y + 1.0f, pos.z + 1.0f}}
+            {{pos.x - expand, pos.y + 1.0f + expand, pos.z - expand}},
+            {{pos.x - expand, pos.y + 1.0f + expand, pos.z + 1.0f + expand}}
         };
 
         // Update buffer data
@@ -692,6 +754,7 @@ private:
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
+        createDepthResources();
         createSelectionBuffer();
         createDescriptorPool();
         createDescriptorSet();
@@ -912,26 +975,43 @@ void createImageViews() {
         colorAttachment.initialLayout = vk::ImageLayout::eUndefined;
         colorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
 
+        vk::AttachmentDescription depthAttachment{};
+        depthAttachment.format = findDepthFormat();
+        depthAttachment.samples = vk::SampleCountFlagBits::e1;
+        depthAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+        depthAttachment.storeOp = vk::AttachmentStoreOp::eDontCare;
+        depthAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+        depthAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+        depthAttachment.initialLayout = vk::ImageLayout::eUndefined;
+        depthAttachment.finalLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
         vk::AttachmentReference colorAttachmentRef{};
         colorAttachmentRef.attachment = 0;
         colorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+        vk::AttachmentReference depthAttachmentRef{};
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+
+        std::array<vk::AttachmentDescription, 2> attachments = {colorAttachment, depthAttachment};
 
         vk::SubpassDescription subpass{};
         subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
         vk::SubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
-        dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
         dependency.srcAccessMask = vk::AccessFlagBits::eNone;
-        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
+        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
 
         vk::RenderPassCreateInfo renderPassInfo{};
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.attachmentCount = attachments.size();
+        renderPassInfo.pAttachments = attachments.data();
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
         renderPassInfo.dependencyCount = 1;
@@ -1039,6 +1119,15 @@ void createImageViews() {
         pipelineInfo.renderPass = renderPass;
         pipelineInfo.subpass = 0;
 
+        vk::PipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = vk::CompareOp::eLess;
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+        depthStencil.stencilTestEnable = VK_FALSE;
+
+        pipelineInfo.pDepthStencilState = &depthStencil;
+
         graphicsPipeline = device.createGraphicsPipeline(nullptr, pipelineInfo).value;
 
         device.destroyShaderModule(fragShaderModule);
@@ -1084,14 +1173,15 @@ void createImageViews() {
         swapChainFramebuffers.resize(swapChainImageViews.size());
 
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-            vk::ImageView attachments[] = {
-                swapChainImageViews[i]
+            std::array<vk::ImageView, 2> attachments = {
+                swapChainImageViews[i],
+                depthImageView
             };
 
             vk::FramebufferCreateInfo framebufferInfo{};
             framebufferInfo.renderPass = renderPass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.attachmentCount = attachments.size();
+            framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = swapChainExtent.width;
             framebufferInfo.height = swapChainExtent.height;
             framebufferInfo.layers = 1;
@@ -1290,9 +1380,11 @@ void createImageViews() {
             renderPassInfo.renderArea.offset = vk::Offset2D{0, 0};
             renderPassInfo.renderArea.extent = swapChainExtent;
 
-            vk::ClearValue clearColor = {std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}};
-            renderPassInfo.clearValueCount = 1;
-            renderPassInfo.pClearValues = &clearColor;
+            std::array<vk::ClearValue, 2> clearValues{};
+            clearValues[0].color = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f};
+            clearValues[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues = clearValues.data();
 
             commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
             commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
@@ -1411,6 +1503,10 @@ void createSyncObjects() {
             device.destroySemaphore(renderFinishedSemaphores[i]);
             device.destroyFence(inFlightFences[i]);
         }
+
+        device.destroyImageView(depthImageView);
+        device.destroyImage(depthImage);
+        device.freeMemory(depthImageMemory);
 
         device.destroyCommandPool(commandPool);
 
