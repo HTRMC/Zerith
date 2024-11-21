@@ -31,6 +31,7 @@ struct PlayerCollider {
     glm::vec3 velocity = glm::vec3(0.0f);
     float gravity = -20.0f;
     float jumpForce = 8.0f;
+    float walkingSpeed = 4.317f;
 };
 PlayerCollider player;
 
@@ -889,70 +890,75 @@ private:
     }
 
     void processInput() {
-        static bool escapePressed = false;
-        static bool spacePressed = false;
-        float deltaTime = 0.016f; // Fixed timestep
+    static bool escapePressed = false;
+    static bool spacePressed = false;
+    static auto lastTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+    lastTime = currentTime;
 
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            if (!escapePressed) {
-                toggleCursorLock();
-                escapePressed = true;
-            }
-        } else {
-            escapePressed = false;
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        if (!escapePressed) {
+            toggleCursorLock();
+            escapePressed = true;
         }
-
-        if (!cursorLocked) return;
-
-        // Calculate movement vector from input
-        glm::vec3 movement(0.0f);
-        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            movement += camera.front;
-        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            movement -= camera.front;
-        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            movement -= glm::normalize(glm::cross(camera.front, camera.up));
-        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            movement += glm::normalize(glm::cross(camera.front, camera.up));
-
-        // Remove vertical component for ground movement
-        movement.y = 0;
-        if (glm::length(movement) > 0) {
-            movement = glm::normalize(movement);
-        }
-
-        // Handle jumping
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-            if (!spacePressed && player.onGround) {
-                player.velocity.y = player.jumpForce;
-                player.onGround = false;
-            }
-            spacePressed = true;
-        } else {
-            spacePressed = false;
-        }
-
-        // Apply movement and gravity
-        float speed = camera.speed * deltaTime;
-        player.velocity.x = movement.x * speed * 100.0f;
-        player.velocity.z = movement.z * speed * 100.0f;
-
-        if (!player.onGround) {
-            player.velocity.y += player.gravity * deltaTime;
-        }
-
-        // Calculate new position
-        glm::vec3 newPos = player.position + player.velocity * deltaTime;
-
-        // Resolve collisions
-        resolveCollisions(newPos);
-
-        // Update player and camera positions
-        player.position = newPos;
-        camera.pos = player.position + glm::vec3(0.0f, player.dimensions.y/2, 0.0f);
-
-        updateUniformBuffer(currentFrame);
+    } else {
+        escapePressed = false;
     }
+
+    if (!cursorLocked) return;
+
+    // Calculate movement vector from input
+    glm::vec3 movement(0.0f);
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+        movement += camera.front;
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+        movement -= camera.front;
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+        movement -= glm::normalize(glm::cross(camera.front, camera.up));
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+        movement += glm::normalize(glm::cross(camera.front, camera.up));
+
+    // Remove vertical component for ground movement
+    movement.y = 0;
+    if (glm::length(movement) > 0) {
+        movement = glm::normalize(movement);
+    }
+
+    // Handle jumping
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        if (!spacePressed && player.onGround) {
+            player.velocity.y = player.jumpForce;
+            player.onGround = false;
+        }
+        spacePressed = true;
+    } else {
+        spacePressed = false;
+    }
+
+    // Apply horizontal movement at constant walking speed
+    float speed = player.walkingSpeed * deltaTime;
+    player.velocity.x = movement.x * speed * 100.0f;
+    player.velocity.z = movement.z * speed * 100.0f;
+
+    // Apply gravity
+    if (!player.onGround) {
+        player.velocity.y += player.gravity * deltaTime;
+    }
+
+    // Calculate new position
+    glm::vec3 newPos = player.position + player.velocity * deltaTime;
+
+    // Resolve collisions
+    resolveCollisions(newPos);
+
+    // Update player and camera positions
+    player.position = newPos;
+    camera.pos = player.position + glm::vec3(0.0f, player.dimensions.y/2, 0.0f);
+
+    updateUniformBuffer(currentFrame);
+}
+
 
     bool checkCollision(const glm::vec3& pos, const glm::vec3& dimensions, const Block& block) {
         if (!block.exists) return false;
