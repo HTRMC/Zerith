@@ -86,6 +86,32 @@ private:
     size_t currentFrame = 0;
     bool framebufferResized = false;
     const int MAX_FRAMES_IN_FLIGHT = 2;
+    bool windowFocused = false;
+    bool cursorLocked = true;
+
+    void toggleCursorLock() {
+        cursorLocked = !cursorLocked;
+        if (cursorLocked) {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            int width, height;
+            glfwGetWindowSize(window, &width, &height);
+            glfwSetCursorPos(window, width / 2.0, height / 2.0);
+            camera.firstMouse = true;
+        } else {
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
+    }
+
+    static void focusCallback(GLFWwindow* window, int focused) {
+        auto app = reinterpret_cast<Zerith*>(glfwGetWindowUserPointer(window));
+        app->windowFocused = focused == GLFW_TRUE;
+
+        if (app->windowFocused && app->cursorLocked) {
+            int width, height;
+            glfwGetWindowSize(window, &width, &height);
+            glfwSetCursorPos(window, width / 2.0, height / 2.0);
+        }
+    }
 
     const std::vector<Vertex> vertices = {
         {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
@@ -114,6 +140,7 @@ private:
         float lastX = 400.0f;
         float lastY = 300.0f;
         bool firstMouse = true;
+        float sensitivity = 0.1f;
         float speed = 2.5f;
     } camera;
 
@@ -122,11 +149,17 @@ private:
         app->processMouseMovement(xpos, ypos);
     }
 
-    void processMouseMovement(double xpos, double ypos) {
+    void processMouseMovement(double xposIn, double yposIn) {
+        if (!windowFocused) return;
+
+        float xpos = static_cast<float>(xposIn);
+        float ypos = static_cast<float>(yposIn);
+
         if (camera.firstMouse) {
             camera.lastX = xpos;
             camera.lastY = ypos;
             camera.firstMouse = false;
+            return;
         }
 
         float xoffset = xpos - camera.lastX;
@@ -134,24 +167,38 @@ private:
         camera.lastX = xpos;
         camera.lastY = ypos;
 
-        const float sensitivity = 0.1f;
-        xoffset *= sensitivity;
-        yoffset *= sensitivity;
+        xoffset *= camera.sensitivity;
+        yoffset *= camera.sensitivity;
 
         camera.yaw += xoffset;
         camera.pitch += yoffset;
 
-        if (camera.pitch > 89.0f) camera.pitch = 89.0f;
-        if (camera.pitch < -89.0f) camera.pitch = -89.0f;
+        if (camera.pitch > 89.0f)
+            camera.pitch = 89.0f;
+        if (camera.pitch < -89.0f)
+            camera.pitch = -89.0f;
 
-        glm::vec3 direction;
-        direction.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
-        direction.y = sin(glm::radians(camera.pitch));
-        direction.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
-        camera.front = glm::normalize(direction);
+        glm::vec3 front;
+        front.x = cos(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+        front.y = sin(glm::radians(camera.pitch));
+        front.z = sin(glm::radians(camera.yaw)) * cos(glm::radians(camera.pitch));
+        camera.front = glm::normalize(front);
     }
 
     void processInput() {
+        static bool escapePressed = false;
+
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            if (!escapePressed) {
+                toggleCursorLock();
+                escapePressed = true;
+            }
+        } else {
+            escapePressed = false;
+        }
+
+        if (!cursorLocked) return;
+
         float deltaTime = 0.016f; // Assuming ~60 FPS
         float velocity = camera.speed * deltaTime;
 
@@ -165,10 +212,9 @@ private:
             camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * velocity;
         if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
             camera.pos += camera.up * velocity;
-        if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
             camera.pos -= camera.up * velocity;
 
-        // Update the uniform buffer with new camera position
         updateUniformBuffer(currentFrame);
     }
 
@@ -178,13 +224,32 @@ private:
     }
 
     void initWindow() {
-        glfwInit();
+        if (!glfwInit()) {
+            throw std::runtime_error("Failed to initialize GLFW");
+        }
+
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+
         window = glfwCreateWindow(800, 600, "Zerith", nullptr, nullptr);
+        if (!window) {
+            throw std::runtime_error("Failed to create GLFW window");
+        }
+
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
         glfwSetCursorPosCallback(window, mouseCallback);
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        glfwSetWindowFocusCallback(window, focusCallback);
+
+        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        if (monitor) {
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            int monitorX, monitorY;
+            glfwGetMonitorPos(monitor, &monitorX, &monitorY);
+            glfwSetWindowPos(window,
+                monitorX + (mode->width - 800) / 2,
+                monitorY + (mode->height - 600) / 2);
+        }
     }
 
         void cleanupSwapChain() {
@@ -894,6 +959,12 @@ void createSyncObjects() {
         while (!glfwWindowShouldClose(window)) {
             glfwPollEvents();
             processInput();
+
+            // Ensure the cursor remains disabled
+            if (cursorLocked) {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
+
             drawFrame();
         }
         device.waitIdle();
