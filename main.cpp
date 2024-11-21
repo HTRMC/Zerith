@@ -691,8 +691,8 @@ private:
 
         // Apply movement and gravity
         float speed = camera.speed * deltaTime;
-        player.velocity.x = movement.x * speed * 60.0f;
-        player.velocity.z = movement.z * speed * 60.0f;
+        player.velocity.x = movement.x * speed * 100.0f;
+        player.velocity.z = movement.z * speed * 100.0f;
 
         if (!player.onGround) {
             player.velocity.y += player.gravity * deltaTime;
