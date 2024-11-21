@@ -13,6 +13,15 @@
 #include <array>
 #include <chrono>
 
+struct Block {
+    bool exists;
+    glm::vec3 position;
+};
+
+// Add to private members
+std::vector<Block> blocks;
+const float MAX_REACH = 5.0f;  // Maximum distance for block interaction
+
 struct Vertex {
     float pos[3];
     float color[3];
@@ -116,117 +125,267 @@ private:
     std::vector<Vertex> vertices;
     std::vector<uint16_t> indices;
 
-    void generateCubes() {
-        // 3D array to track block positions
+    void initializeBlocks() {
         const int GRID_SIZE = 16;
-        bool blockExists[GRID_SIZE][GRID_SIZE][GRID_SIZE] = {false};
+        blocks.reserve(GRID_SIZE * GRID_SIZE * GRID_SIZE);
 
-        // First pass: Mark existing blocks
         for (int x = 0; x < GRID_SIZE; ++x) {
             for (int y = 0; y < GRID_SIZE; ++y) {
                 for (int z = 0; z < GRID_SIZE; ++z) {
-                    blockExists[x][y][z] = true;  // All blocks exist in this case
+                    Block block;
+                    block.exists = true;
+                    block.position = glm::vec3(x, y, z);
+                    blocks.push_back(block);
+                }
+            }
+        }
+        updateBlockMesh();
+    }
+
+    void updateBlockMesh() {
+        vertices.clear();
+        indices.clear();
+
+        for (const auto& block : blocks) {
+            if (!block.exists) continue;
+
+            // Get neighboring block positions
+            glm::vec3 pos = block.position;
+            bool hasNeighbor[6] = {false};  // left, right, bottom, top, front, back
+
+            // Check for neighbors
+            for (const auto& other : blocks) {
+                if (!other.exists) continue;
+                if (other.position == pos) continue;
+
+                glm::vec3 diff = other.position - pos;
+                if (glm::length(diff) > 1.01f) continue;  // Reduced from 1.51f to 1.01f for more precise detection
+
+                // Check exact positions for neighbors
+                if (diff.x == -1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[0] = true;      // left
+                else if (diff.x == 1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[1] = true;  // right
+                if (diff.y == -1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[2] = true;      // bottom
+                else if (diff.y == 1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[3] = true;  // top
+                if (diff.z == -1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[4] = true;      // front
+                else if (diff.z == 1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[5] = true;  // back
+            }
+
+            // Define vertices for this block
+            std::vector<Vertex> blockVertices = {
+                // Front vertices (0-3)
+                {{pos.x, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}},
+                {{pos.x + 1.0f, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}},
+                {{pos.x + 1.0f, pos.y + 1.0f, pos.z}, {1.0f, 1.0f, 1.0f}},
+                {{pos.x, pos.y + 1.0f, pos.z}, {1.0f, 1.0f, 1.0f}},
+
+                // Back vertices (4-7)
+                {{pos.x, pos.y, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}},
+                {{pos.x + 1.0f, pos.y, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}},
+                {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}},
+                {{pos.x, pos.y + 1.0f, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}}
+            };
+
+            uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
+            vertices.insert(vertices.end(), blockVertices.begin(), blockVertices.end());
+
+            // Add indices for visible faces only
+            if (!hasNeighbor[4]) { // Front face
+                indices.push_back(baseIndex + 0);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex + 0);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
+            }
+
+            if (!hasNeighbor[5]) { // Back face
+                indices.push_back(baseIndex + 4);
+                indices.push_back(baseIndex + 5);
+                indices.push_back(baseIndex + 6);
+                indices.push_back(baseIndex + 4);
+                indices.push_back(baseIndex + 6);
+                indices.push_back(baseIndex + 7);
+            }
+
+            if (!hasNeighbor[1]) { // Right face
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex + 6);
+                indices.push_back(baseIndex + 5);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 6);
+            }
+
+            if (!hasNeighbor[0]) { // Left face
+                indices.push_back(baseIndex + 0);
+                indices.push_back(baseIndex + 4);
+                indices.push_back(baseIndex + 7);
+                indices.push_back(baseIndex + 0);
+                indices.push_back(baseIndex + 7);
+                indices.push_back(baseIndex + 3);
+            }
+
+            if (!hasNeighbor[3]) { // Top face
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 6);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 7);
+                indices.push_back(baseIndex + 6);
+            }
+
+            if (!hasNeighbor[2]) { // Bottom face
+                indices.push_back(baseIndex + 0);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex + 5);
+                indices.push_back(baseIndex + 0);
+                indices.push_back(baseIndex + 5);
+                indices.push_back(baseIndex + 4);
+            }
+        }
+
+        // Recreate vertex and index buffers
+        recreateBlockBuffers();
+    }
+
+    void recreateBlockBuffers() {
+        // Clean up existing buffers
+        device.destroyBuffer(vertexBuffer);
+        device.freeMemory(vertexBufferMemory);
+        device.destroyBuffer(indexBuffer);
+        device.freeMemory(indexBufferMemory);
+
+        // Recreate buffers with new data
+        createVertexBuffer();
+        createIndexBuffer();
+    }
+
+    bool raycastBlock(glm::vec3& hitPosition, glm::vec3& hitNormal, bool& hit) {
+        glm::vec3 rayStart = camera.pos;
+        glm::vec3 rayDir = glm::normalize(camera.front);
+
+        float closest = MAX_REACH;
+        hit = false;
+
+        for (const auto& block : blocks) {
+            if (!block.exists) continue;
+
+            // Simple AABB intersection test
+            glm::vec3 mins = block.position;
+            glm::vec3 maxs = block.position + glm::vec3(1.0f);
+
+            float tmin = (mins.x - rayStart.x) / rayDir.x;
+            float tmax = (maxs.x - rayStart.x) / rayDir.x;
+
+            if (tmin > tmax) std::swap(tmin, tmax);
+
+            float tymin = (mins.y - rayStart.y) / rayDir.y;
+            float tymax = (maxs.y - rayStart.y) / rayDir.y;
+
+            if (tymin > tymax) std::swap(tymin, tymax);
+
+            if ((tmin > tymax) || (tymin > tmax)) continue;
+
+            tmin = std::max(tmin, tymin);
+            tmax = std::min(tmax, tymax);
+
+            float tzmin = (mins.z - rayStart.z) / rayDir.z;
+            float tzmax = (maxs.z - rayStart.z) / rayDir.z;
+
+            if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+            if ((tmin > tzmax) || (tzmin > tmax)) continue;
+
+            tmin = std::max(tmin, tzmin);
+            tmax = std::min(tmax, tzmax);
+
+            if (tmin < 0) {
+                if (tmax < 0) continue;
+                tmin = tmax;
+            }
+
+            if (tmin < closest) {
+                closest = tmin;
+                hitPosition = rayStart + rayDir * tmin;
+
+                // Calculate hit normal
+                glm::vec3 center = block.position + glm::vec3(0.5f);
+                glm::vec3 diff = hitPosition - center;
+                float x = abs(diff.x);
+                float y = abs(diff.y);
+                float z = abs(diff.z);
+
+                if (x > y && x > z)
+                    hitNormal = glm::vec3(diff.x > 0 ? 1 : -1, 0, 0);
+                else if (y > z)
+                    hitNormal = glm::vec3(0, diff.y > 0 ? 1 : -1, 0);
+                else
+                    hitNormal = glm::vec3(0, 0, diff.z > 0 ? 1 : -1);
+
+                hit = true;
+            }
+        }
+
+        return hit;
+    }
+
+    void handleBlockInteraction() {
+        static bool leftPressed = false;
+        static bool rightPressed = false;
+
+        bool leftClick = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        bool rightClick = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+
+        if (!cursorLocked) return;
+
+        glm::vec3 hitPos, hitNormal;
+        bool hit;
+
+        if (raycastBlock(hitPos, hitNormal, hit)) {
+            // Break block
+            if (leftClick && !leftPressed) {
+                for (auto& block : blocks) {
+                    if (!block.exists) continue;
+
+                    // Check if the hit position is within the block's bounds
+                    glm::vec3 blockMin = block.position;
+                    glm::vec3 blockMax = block.position + glm::vec3(1.0f);
+
+                    if (hitPos.x >= blockMin.x && hitPos.x <= blockMax.x &&
+                        hitPos.y >= blockMin.y && hitPos.y <= blockMax.y &&
+                        hitPos.z >= blockMin.z && hitPos.z <= blockMax.z) {
+                        block.exists = false;
+                        updateBlockMesh();
+                        break;
+                        }
+                }
+            }
+            // Place block
+            else if (rightClick && !rightPressed) {
+                glm::vec3 newPos = glm::floor(hitPos + hitNormal + glm::vec3(0.001f));  // Add small offset to avoid floating point issues
+
+                // Check if position is occupied
+                bool occupied = false;
+                for (const auto& block : blocks) {
+                    if (!block.exists) continue;
+                    if (block.position == newPos) {
+                        occupied = true;
+                        break;
+                    }
+                }
+
+                if (!occupied) {
+                    Block newBlock;
+                    newBlock.exists = true;
+                    newBlock.position = newPos;
+                    blocks.push_back(newBlock);
+                    updateBlockMesh();
                 }
             }
         }
 
-        float spacing = 0.5f;
-        // Second pass: Generate visible faces only
-        for (int x = 0; x < GRID_SIZE; ++x) {
-            for (int y = 0; y < GRID_SIZE; ++y) {
-                for (int z = 0; z < GRID_SIZE; ++z) {
-                    if (!blockExists[x][y][z]) continue;
-
-                    float offsetX = static_cast<float>(x) * (1.0f + spacing);
-                    float offsetY = static_cast<float>(y) * (1.0f + spacing);
-                    float offsetZ = static_cast<float>(z) * (1.0f + spacing);
-
-                    // Check each face's visibility
-                    bool visible[6] = {
-                        x == 0 || !blockExists[x-1][y][z],     // Left face
-                        x == GRID_SIZE-1 || !blockExists[x+1][y][z], // Right face
-                        y == 0 || !blockExists[x][y-1][z],     // Bottom face
-                        y == GRID_SIZE-1 || !blockExists[x][y+1][z], // Top face
-                        z == 0 || !blockExists[x][y][z-1],     // Front face
-                        z == GRID_SIZE-1 || !blockExists[x][y][z+1]  // Back face
-                    };
-
-                    // Define vertices for this block
-                    std::vector<Vertex> blockVertices = {
-                        // Front vertices
-                        {{0.0f + offsetX, 0.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        {{1.0f + offsetX, 0.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        {{1.0f + offsetX, 1.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        {{0.0f + offsetX, 1.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        // Back vertices
-                        {{0.0f + offsetX, 0.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        {{1.0f + offsetX, 0.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        {{1.0f + offsetX, 1.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
-                        {{0.0f + offsetX, 1.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}}
-                    };
-
-                    uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
-
-                    // Add vertices to main vertex array
-                    vertices.insert(vertices.end(), blockVertices.begin(), blockVertices.end());
-
-                    // Add indices for visible faces only with corrected winding order
-                    if (visible[4]) { // Front face
-                        indices.push_back(baseIndex + 0);
-                        indices.push_back(baseIndex + 2);
-                        indices.push_back(baseIndex + 1);
-                        indices.push_back(baseIndex + 0);
-                        indices.push_back(baseIndex + 3);
-                        indices.push_back(baseIndex + 2);
-                    }
-
-                    if (visible[5]) { // Back face
-                        indices.push_back(baseIndex + 4);
-                        indices.push_back(baseIndex + 5);
-                        indices.push_back(baseIndex + 7);
-                        indices.push_back(baseIndex + 5);
-                        indices.push_back(baseIndex + 6);
-                        indices.push_back(baseIndex + 7);
-                    }
-
-                    if (visible[1]) { // Right face
-                        indices.push_back(baseIndex + 1);
-                        indices.push_back(baseIndex + 6);
-                        indices.push_back(baseIndex + 5);
-                        indices.push_back(baseIndex + 1);
-                        indices.push_back(baseIndex + 2);
-                        indices.push_back(baseIndex + 6);
-                    }
-
-                    if (visible[0]) { // Left face
-                        indices.push_back(baseIndex + 0);
-                        indices.push_back(baseIndex + 4);
-                        indices.push_back(baseIndex + 7);
-                        indices.push_back(baseIndex + 0);
-                        indices.push_back(baseIndex + 7);
-                        indices.push_back(baseIndex + 3);
-                    }
-
-                    if (visible[3]) { // Top face
-                        indices.push_back(baseIndex + 3);
-                        indices.push_back(baseIndex + 6);
-                        indices.push_back(baseIndex + 2);
-                        indices.push_back(baseIndex + 3);
-                        indices.push_back(baseIndex + 7);
-                        indices.push_back(baseIndex + 6);
-                    }
-
-                    if (visible[2]) { // Bottom face
-                        indices.push_back(baseIndex + 0);
-                        indices.push_back(baseIndex + 1);
-                        indices.push_back(baseIndex + 5);
-                        indices.push_back(baseIndex + 0);
-                        indices.push_back(baseIndex + 5);
-                        indices.push_back(baseIndex + 4);
-                    }
-                }
-            }
-        }
+        leftPressed = leftClick;
+        rightPressed = rightClick;
     }
 
     struct UniformBufferObject {
@@ -236,7 +395,7 @@ private:
     };
 
     struct CameraData {
-        glm::vec3 pos = glm::vec3(0.0f, 0.0f, 3.0f);
+        glm::vec3 pos = glm::vec3(8.0f, 18.0f, 8.0f);
         glm::vec3 front = glm::vec3(0.0f, 0.0f, -1.0f);
         glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
         float yaw = -90.0f;
@@ -405,7 +564,7 @@ private:
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
-        generateCubes();
+        initializeBlocks();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
@@ -1070,6 +1229,7 @@ void createSyncObjects() {
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             }
 
+            handleBlockInteraction();
             drawFrame();
         }
         device.waitIdle();
