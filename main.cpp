@@ -31,7 +31,15 @@ struct PlayerCollider {
     glm::vec3 velocity = glm::vec3(0.0f);
     float gravity = -20.0f;
     float jumpForce = 8.0f;
-    float walkingSpeed = 4.317f;
+    float walkingSpeed = 4.317f;  // Blocks per second
+    float sprintingSpeed = 5.612f; // Blocks per second while sprinting
+    float sprintJumpForce = 9.5f;  // Increased jump force while sprinting
+
+    // Sprinting state
+    bool isSprinting = false;
+    double lastWPress = 0.0;
+    bool wasWPressed = false;
+    static constexpr double DOUBLE_TAP_TIME = 0.3; // Time window for double-tap detection in seconds
 };
 PlayerCollider player;
 
@@ -908,12 +916,42 @@ private:
 
     if (!cursorLocked) return;
 
+    // Handle sprint input (Ctrl key or double-tap W)
+    bool wKeyPressed = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+    bool ctrlPressed = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+                      glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+
+    // Double-tap W detection
+    if (wKeyPressed && !player.wasWPressed) {
+        double currentTime = glfwGetTime();
+        double timeSinceLastPress = currentTime - player.lastWPress;
+
+        if (timeSinceLastPress < player.DOUBLE_TAP_TIME) {
+            player.isSprinting = true;
+        }
+
+        player.lastWPress = currentTime;
+    }
+    player.wasWPressed = wKeyPressed;
+
+    // Direct sprint key (Ctrl) handling
+    if (ctrlPressed && wKeyPressed) {
+        player.isSprinting = true;
+    }
+
+    // Stop sprinting if not moving forward
+    if (!wKeyPressed) {
+        player.isSprinting = false;
+    }
+
     // Calculate movement vector from input
     glm::vec3 movement(0.0f);
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+    if (wKeyPressed)
         movement += camera.front;
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         movement -= camera.front;
+        player.isSprinting = false; // Can't sprint backwards
+    }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
         movement -= glm::normalize(glm::cross(camera.front, camera.up));
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
@@ -925,10 +963,11 @@ private:
         movement = glm::normalize(movement);
     }
 
-    // Handle jumping
+    // Handle jumping with sprint jump boost
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
         if (!spacePressed && player.onGround) {
-            player.velocity.y = player.jumpForce;
+            // Apply sprint jump boost if sprinting
+            player.velocity.y = player.isSprinting ? player.sprintJumpForce : player.jumpForce;
             player.onGround = false;
         }
         spacePressed = true;
@@ -936,8 +975,11 @@ private:
         spacePressed = false;
     }
 
-    // Apply horizontal movement at constant walking speed
-    float speed = player.walkingSpeed * deltaTime;
+    // Apply movement speed based on sprint state
+    float currentSpeed = player.isSprinting ? player.sprintingSpeed : player.walkingSpeed;
+    float speed = currentSpeed * deltaTime;
+
+    // Apply horizontal movement
     player.velocity.x = movement.x * speed * 100.0f;
     player.velocity.z = movement.z * speed * 100.0f;
 
@@ -957,6 +999,13 @@ private:
     camera.pos = player.position + glm::vec3(0.0f, player.dimensions.y/2, 0.0f);
 
     updateUniformBuffer(currentFrame);
+}
+
+// Add a helper function to reset sprint state when needed
+void resetSprintState() {
+    player.isSprinting = false;
+    player.wasWPressed = false;
+    player.lastWPress = 0.0;
 }
 
 
