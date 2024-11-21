@@ -113,37 +113,121 @@ private:
         }
     }
 
-    const std::vector<Vertex> vertices = {
-        {{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-        {{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-        {{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-        {{0.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+    std::vector<Vertex> vertices;
+    std::vector<uint16_t> indices;
 
-        {{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-        {{1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-        {{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
-        {{1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
-    };
+    void generateCubes() {
+        // 3D array to track block positions
+        const int GRID_SIZE = 16;
+        bool blockExists[GRID_SIZE][GRID_SIZE][GRID_SIZE] = {false};
 
-    const std::vector<uint16_t> indices = {
-        0, 1, 2,    // First front triangle
-        2, 1, 3,    // Second front triangle
+        // First pass: Mark existing blocks
+        for (int x = 0; x < GRID_SIZE; ++x) {
+            for (int y = 0; y < GRID_SIZE; ++y) {
+                for (int z = 0; z < GRID_SIZE; ++z) {
+                    blockExists[x][y][z] = true;  // All blocks exist in this case
+                }
+            }
+        }
 
-        1, 5, 3,    // First right triangle
-        3, 5, 7,    // Second right triangle
+        float spacing = 0.5f;
+        // Second pass: Generate visible faces only
+        for (int x = 0; x < GRID_SIZE; ++x) {
+            for (int y = 0; y < GRID_SIZE; ++y) {
+                for (int z = 0; z < GRID_SIZE; ++z) {
+                    if (!blockExists[x][y][z]) continue;
 
-        5, 4, 7,    // First back triangle
-        7, 4, 6,    // Second back triangle
+                    float offsetX = static_cast<float>(x) * (1.0f + spacing);
+                    float offsetY = static_cast<float>(y) * (1.0f + spacing);
+                    float offsetZ = static_cast<float>(z) * (1.0f + spacing);
 
-        4, 0, 6,    // First left triangle
-        6, 0, 2,    // Second left triangle
+                    // Check each face's visibility
+                    bool visible[6] = {
+                        x == 0 || !blockExists[x-1][y][z],     // Left face
+                        x == GRID_SIZE-1 || !blockExists[x+1][y][z], // Right face
+                        y == 0 || !blockExists[x][y-1][z],     // Bottom face
+                        y == GRID_SIZE-1 || !blockExists[x][y+1][z], // Top face
+                        z == 0 || !blockExists[x][y][z-1],     // Front face
+                        z == GRID_SIZE-1 || !blockExists[x][y][z+1]  // Back face
+                    };
 
-        2, 3, 6,    // First top triangle
-        6, 3, 7,    // Second top triangle
+                    // Define vertices for this block
+                    std::vector<Vertex> blockVertices = {
+                        // Front vertices
+                        {{0.0f + offsetX, 0.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        {{1.0f + offsetX, 0.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        {{1.0f + offsetX, 1.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        {{0.0f + offsetX, 1.0f + offsetY, 0.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        // Back vertices
+                        {{0.0f + offsetX, 0.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        {{1.0f + offsetX, 0.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        {{1.0f + offsetX, 1.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}},
+                        {{0.0f + offsetX, 1.0f + offsetY, 1.0f + offsetZ}, {1.0f, 1.0f, 1.0f}}
+                    };
 
-        0, 4, 1,    // First bottom triangle
-        4, 5, 1     // Second bottom triangle
-    };
+                    uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
+
+                    // Add vertices to main vertex array
+                    vertices.insert(vertices.end(), blockVertices.begin(), blockVertices.end());
+
+                    // Add indices for visible faces only with corrected winding order
+                    if (visible[4]) { // Front face
+                        indices.push_back(baseIndex + 0);
+                        indices.push_back(baseIndex + 2);
+                        indices.push_back(baseIndex + 1);
+                        indices.push_back(baseIndex + 0);
+                        indices.push_back(baseIndex + 3);
+                        indices.push_back(baseIndex + 2);
+                    }
+
+                    if (visible[5]) { // Back face
+                        indices.push_back(baseIndex + 4);
+                        indices.push_back(baseIndex + 5);
+                        indices.push_back(baseIndex + 7);
+                        indices.push_back(baseIndex + 5);
+                        indices.push_back(baseIndex + 6);
+                        indices.push_back(baseIndex + 7);
+                    }
+
+                    if (visible[1]) { // Right face
+                        indices.push_back(baseIndex + 1);
+                        indices.push_back(baseIndex + 6);
+                        indices.push_back(baseIndex + 5);
+                        indices.push_back(baseIndex + 1);
+                        indices.push_back(baseIndex + 2);
+                        indices.push_back(baseIndex + 6);
+                    }
+
+                    if (visible[0]) { // Left face
+                        indices.push_back(baseIndex + 0);
+                        indices.push_back(baseIndex + 4);
+                        indices.push_back(baseIndex + 7);
+                        indices.push_back(baseIndex + 0);
+                        indices.push_back(baseIndex + 7);
+                        indices.push_back(baseIndex + 3);
+                    }
+
+                    if (visible[3]) { // Top face
+                        indices.push_back(baseIndex + 3);
+                        indices.push_back(baseIndex + 6);
+                        indices.push_back(baseIndex + 2);
+                        indices.push_back(baseIndex + 3);
+                        indices.push_back(baseIndex + 7);
+                        indices.push_back(baseIndex + 6);
+                    }
+
+                    if (visible[2]) { // Bottom face
+                        indices.push_back(baseIndex + 0);
+                        indices.push_back(baseIndex + 1);
+                        indices.push_back(baseIndex + 5);
+                        indices.push_back(baseIndex + 0);
+                        indices.push_back(baseIndex + 5);
+                        indices.push_back(baseIndex + 4);
+                    }
+                }
+            }
+        }
+    }
 
     struct UniformBufferObject {
         glm::mat4 model;
@@ -321,6 +405,7 @@ private:
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
+        generateCubes();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
@@ -803,7 +888,7 @@ void createImageViews() {
         ubo.model = glm::mat4(1.0f);
         ubo.view = glm::lookAt(camera.pos, camera.pos + camera.front, camera.up);
         ubo.proj = glm::perspective(glm::radians(45.0f),
-            swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+            swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 1000.0f);
         ubo.proj[1][1] *= -1;  // Flip Y coordinate for Vulkan
 
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
