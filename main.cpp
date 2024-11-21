@@ -12,6 +12,8 @@
 #include <fstream>
 #include <array>
 #include <chrono>
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb/stb_image.h>
 
 struct Block {
     bool exists;
@@ -35,6 +37,7 @@ PlayerCollider player;
 struct Vertex {
     float pos[3];
     float color[3];
+    float texCoord[2];
 
     static vk::VertexInputBindingDescription getBindingDescription() {
         vk::VertexInputBindingDescription bindingDescription{};
@@ -44,8 +47,8 @@ struct Vertex {
         return bindingDescription;
     }
 
-    static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescriptions() {
-        std::array<vk::VertexInputAttributeDescription, 2> attributeDescriptions{};
+    static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions() {
+        std::array<vk::VertexInputAttributeDescription, 3> attributeDescriptions{};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = 0;
@@ -56,6 +59,11 @@ struct Vertex {
         attributeDescriptions[1].location = 1;
         attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[1].offset = offsetof(Vertex, color);
+
+        attributeDescriptions[2].binding = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format = vk::Format::eR32G32Sfloat;
+        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
 
         return attributeDescriptions;
     }
@@ -140,6 +148,10 @@ private:
     vk::Image depthImage;
     vk::DeviceMemory depthImageMemory;
     vk::ImageView depthImageView;
+    vk::Image textureImage;
+    vk::DeviceMemory textureImageMemory;
+    vk::ImageView textureImageView;
+    vk::Sampler textureSampler;
 
     vk::Format findDepthFormat() {
         std::vector<vk::Format> candidates = {
@@ -326,111 +338,342 @@ private:
         updateBlockMesh();
     }
 
-    void updateBlockMesh() {
-        vertices.clear();
-        indices.clear();
+    vk::CommandBuffer beginSingleTimeCommands() {
+        vk::CommandBufferAllocateInfo allocInfo{};
+        allocInfo.level = vk::CommandBufferLevel::ePrimary;
+        allocInfo.commandPool = commandPool;
+        allocInfo.commandBufferCount = 1;
 
-        for (const auto& block : blocks) {
-            if (!block.exists) continue;
+        vk::CommandBuffer commandBuffer = device.allocateCommandBuffers(allocInfo)[0];
 
-            // Get neighboring block positions
-            glm::vec3 pos = block.position;
-            bool hasNeighbor[6] = {false};  // left, right, bottom, top, front, back
+        vk::CommandBufferBeginInfo beginInfo{};
+        beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
 
-            // Check for neighbors
-            for (const auto& other : blocks) {
-                if (!other.exists) continue;
-                if (other.position == pos) continue;
+        commandBuffer.begin(beginInfo);
+        return commandBuffer;
+    }
 
-                glm::vec3 diff = other.position - pos;
-                if (glm::length(diff) > 1.01f) continue;  // Reduced from 1.51f to 1.01f for more precise detection
+    void endSingleTimeCommands(vk::CommandBuffer commandBuffer) {
+        commandBuffer.end();
 
-                // Check exact positions for neighbors
-                if (diff.x == -1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[0] = true;      // left
-                else if (diff.x == 1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[1] = true;  // right
-                if (diff.y == -1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[2] = true;      // bottom
-                else if (diff.y == 1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[3] = true;  // top
-                if (diff.z == -1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[4] = true;      // front
-                else if (diff.z == 1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[5] = true;  // back
-            }
+        vk::SubmitInfo submitInfo{};
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
 
-            // Define vertices for this block
-            std::vector<Vertex> blockVertices = {
-                // Front vertices (0-3)
-                {{pos.x, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}},
-                {{pos.x + 1.0f, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}},
-                {{pos.x + 1.0f, pos.y + 1.0f, pos.z}, {1.0f, 1.0f, 1.0f}},
-                {{pos.x, pos.y + 1.0f, pos.z}, {1.0f, 1.0f, 1.0f}},
+        graphicsQueue.submit(submitInfo);
+        graphicsQueue.waitIdle();
 
-                // Back vertices (4-7)
-                {{pos.x, pos.y, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}},
-                {{pos.x + 1.0f, pos.y, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}},
-                {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}},
-                {{pos.x, pos.y + 1.0f, pos.z + 1.0f}, {0.9f, 0.9f, 0.9f}}
-            };
+        device.freeCommandBuffers(commandPool, 1, &commandBuffer);
+    }
 
-            uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
-            vertices.insert(vertices.end(), blockVertices.begin(), blockVertices.end());
+    void createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Buffer& buffer, vk::DeviceMemory& bufferMemory) {
+        vk::BufferCreateInfo bufferInfo{};
+        bufferInfo.size = size;
+        bufferInfo.usage = usage;
+        bufferInfo.sharingMode = vk::SharingMode::eExclusive;
 
-            // Add indices for visible faces only
-            if (!hasNeighbor[4]) { // Front face
-                indices.push_back(baseIndex + 0);
-                indices.push_back(baseIndex + 2);
-                indices.push_back(baseIndex + 1);
-                indices.push_back(baseIndex + 0);
-                indices.push_back(baseIndex + 3);
-                indices.push_back(baseIndex + 2);
-            }
+        buffer = device.createBuffer(bufferInfo);
 
-            if (!hasNeighbor[5]) { // Back face
-                indices.push_back(baseIndex + 4);
-                indices.push_back(baseIndex + 5);
-                indices.push_back(baseIndex + 6);
-                indices.push_back(baseIndex + 4);
-                indices.push_back(baseIndex + 6);
-                indices.push_back(baseIndex + 7);
-            }
+        vk::MemoryRequirements memRequirements = device.getBufferMemoryRequirements(buffer);
 
-            if (!hasNeighbor[1]) { // Right face
-                indices.push_back(baseIndex + 1);
-                indices.push_back(baseIndex + 6);
-                indices.push_back(baseIndex + 5);
-                indices.push_back(baseIndex + 1);
-                indices.push_back(baseIndex + 2);
-                indices.push_back(baseIndex + 6);
-            }
+        vk::MemoryAllocateInfo allocInfo{};
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
 
-            if (!hasNeighbor[0]) { // Left face
-                indices.push_back(baseIndex + 0);
-                indices.push_back(baseIndex + 4);
-                indices.push_back(baseIndex + 7);
-                indices.push_back(baseIndex + 0);
-                indices.push_back(baseIndex + 7);
-                indices.push_back(baseIndex + 3);
-            }
+        bufferMemory = device.allocateMemory(allocInfo);
+        device.bindBufferMemory(buffer, bufferMemory, 0);
+    }
 
-            if (!hasNeighbor[3]) { // Top face
-                indices.push_back(baseIndex + 3);
-                indices.push_back(baseIndex + 6);
-                indices.push_back(baseIndex + 2);
-                indices.push_back(baseIndex + 3);
-                indices.push_back(baseIndex + 7);
-                indices.push_back(baseIndex + 6);
-            }
+    void createImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Image& image, vk::DeviceMemory& imageMemory) {
+        vk::ImageCreateInfo imageInfo{};
+        imageInfo.imageType = vk::ImageType::e2D;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = format;
+        imageInfo.tiling = tiling;
+        imageInfo.initialLayout = vk::ImageLayout::eUndefined;
+        imageInfo.usage = usage;
+        imageInfo.sharingMode = vk::SharingMode::eExclusive;
+        imageInfo.samples = vk::SampleCountFlagBits::e1;
 
-            if (!hasNeighbor[2]) { // Bottom face
-                indices.push_back(baseIndex + 0);
-                indices.push_back(baseIndex + 1);
-                indices.push_back(baseIndex + 5);
-                indices.push_back(baseIndex + 0);
-                indices.push_back(baseIndex + 5);
-                indices.push_back(baseIndex + 4);
-            }
+        image = device.createImage(imageInfo);
+
+        vk::MemoryRequirements memRequirements = device.getImageMemoryRequirements(image);
+
+        vk::MemoryAllocateInfo allocInfo{};
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties);
+
+        imageMemory = device.allocateMemory(allocInfo);
+        device.bindImageMemory(image, imageMemory, 0);
+    }
+
+    void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+        vk::CommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        vk::ImageMemoryBarrier barrier{};
+        barrier.oldLayout = oldLayout;
+        barrier.newLayout = newLayout;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image;
+        barrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+
+        vk::PipelineStageFlags sourceStage;
+        vk::PipelineStageFlags destinationStage;
+
+        if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eTransferDstOptimal) {
+            barrier.srcAccessMask = vk::AccessFlagBits::eNone;
+            barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+
+            sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
+            destinationStage = vk::PipelineStageFlagBits::eTransfer;
+        } else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+            barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+            barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+
+            sourceStage = vk::PipelineStageFlagBits::eTransfer;
+            destinationStage = vk::PipelineStageFlagBits::eFragmentShader;
+        } else {
+            throw std::invalid_argument("unsupported layout transition!");
         }
 
-        // Recreate vertex and index buffers
-        recreateBlockBuffers();
+        commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, nullptr, nullptr, barrier);
+
+        endSingleTimeCommands(commandBuffer);
     }
+
+    void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height) {
+        vk::CommandBuffer commandBuffer = beginSingleTimeCommands();
+
+        vk::BufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = vk::Offset3D{0, 0, 0};
+        region.imageExtent = vk::Extent3D{width, height, 1};
+
+        commandBuffer.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, region);
+
+        endSingleTimeCommands(commandBuffer);
+    }
+
+    void createTextureImage(const char* filepath) {
+        int texWidth, texHeight, texChannels;
+        stbi_uc* pixels = stbi_load(filepath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        VkDeviceSize imageSize = texWidth * texHeight * 4;
+
+        if (!pixels) {
+            throw std::runtime_error("failed to load texture image!");
+        }
+
+        vk::Buffer stagingBuffer;
+        vk::DeviceMemory stagingBufferMemory;
+
+        createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+            stagingBuffer, stagingBufferMemory);
+
+        void* data = device.mapMemory(stagingBufferMemory, 0, imageSize);
+        memcpy(data, pixels, static_cast<size_t>(imageSize));
+        device.unmapMemory(stagingBufferMemory);
+
+        stbi_image_free(pixels);
+
+        createImage(texWidth, texHeight, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal,
+            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+            vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory);
+
+        transitionImageLayout(textureImage, vk::Format::eR8G8B8A8Srgb,
+            vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+        copyBufferToImage(stagingBuffer, textureImage,
+            static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+        transitionImageLayout(textureImage, vk::Format::eR8G8B8A8Srgb,
+            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+        device.destroyBuffer(stagingBuffer);
+        device.freeMemory(stagingBufferMemory);
+    }
+
+    vk::ImageView createImageView(vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags) {
+        vk::ImageViewCreateInfo viewInfo{};
+        viewInfo.image = image;
+        viewInfo.viewType = vk::ImageViewType::e2D;
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        return device.createImageView(viewInfo);
+    }
+
+    void createTextureImageView() {
+        textureImageView = createImageView(textureImage, vk::Format::eR8G8B8A8Srgb, vk::ImageAspectFlagBits::eColor);
+    }
+
+    void createTextureSampler() {
+        vk::SamplerCreateInfo samplerInfo{};
+        samplerInfo.magFilter = vk::Filter::eNearest;
+        samplerInfo.minFilter = vk::Filter::eNearest;
+        samplerInfo.addressModeU = vk::SamplerAddressMode::eClampToEdge;
+        samplerInfo.addressModeV = vk::SamplerAddressMode::eClampToEdge;
+        samplerInfo.addressModeW = vk::SamplerAddressMode::eClampToEdge;
+        samplerInfo.anisotropyEnable = VK_FALSE;
+
+        vk::PhysicalDeviceProperties properties = physicalDevice.getProperties();
+        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+
+        samplerInfo.borderColor = vk::BorderColor::eIntOpaqueBlack;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = vk::CompareOp::eAlways;
+        samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
+
+        textureSampler = device.createSampler(samplerInfo);
+    }
+
+    void updateBlockMesh() {
+    vertices.clear();
+    indices.clear();
+
+    for (const auto& block : blocks) {
+        if (!block.exists) continue;
+
+        // Get neighboring block positions
+        glm::vec3 pos = block.position;
+        bool hasNeighbor[6] = {false};  // left, right, bottom, top, front, back
+
+        // Check for neighbors
+        for (const auto& other : blocks) {
+            if (!other.exists) continue;
+            if (other.position == pos) continue;
+
+            glm::vec3 diff = other.position - pos;
+            if (glm::length(diff) > 1.01f) continue;
+
+            // Check exact positions for neighbors
+            if (diff.x == -1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[0] = true;      // left
+            else if (diff.x == 1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[1] = true;  // right
+            if (diff.y == -1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[2] = true;      // bottom
+            else if (diff.y == 1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[3] = true;  // top
+            if (diff.z == -1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[4] = true;      // front
+            else if (diff.z == 1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[5] = true;  // back
+        }
+
+        uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
+
+        // Front face (-Z)
+        if (!hasNeighbor[4]) {
+            vertices.push_back({{pos.x, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}});           // Bottom-left
+            vertices.push_back({{pos.x + 1, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}});      // Bottom-right
+            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}});  // Top-right
+            vertices.push_back({{pos.x, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}});      // Top-left
+
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 2);
+            indices.push_back(baseIndex + 1);
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 3);
+            indices.push_back(baseIndex + 2);
+            baseIndex += 4;
+        }
+
+        // Back face (+Z)
+        if (!hasNeighbor[5]) {
+            vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {0.0f, 1.0f}});   // Bottom-left
+            vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {1.0f, 1.0f}});      // Bottom-right
+            vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {1.0f, 0.0f}});  // Top-right
+            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {0.0f, 0.0f}}); // Top-left
+
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 2);
+            indices.push_back(baseIndex + 1);
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 3);
+            indices.push_back(baseIndex + 2);
+            baseIndex += 4;
+        }
+
+        // Right face (+X)
+        if (!hasNeighbor[1]) {
+            vertices.push_back({{pos.x + 1, pos.y, pos.z}, {0.8f, 0.8f, 0.8f}, {0.0f, 1.0f}});        // Bottom-left
+            vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {1.0f, 1.0f}});    // Bottom-right
+            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {1.0f, 0.0f}}); // Top-right
+            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {0.8f, 0.8f, 0.8f}, {0.0f, 0.0f}});    // Top-left
+
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 2);
+            indices.push_back(baseIndex + 1);
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 3);
+            indices.push_back(baseIndex + 2);
+            baseIndex += 4;
+        }
+
+        // Left face (-X)
+        if (!hasNeighbor[0]) {
+            vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {0.0f, 1.0f}});     // Bottom-left
+            vertices.push_back({{pos.x, pos.y, pos.z}, {0.8f, 0.8f, 0.8f}, {1.0f, 1.0f}});         // Bottom-right
+            vertices.push_back({{pos.x, pos.y + 1, pos.z}, {0.8f, 0.8f, 0.8f}, {1.0f, 0.0f}});     // Top-right
+            vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {0.0f, 0.0f}}); // Top-left
+
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 2);
+            indices.push_back(baseIndex + 1);
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 3);
+            indices.push_back(baseIndex + 2);
+            baseIndex += 4;
+        }
+
+        // Top face (+Y)
+        if (!hasNeighbor[3]) {
+            vertices.push_back({{pos.x, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}});         // Bottom-left
+            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}});     // Bottom-right
+            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}); // Top-right
+            vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}});     // Top-left
+
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 2);
+            indices.push_back(baseIndex + 1);
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 3);
+            indices.push_back(baseIndex + 2);
+            baseIndex += 4;
+        }
+
+        // Bottom face (-Y)
+        if (!hasNeighbor[2]) {
+            vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.7f, 0.7f, 0.7f}, {0.0f, 1.0f}});         // Bottom-left
+            vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.7f, 0.7f, 0.7f}, {1.0f, 1.0f}});     // Bottom-right
+            vertices.push_back({{pos.x + 1, pos.y, pos.z}, {0.7f, 0.7f, 0.7f}, {1.0f, 0.0f}});         // Top-right
+            vertices.push_back({{pos.x, pos.y, pos.z}, {0.7f, 0.7f, 0.7f}, {0.0f, 0.0f}});             // Top-left
+
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 2);
+            indices.push_back(baseIndex + 1);
+            indices.push_back(baseIndex);
+            indices.push_back(baseIndex + 3);
+            indices.push_back(baseIndex + 2);
+        }
+    }
+
+    // Recreate vertex and index buffers
+    recreateBlockBuffers();
+}
 
     void recreateBlockBuffers() {
         // Clean up existing buffers
@@ -846,18 +1089,20 @@ private:
         createImageViews();
         createRenderPass();
         createDescriptorSetLayout();
+        createCommandPool();
+        createDepthResources();
+        createTextureImage("dirt.png");
+        createTextureImageView();
+        createTextureSampler();
         createGraphicsPipeline();
         createFramebuffers();
-        createCommandPool();
         initializeBlocks();
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
-        createDepthResources();
         createSelectionBuffer();
         createDescriptorPool();
-        createDescriptorSet();
-        createFramebuffers();
+        createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
     }
@@ -879,6 +1124,10 @@ private:
         return buffer;
     }
 
+    std::vector<const char*> validationLayers = {
+        "VK_LAYER_KHRONOS_validation"
+    };
+
     void createInstance() {
         vk::ApplicationInfo appInfo{};
         appInfo.pApplicationName = "Zerith";
@@ -896,6 +1145,8 @@ private:
         createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         createInfo.ppEnabledExtensionNames = extensions.data();
         createInfo.enabledLayerCount = 0;
+        createInfo.enabledLayerCount = validationLayers.size();
+        createInfo.ppEnabledLayerNames = validationLayers.data();
 
         instance = vk::createInstance(createInfo);
     }
@@ -979,6 +1230,9 @@ private:
         }
 
         vk::PhysicalDeviceFeatures deviceFeatures{};
+        deviceFeatures.wideLines = VK_TRUE;
+
+        deviceFeatures.samplerAnisotropy = VK_TRUE;
 
         std::vector<const char*> deviceExtensions = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME
@@ -1403,33 +1657,41 @@ void createImageViews() {
     }
 
     void createDescriptorSetLayout() {
-        vk::DescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+        std::array<vk::DescriptorSetLayoutBinding, 2> bindings;
+
+        bindings[0].binding = 0;
+        bindings[0].descriptorType = vk::DescriptorType::eUniformBuffer;
+        bindings[0].descriptorCount = 1;
+        bindings[0].stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+        bindings[1].binding = 1;
+        bindings[1].descriptorType = vk::DescriptorType::eCombinedImageSampler;
+        bindings[1].descriptorCount = 1;
+        bindings[1].stageFlags = vk::ShaderStageFlagBits::eFragment;
 
         vk::DescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
+        layoutInfo.bindingCount = bindings.size();
+        layoutInfo.pBindings = bindings.data();
 
         descriptorSetLayout = device.createDescriptorSetLayout(layoutInfo);
     }
 
     void createDescriptorPool() {
-        vk::DescriptorPoolSize poolSize{};
-        poolSize.type = vk::DescriptorType::eUniformBuffer;
-        poolSize.descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        std::array<vk::DescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = vk::DescriptorType::eUniformBuffer;
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[1].type = vk::DescriptorType::eCombinedImageSampler;
+        poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
         vk::DescriptorPoolCreateInfo poolInfo{};
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.poolSizeCount = poolSizes.size();
+        poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
 
         descriptorPool = device.createDescriptorPool(poolInfo);
     }
 
-    void createDescriptorSet() {
+    void createDescriptorSets() {
         std::vector<vk::DescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
         vk::DescriptorSetAllocateInfo allocInfo{};
         allocInfo.descriptorPool = descriptorPool;
@@ -1444,15 +1706,28 @@ void createImageViews() {
             bufferInfo.offset = 0;
             bufferInfo.range = sizeof(UniformBufferObject);
 
-            vk::WriteDescriptorSet descriptorWrite{};
-            descriptorWrite.dstSet = descriptorSets[i];
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
-            descriptorWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
-            descriptorWrite.descriptorCount = 1;
-            descriptorWrite.pBufferInfo = &bufferInfo;
+            vk::DescriptorImageInfo imageInfo{};
+            imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            imageInfo.imageView = textureImageView;
+            imageInfo.sampler = textureSampler;
 
-            device.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
+            std::array<vk::WriteDescriptorSet, 2> descriptorWrites{};
+
+            descriptorWrites[0].dstSet = descriptorSets[i];
+            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType = vk::DescriptorType::eUniformBuffer;
+            descriptorWrites[0].descriptorCount = 1;
+            descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+            descriptorWrites[1].dstSet = descriptorSets[i];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = vk::DescriptorType::eCombinedImageSampler;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pImageInfo = &imageInfo;
+
+            device.updateDescriptorSets(descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
         }
 
         descriptorSet = descriptorSets[0];
@@ -1602,6 +1877,11 @@ void createSyncObjects() {
             device.destroySemaphore(renderFinishedSemaphores[i]);
             device.destroyFence(inFlightFences[i]);
         }
+
+        device.destroySampler(textureSampler);
+        device.destroyImageView(textureImageView);
+        device.destroyImage(textureImage);
+        device.freeMemory(textureImageMemory);
 
         device.destroyImageView(depthImageView);
         device.destroyImage(depthImage);
