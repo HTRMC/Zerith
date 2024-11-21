@@ -114,15 +114,35 @@ private:
     }
 
     const std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {1.0f, 0.0f, 0.0f}}, // Bottom-left
-        {{0.5f, -0.5f, 0.0f}, {0.0f, 1.0f, 0.0f}},  // Bottom-right
-        {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}},   // Top-right
-        {{-0.5f, 0.5f, 0.0f}, {1.0f, 1.0f, 1.0f}}   // Top-left
+        {{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+        {{0.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+        {{0.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+        {{0.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+
+        {{1.0f, 0.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+        {{1.0f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
+        {{1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 1.0f}},
+        {{1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f}},
     };
 
     const std::vector<uint16_t> indices = {
-        0, 1, 2,    // First triangle
-        2, 3, 0     // Second triangle
+        0, 1, 2,    // First front triangle
+        2, 1, 3,    // Second front triangle
+
+        1, 5, 3,    // First right triangle
+        3, 5, 7,    // Second right triangle
+
+        5, 4, 7,    // First back triangle
+        7, 4, 6,    // Second back triangle
+
+        4, 0, 6,    // First left triangle
+        6, 0, 2,    // Second left triangle
+
+        2, 3, 6,    // First top triangle
+        6, 3, 7,    // Second top triangle
+
+        0, 4, 1,    // First bottom triangle
+        4, 5, 1     // Second bottom triangle
     };
 
     struct UniformBufferObject {
@@ -614,7 +634,7 @@ void createImageViews() {
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = vk::PolygonMode::eFill;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = vk::CullModeFlagBits::eNone;
+        rasterizer.cullMode = vk::CullModeFlagBits::eBack;
         rasterizer.frontFace = vk::FrontFace::eCounterClockwise;
         rasterizer.depthBiasEnable = VK_FALSE;
 
