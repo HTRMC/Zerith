@@ -51,6 +51,32 @@ struct Vertex {
     }
 };
 
+struct SelectedBlock {
+    bool hasSelection;
+    glm::vec3 position;
+} selectedBlock;
+
+// Add these new vertex data structures after the existing Block struct
+struct LineVertex {
+    float pos[3];
+    static vk::VertexInputBindingDescription getBindingDescription() {
+        vk::VertexInputBindingDescription bindingDescription{};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(LineVertex);
+        bindingDescription.inputRate = vk::VertexInputRate::eVertex;
+        return bindingDescription;
+    }
+
+    static std::array<vk::VertexInputAttributeDescription, 1> getAttributeDescriptions() {
+        std::array<vk::VertexInputAttributeDescription, 1> attributeDescriptions{};
+        attributeDescriptions[0].binding = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
+        attributeDescriptions[0].offset = offsetof(LineVertex, pos);
+        return attributeDescriptions;
+    }
+};
+
 class Zerith {
 public:
     void run() {
@@ -97,6 +123,84 @@ private:
     const int MAX_FRAMES_IN_FLIGHT = 2;
     bool windowFocused = false;
     bool cursorLocked = true;
+    vk::Pipeline linesPipeline;
+    vk::Buffer selectionBuffer;
+    vk::DeviceMemory selectionBufferMemory;
+    std::vector<LineVertex> selectionVertices;
+
+    void updateSelectionBuffer() {
+        if (!selectedBlock.hasSelection) return;
+
+        // Define the vertices for the block outline
+        glm::vec3 pos = selectedBlock.position;
+        selectionVertices = {
+            // Front face
+            {{pos.x, pos.y, pos.z}},
+            {{pos.x + 1.0f, pos.y, pos.z}},
+
+            {{pos.x + 1.0f, pos.y, pos.z}},
+            {{pos.x + 1.0f, pos.y + 1.0f, pos.z}},
+
+            {{pos.x + 1.0f, pos.y + 1.0f, pos.z}},
+            {{pos.x, pos.y + 1.0f, pos.z}},
+
+            {{pos.x, pos.y + 1.0f, pos.z}},
+            {{pos.x, pos.y, pos.z}},
+
+            // Back face
+            {{pos.x, pos.y, pos.z + 1.0f}},
+            {{pos.x + 1.0f, pos.y, pos.z + 1.0f}},
+
+            {{pos.x + 1.0f, pos.y, pos.z + 1.0f}},
+            {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}},
+
+            {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}},
+            {{pos.x, pos.y + 1.0f, pos.z + 1.0f}},
+
+            {{pos.x, pos.y + 1.0f, pos.z + 1.0f}},
+            {{pos.x, pos.y, pos.z + 1.0f}},
+
+            // Connecting lines
+            {{pos.x, pos.y, pos.z}},
+            {{pos.x, pos.y, pos.z + 1.0f}},
+
+            {{pos.x + 1.0f, pos.y, pos.z}},
+            {{pos.x + 1.0f, pos.y, pos.z + 1.0f}},
+
+            {{pos.x + 1.0f, pos.y + 1.0f, pos.z}},
+            {{pos.x + 1.0f, pos.y + 1.0f, pos.z + 1.0f}},
+
+            {{pos.x, pos.y + 1.0f, pos.z}},
+            {{pos.x, pos.y + 1.0f, pos.z + 1.0f}}
+        };
+
+        // Update buffer data
+        void* data = device.mapMemory(selectionBufferMemory, 0, sizeof(LineVertex) * selectionVertices.size());
+        memcpy(data, selectionVertices.data(), sizeof(LineVertex) * selectionVertices.size());
+        device.unmapMemory(selectionBufferMemory);
+
+        createCommandBuffers();
+    }
+
+    void createSelectionBuffer() {
+        vk::BufferCreateInfo bufferInfo{};
+        bufferInfo.size = sizeof(LineVertex) * 24; // 24 vertices for the complete outline
+        bufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
+        bufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+        selectionBuffer = device.createBuffer(bufferInfo);
+
+        vk::MemoryRequirements memRequirements = device.getBufferMemoryRequirements(selectionBuffer);
+
+        vk::MemoryAllocateInfo allocInfo{};
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+
+        selectionBufferMemory = device.allocateMemory(allocInfo);
+        device.bindBufferMemory(selectionBuffer, selectionBufferMemory, 0);
+    }
+
 
     void toggleCursorLock() {
         cursorLocked = !cursorLocked;
@@ -266,11 +370,11 @@ private:
 
         float closest = MAX_REACH;
         hit = false;
+        bool selectionChanged = false;
 
         for (const auto& block : blocks) {
             if (!block.exists) continue;
 
-            // Simple AABB intersection test
             glm::vec3 mins = block.position;
             glm::vec3 maxs = block.position + glm::vec3(1.0f);
 
@@ -308,7 +412,6 @@ private:
                 closest = tmin;
                 hitPosition = rayStart + rayDir * tmin;
 
-                // Calculate hit normal
                 glm::vec3 center = block.position + glm::vec3(0.5f);
                 glm::vec3 diff = hitPosition - center;
                 float x = abs(diff.x);
@@ -323,7 +426,16 @@ private:
                     hitNormal = glm::vec3(0, 0, diff.z > 0 ? 1 : -1);
 
                 hit = true;
+                if (!selectedBlock.hasSelection || selectedBlock.position != block.position) {
+                    selectedBlock.hasSelection = true;
+                    selectedBlock.position = block.position;
+                    selectionChanged = true;
+                }
             }
+        }
+
+        if (selectionChanged) {
+            updateSelectionBuffer();
         }
 
         return hit;
@@ -568,6 +680,7 @@ private:
         createVertexBuffer();
         createIndexBuffer();
         createUniformBuffers();
+        createSelectionBuffer();
         createDescriptorPool();
         createDescriptorSet();
         createFramebuffers();
@@ -918,6 +1031,41 @@ void createImageViews() {
 
         device.destroyShaderModule(fragShaderModule);
         device.destroyShaderModule(vertShaderModule);
+
+        // Now create the lines pipeline
+        auto lineVertShaderCode = readFile("shaders/lines.vert.spv");
+        auto lineFragShaderCode = readFile("shaders/lines.frag.spv");
+
+        vk::ShaderModule lineVertShaderModule = createShaderModule(lineVertShaderCode);
+        vk::ShaderModule lineFragShaderModule = createShaderModule(lineFragShaderCode);
+
+        vertShaderStageInfo.module = lineVertShaderModule;
+        fragShaderStageInfo.module = lineFragShaderModule;
+
+        shaderStages[0] = vertShaderStageInfo;
+        shaderStages[1] = fragShaderStageInfo;
+
+        // Modify settings for lines
+        auto lineBindingDescription = LineVertex::getBindingDescription();
+        auto lineAttributeDescriptions = LineVertex::getAttributeDescriptions();
+
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &lineBindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(lineAttributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = lineAttributeDescriptions.data();
+
+        inputAssembly.topology = vk::PrimitiveTopology::eLineList;
+        rasterizer.lineWidth = 2.0f;
+
+        // Create lines pipeline using the same pipeline layout
+        pipelineInfo.pVertexInputState = &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pRasterizationState = &rasterizer;
+
+        linesPipeline = device.createGraphicsPipeline(nullptr, pipelineInfo).value;
+
+        device.destroyShaderModule(lineFragShaderModule);
+        device.destroyShaderModule(lineVertShaderModule);
     }
 
     void createFramebuffers() {
@@ -1145,6 +1293,14 @@ void createImageViews() {
             commandBuffers[i].bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint16);
             commandBuffers[i].drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
+            if (selectedBlock.hasSelection) {
+                commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, linesPipeline);
+                vk::Buffer selectionBuffers[] = {selectionBuffer};
+                vk::DeviceSize selectionOffsets[] = {0};
+                commandBuffers[i].bindVertexBuffers(0, 1, selectionBuffers, selectionOffsets);
+                commandBuffers[i].draw(24, 1, 0, 0); // 24 vertices for the complete outline
+            }
+
             commandBuffers[i].endRenderPass();
             commandBuffers[i].end();
         }
@@ -1250,6 +1406,10 @@ void createSyncObjects() {
         device.freeMemory(vertexBufferMemory);
         device.destroyBuffer(indexBuffer);
         device.freeMemory(indexBufferMemory);
+
+        device.destroyBuffer(selectionBuffer);
+        device.freeMemory(selectionBufferMemory);
+        device.destroyPipeline(linesPipeline);
 
         for (size_t i = 0; i < uniformBuffers.size(); i++) {
             device.destroyBuffer(uniformBuffers[i]);
