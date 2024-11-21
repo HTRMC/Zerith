@@ -22,6 +22,16 @@ struct Block {
 std::vector<Block> blocks;
 const float MAX_REACH = 5.0f;  // Maximum distance for block interaction
 
+struct PlayerCollider {
+    glm::vec3 position;  // Center of the player collider
+    glm::vec3 dimensions = glm::vec3(0.6f, 1.8f, 0.6f);  // Width, height, depth
+    bool onGround = false;
+    glm::vec3 velocity = glm::vec3(0.0f);
+    float gravity = -20.0f;
+    float jumpForce = 8.0f;
+};
+PlayerCollider player;
+
 struct Vertex {
     float pos[3];
     float color[3];
@@ -299,6 +309,7 @@ private:
     std::vector<uint16_t> indices;
 
     void initializeBlocks() {
+        player.position = glm::vec3(8.0f, 20.0f, 8.0f);
         const int GRID_SIZE = 16;
         blocks.reserve(GRID_SIZE * GRID_SIZE * GRID_SIZE);
 
@@ -636,6 +647,8 @@ private:
 
     void processInput() {
         static bool escapePressed = false;
+        static bool spacePressed = false;
+        float deltaTime = 0.016f; // Fixed timestep
 
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
             if (!escapePressed) {
@@ -648,23 +661,109 @@ private:
 
         if (!cursorLocked) return;
 
-        float deltaTime = 0.016f; // Assuming ~60 FPS
-        float velocity = camera.speed * deltaTime;
-
+        // Calculate movement vector from input
+        glm::vec3 movement(0.0f);
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-            camera.pos += velocity * camera.front;
+            movement += camera.front;
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-            camera.pos -= velocity * camera.front;
+            movement -= camera.front;
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-            camera.pos -= glm::normalize(glm::cross(camera.front, camera.up)) * velocity;
+            movement -= glm::normalize(glm::cross(camera.front, camera.up));
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-            camera.pos += glm::normalize(glm::cross(camera.front, camera.up)) * velocity;
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-            camera.pos += camera.up * velocity;
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS)
-            camera.pos -= camera.up * velocity;
+            movement += glm::normalize(glm::cross(camera.front, camera.up));
+
+        // Remove vertical component for ground movement
+        movement.y = 0;
+        if (glm::length(movement) > 0) {
+            movement = glm::normalize(movement);
+        }
+
+        // Handle jumping
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+            if (!spacePressed && player.onGround) {
+                player.velocity.y = player.jumpForce;
+                player.onGround = false;
+            }
+            spacePressed = true;
+        } else {
+            spacePressed = false;
+        }
+
+        // Apply movement and gravity
+        float speed = camera.speed * deltaTime;
+        player.velocity.x = movement.x * speed * 60.0f;
+        player.velocity.z = movement.z * speed * 60.0f;
+
+        if (!player.onGround) {
+            player.velocity.y += player.gravity * deltaTime;
+        }
+
+        // Calculate new position
+        glm::vec3 newPos = player.position + player.velocity * deltaTime;
+
+        // Resolve collisions
+        resolveCollisions(newPos);
+
+        // Update player and camera positions
+        player.position = newPos;
+        camera.pos = player.position + glm::vec3(0.0f, player.dimensions.y/2, 0.0f);
 
         updateUniformBuffer(currentFrame);
+    }
+
+    bool checkCollision(const glm::vec3& pos, const glm::vec3& dimensions, const Block& block) {
+        if (!block.exists) return false;
+
+        // AABB collision check
+        bool collisionX = pos.x + dimensions.x/2 > block.position.x &&
+                         block.position.x + 1.0f > pos.x - dimensions.x/2;
+        bool collisionY = pos.y + dimensions.y/2 > block.position.y &&
+                         block.position.y + 1.0f > pos.y - dimensions.y/2;
+        bool collisionZ = pos.z + dimensions.z/2 > block.position.z &&
+                         block.position.z + 1.0f > pos.z - dimensions.z/2;
+
+        return collisionX && collisionY && collisionZ;
+    }
+
+    void resolveCollisions(glm::vec3& newPos) {
+        // Check collisions for each axis independently
+        glm::vec3 testPos = player.position;
+
+        // X axis
+        testPos.x = newPos.x;
+        for (const auto& block : blocks) {
+            if (checkCollision(testPos, player.dimensions, block)) {
+                newPos.x = player.position.x;
+                player.velocity.x = 0;
+                break;
+            }
+        }
+
+        // Y axis
+        testPos = player.position;
+        testPos.y = newPos.y;
+        player.onGround = false;
+        for (const auto& block : blocks) {
+            if (checkCollision(testPos, player.dimensions, block)) {
+                if (newPos.y < player.position.y) {
+                    player.onGround = true;
+                }
+                newPos.y = player.position.y;
+                player.velocity.y = 0;
+                break;
+            }
+        }
+
+        // Z axis
+        testPos = player.position;
+        testPos.z = newPos.z;
+        for (const auto& block : blocks) {
+            if (checkCollision(testPos, player.dimensions, block)) {
+                newPos.z = player.position.z;
+                player.velocity.z = 0;
+                break;
+            }
+        }
     }
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
