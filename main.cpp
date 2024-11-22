@@ -13,7 +13,11 @@
 #include <array>
 #include <chrono>
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb/stb_image.h>
+#if defined(_WIN32) || defined(_WIN64)
+    #include <stb_image.h>
+#else
+    #include <stb/stb_image.h>
+#endif
 
 struct Block {
     bool exists;
@@ -1612,7 +1616,7 @@ void createImageViews() {
         vk::PhysicalDeviceMemoryProperties memProperties = physicalDevice.getMemoryProperties();
 
         for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) && 
+            if ((typeFilter & (1 << i)) &&
                 (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
                 return i;
             }
@@ -1633,7 +1637,7 @@ void createImageViews() {
 
         vk::MemoryAllocateInfo allocInfo{};
         allocInfo.allocationSize = memRequirements.size;
-        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, 
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
 
         vertexBufferMemory = device.allocateMemory(allocInfo);

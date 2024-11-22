@@ -8,13 +8,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
+
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
 
 # Find GLFW
-find_package(glfw3 REQUIRED)
+find_package(glfw3 CONFIG REQUIRED)
 
-find_package(glm REQUIRED)
+# Find GLM
+find_package(glm CONFIG REQUIRED)
 
 # Shader compilation
 find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/bin)
