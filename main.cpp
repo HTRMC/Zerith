@@ -167,6 +167,7 @@ private:
     vk::DeviceMemory textureImageMemory;
     vk::ImageView textureImageView;
     vk::Sampler textureSampler;
+    std::vector<vk::DescriptorSet> descriptorSets;
 
     vk::Format findDepthFormat() {
         std::vector<vk::Format> candidates = {
@@ -1172,12 +1173,17 @@ private:
     }
 
     void cleanupSwapChain() {
+        device.destroyImageView(depthImageView);
+        device.destroyImage(depthImage);
+        device.freeMemory(depthImageMemory);
+
         for (auto framebuffer: swapChainFramebuffers) {
             device.destroyFramebuffer(framebuffer);
         }
 
         device.freeCommandBuffers(commandPool, commandBuffers);
         device.destroyPipeline(graphicsPipeline);
+        device.destroyPipeline(linesPipeline); // Don't forget to clean up the lines pipeline
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyRenderPass(renderPass);
 
@@ -1186,6 +1192,13 @@ private:
         }
 
         device.destroySwapchainKHR(swapChain);
+
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            device.destroyBuffer(uniformBuffers[i]);
+            device.freeMemory(uniformBuffersMemory[i]);
+        }
+
+        device.destroyDescriptorPool(descriptorPool); // This will automatically free all descriptor sets
     }
 
     void recreateSwapChain() {
@@ -1203,7 +1216,11 @@ private:
         createSwapChain();
         createImageViews();
         createRenderPass();
+        createUniformBuffers(); // Recreate uniform buffers
+        createDescriptorPool(); // Recreate descriptor pool
+        createDescriptorSets(); // Recreate descriptor sets
         createGraphicsPipeline();
+        createDepthResources();
         createFramebuffers();
         createCommandBuffers();
     }
@@ -1216,21 +1233,21 @@ private:
         createSwapChain();
         createImageViews();
         createRenderPass();
-        createDescriptorSetLayout();
+        createDescriptorSetLayout(); // Make sure this is before pipeline creation
         createCommandPool();
         createDepthResources();
         createTextureImage("dirt.png");
         createTextureImageView();
         createTextureSampler();
-        createGraphicsPipeline();
-        createFramebuffers();
-        initializeBlocks();
-        createVertexBuffer();
-        createIndexBuffer();
-        createUniformBuffers();
-        createSelectionBuffer();
+        createUniformBuffers(); // Create uniform buffers before descriptor sets
         createDescriptorPool();
         createDescriptorSets();
+        createGraphicsPipeline(); // Create pipeline after descriptor set layout
+        createFramebuffers();
+        initializeBlocks(); // Initialize blocks before creating their buffers
+        createVertexBuffer();
+        createIndexBuffer();
+        createSelectionBuffer();
         createCommandBuffers();
         createSyncObjects();
     }
@@ -1819,21 +1836,31 @@ private:
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
         vk::DescriptorPoolCreateInfo poolInfo{};
-        poolInfo.poolSizeCount = poolSizes.size();
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+        poolInfo.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet; // Add this flag
 
-        descriptorPool = device.createDescriptorPool(poolInfo);
+        try {
+            descriptorPool = device.createDescriptorPool(poolInfo);
+        } catch (vk::SystemError &err) {
+            throw std::runtime_error("failed to create descriptor pool!");
+        }
     }
 
     void createDescriptorSets() {
         std::vector<vk::DescriptorSetLayout> layouts(swapChainImages.size(), descriptorSetLayout);
+
         vk::DescriptorSetAllocateInfo allocInfo{};
         allocInfo.descriptorPool = descriptorPool;
         allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
         allocInfo.pSetLayouts = layouts.data();
 
-        std::vector<vk::DescriptorSet> descriptorSets = device.allocateDescriptorSets(allocInfo);
+        try {
+            descriptorSets = device.allocateDescriptorSets(allocInfo);
+        } catch (vk::SystemError &err) {
+            throw std::runtime_error("failed to allocate descriptor sets!");
+        }
 
         for (size_t i = 0; i < swapChainImages.size(); i++) {
             vk::DescriptorBufferInfo bufferInfo{};
@@ -1864,8 +1891,6 @@ private:
 
             device.updateDescriptorSets(descriptorWrites.size(), descriptorWrites.data(), 0, nullptr);
         }
-
-        descriptorSet = descriptorSets[0];
     }
 
     void createCommandBuffers() {
@@ -1874,14 +1899,22 @@ private:
         vk::CommandBufferAllocateInfo allocInfo{};
         allocInfo.commandPool = commandPool;
         allocInfo.level = vk::CommandBufferLevel::ePrimary;
-        allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
+        allocInfo.commandBufferCount = static_cast<uint32_t>(commandBuffers.size());
 
-        commandBuffers = device.allocateCommandBuffers(allocInfo);
+        try {
+            commandBuffers = device.allocateCommandBuffers(allocInfo);
+        } catch (vk::SystemError &err) {
+            throw std::runtime_error("failed to allocate command buffers!");
+        }
 
         for (size_t i = 0; i < commandBuffers.size(); i++) {
             vk::CommandBufferBeginInfo beginInfo{};
 
-            commandBuffers[i].begin(beginInfo);
+            try {
+                commandBuffers[i].begin(beginInfo);
+            } catch (vk::SystemError &err) {
+                throw std::runtime_error("failed to begin recording command buffer!");
+            }
 
             vk::RenderPassBeginInfo renderPassInfo{};
             renderPassInfo.renderPass = renderPass;
@@ -1892,30 +1925,48 @@ private:
             std::array<vk::ClearValue, 2> clearValues{};
             clearValues[0].color = std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f};
             clearValues[1].depthStencil = vk::ClearDepthStencilValue{1.0f, 0};
+
             renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
             renderPassInfo.pClearValues = clearValues.data();
 
             commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
             commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
-            commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                                                 pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
-            vk::Buffer vertexBuffers[] = {vertexBuffer};
-            vk::DeviceSize offsets[] = {0};
-            commandBuffers[i].bindVertexBuffers(0, 1, vertexBuffers, offsets);
-            commandBuffers[i].bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint16);
-            commandBuffers[i].drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+            if (i < descriptorSets.size()) {
+                // Add safety check
+                commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                                     pipelineLayout, 0, 1, &descriptorSets[i], 0, nullptr);
+            }
 
-            if (selectedBlock.hasSelection) {
+            if (vertexBuffer && indexBuffer) {
+                // Add safety checks
+                vk::Buffer vertexBuffers[] = {vertexBuffer};
+                vk::DeviceSize offsets[] = {0};
+                commandBuffers[i].bindVertexBuffers(0, 1, vertexBuffers, offsets);
+                commandBuffers[i].bindIndexBuffer(indexBuffer, 0, vk::IndexType::eUint16);
+
+                if (!indices.empty()) {
+                    // Add safety check
+                    commandBuffers[i].drawIndexed(static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+                }
+            }
+
+            if (selectedBlock.hasSelection && selectionBuffer) {
+                // Add safety check
                 commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, linesPipeline);
                 vk::Buffer selectionBuffers[] = {selectionBuffer};
                 vk::DeviceSize selectionOffsets[] = {0};
                 commandBuffers[i].bindVertexBuffers(0, 1, selectionBuffers, selectionOffsets);
-                commandBuffers[i].draw(24, 1, 0, 0); // 24 vertices for the complete outline
+                commandBuffers[i].draw(24, 1, 0, 0);
             }
 
             commandBuffers[i].endRenderPass();
-            commandBuffers[i].end();
+
+            try {
+                commandBuffers[i].end();
+            } catch (vk::SystemError &err) {
+                throw std::runtime_error("failed to record command buffer!");
+            }
         }
     }
 
