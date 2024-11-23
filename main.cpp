@@ -1173,32 +1173,77 @@ private:
     }
 
     void cleanupSwapChain() {
-        device.destroyImageView(depthImageView);
-        device.destroyImage(depthImage);
-        device.freeMemory(depthImageMemory);
+        device.waitIdle();
+
+        if (depthImageView) {
+            device.destroyImageView(depthImageView);
+            depthImageView = nullptr;
+        }
+        if (depthImage) {
+            device.destroyImage(depthImage);
+            depthImage = nullptr;
+        }
+        if (depthImageMemory) {
+            device.freeMemory(depthImageMemory);
+            depthImageMemory = nullptr;
+        }
 
         for (auto framebuffer: swapChainFramebuffers) {
-            device.destroyFramebuffer(framebuffer);
+            if (framebuffer) {
+                device.destroyFramebuffer(framebuffer);
+            }
+        }
+        swapChainFramebuffers.clear();
+
+        if (!commandBuffers.empty()) {
+            device.freeCommandBuffers(commandPool, commandBuffers);
+            commandBuffers.clear();
         }
 
-        device.freeCommandBuffers(commandPool, commandBuffers);
-        device.destroyPipeline(graphicsPipeline);
-        device.destroyPipeline(linesPipeline); // Don't forget to clean up the lines pipeline
-        device.destroyPipelineLayout(pipelineLayout);
-        device.destroyRenderPass(renderPass);
+        if (graphicsPipeline) {
+            device.destroyPipeline(graphicsPipeline);
+            graphicsPipeline = nullptr;
+        }
+        if (linesPipeline) {
+            device.destroyPipeline(linesPipeline);
+            linesPipeline = nullptr;
+        }
+        if (pipelineLayout) {
+            device.destroyPipelineLayout(pipelineLayout);
+            pipelineLayout = nullptr;
+        }
+        if (renderPass) {
+            device.destroyRenderPass(renderPass);
+            renderPass = nullptr;
+        }
 
         for (auto imageView: swapChainImageViews) {
-            device.destroyImageView(imageView);
+            if (imageView) {
+                device.destroyImageView(imageView);
+            }
         }
+        swapChainImageViews.clear();
 
-        device.destroySwapchainKHR(swapChain);
+        if (swapChain) {
+            device.destroySwapchainKHR(swapChain);
+            swapChain = nullptr;
+        }
 
         for (size_t i = 0; i < swapChainImages.size(); i++) {
-            device.destroyBuffer(uniformBuffers[i]);
-            device.freeMemory(uniformBuffersMemory[i]);
+            if (uniformBuffers[i]) {
+                device.destroyBuffer(uniformBuffers[i]);
+                uniformBuffers[i] = nullptr;
+            }
+            if (uniformBuffersMemory[i]) {
+                device.freeMemory(uniformBuffersMemory[i]);
+                uniformBuffersMemory[i] = nullptr;
+            }
         }
 
-        device.destroyDescriptorPool(descriptorPool); // This will automatically free all descriptor sets
+        if (descriptorPool) {
+            device.destroyDescriptorPool(descriptorPool);
+            descriptorPool = nullptr;
+        }
     }
 
     void recreateSwapChain() {
@@ -1991,10 +2036,17 @@ private:
 
         uint32_t imageIndex;
         try {
-            auto result = device.acquireNextImageKHR(swapChain, UINT64_MAX,
-                                                     imageAvailableSemaphores[currentFrame], nullptr);
-            imageIndex = result.value;
+            vk::Result result = device.acquireNextImageKHR(swapChain, UINT64_MAX,
+                                                           imageAvailableSemaphores[currentFrame], nullptr,
+                                                           &imageIndex);
+            if (result == vk::Result::eErrorOutOfDateKHR) {
+                recreateSwapChain();
+                return;
+            } else if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
+                throw std::runtime_error("failed to acquire swap chain image!");
+            }
         } catch (vk::OutOfDateKHRError &e) {
+            recreateSwapChain();
             return;
         }
 
@@ -2027,12 +2079,18 @@ private:
         bool needsRecreation = false;
         try {
             auto result = presentQueue.presentKHR(presentInfo);
+            if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR ||
+                framebufferResized) {
+                framebufferResized = false;
+                needsRecreation = true;
+            } else if (result != vk::Result::eSuccess) {
+                throw std::runtime_error("failed to present swap chain image!");
+            }
         } catch (vk::OutOfDateKHRError &e) {
             needsRecreation = true;
         }
 
-        if (needsRecreation || framebufferResized) {
-            framebufferResized = false;
+        if (needsRecreation) {
             recreateSwapChain();
         }
 
@@ -2059,44 +2117,93 @@ private:
         cleanupSwapChain();
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            device.destroySemaphore(imageAvailableSemaphores[i]);
-            device.destroySemaphore(renderFinishedSemaphores[i]);
-            device.destroyFence(inFlightFences[i]);
+            if (imageAvailableSemaphores[i]) {
+                device.destroySemaphore(imageAvailableSemaphores[i]);
+                imageAvailableSemaphores[i] = nullptr;
+            }
+            if (renderFinishedSemaphores[i]) {
+                device.destroySemaphore(renderFinishedSemaphores[i]);
+                renderFinishedSemaphores[i] = nullptr;
+            }
+            if (inFlightFences[i]) {
+                device.destroyFence(inFlightFences[i]);
+                inFlightFences[i] = nullptr;
+            }
         }
 
-        device.destroySampler(textureSampler);
-        device.destroyImageView(textureImageView);
-        device.destroyImage(textureImage);
-        device.freeMemory(textureImageMemory);
-
-        device.destroyImageView(depthImageView);
-        device.destroyImage(depthImage);
-        device.freeMemory(depthImageMemory);
-
-        device.destroyCommandPool(commandPool);
-
-        device.destroyBuffer(vertexBuffer);
-        device.freeMemory(vertexBufferMemory);
-        device.destroyBuffer(indexBuffer);
-        device.freeMemory(indexBufferMemory);
-
-        device.destroyBuffer(selectionBuffer);
-        device.freeMemory(selectionBufferMemory);
-        device.destroyPipeline(linesPipeline);
-
-        for (size_t i = 0; i < uniformBuffers.size(); i++) {
-            device.destroyBuffer(uniformBuffers[i]);
-            device.freeMemory(uniformBuffersMemory[i]);
+        if (textureSampler) {
+            device.destroySampler(textureSampler);
+            textureSampler = nullptr;
+        }
+        if (textureImageView) {
+            device.destroyImageView(textureImageView);
+            textureImageView = nullptr;
+        }
+        if (textureImage) {
+            device.destroyImage(textureImage);
+            textureImage = nullptr;
+        }
+        if (textureImageMemory) {
+            device.freeMemory(textureImageMemory);
+            textureImageMemory = nullptr;
         }
 
-        device.destroyDescriptorPool(descriptorPool);
-        device.destroyDescriptorSetLayout(descriptorSetLayout);
+        if (vertexBuffer) {
+            device.destroyBuffer(vertexBuffer);
+            vertexBuffer = nullptr;
+        }
+        if (vertexBufferMemory) {
+            device.freeMemory(vertexBufferMemory);
+            vertexBufferMemory = nullptr;
+        }
+        if (indexBuffer) {
+            device.destroyBuffer(indexBuffer);
+            indexBuffer = nullptr;
+        }
+        if (indexBufferMemory) {
+            device.freeMemory(indexBufferMemory);
+            indexBufferMemory = nullptr;
+        }
 
-        device.destroy();
-        instance.destroySurfaceKHR(surface);
-        instance.destroy();
+        if (selectionBuffer) {
+            device.destroyBuffer(selectionBuffer);
+            selectionBuffer = nullptr;
+        }
+        if (selectionBufferMemory) {
+            device.freeMemory(selectionBufferMemory);
+            selectionBufferMemory = nullptr;
+        }
 
-        glfwDestroyWindow(window);
+        if (descriptorSetLayout) {
+            device.destroyDescriptorSetLayout(descriptorSetLayout);
+            descriptorSetLayout = nullptr;
+        }
+
+        if (commandPool) {
+            device.destroyCommandPool(commandPool);
+            commandPool = nullptr;
+        }
+
+        if (device) {
+            device.destroy();
+            device = nullptr;
+        }
+
+        if (surface) {
+            instance.destroySurfaceKHR(surface);
+            surface = nullptr;
+        }
+
+        if (instance) {
+            instance.destroy();
+            instance = nullptr;
+        }
+
+        if (window) {
+            glfwDestroyWindow(window);
+            window = nullptr;
+        }
+
         glfwTerminate();
     }
 };
