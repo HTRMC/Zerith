@@ -14,7 +14,7 @@
 #include <chrono>
 #define STB_IMAGE_IMPLEMENTATION
 #if defined(_WIN32) || defined(_WIN64)
-    #include <stb_image.h>
+#include <stb_image.h>
 #else
     #include <stb/stb_image.h>
 #endif
@@ -26,18 +26,18 @@ struct Block {
 
 // Add to private members
 std::vector<Block> blocks;
-const float MAX_REACH = 5.0f;  // Maximum distance for block interaction
+const float MAX_REACH = 5.0f; // Maximum distance for block interaction
 
 struct PlayerCollider {
-    glm::vec3 position;  // Center of the player collider
-    glm::vec3 dimensions = glm::vec3(0.6f, 1.8f, 0.6f);  // Width, height, depth
+    glm::vec3 position; // Center of the player collider
+    glm::vec3 dimensions = glm::vec3(0.6f, 1.8f, 0.6f); // Width, height, depth
     bool onGround = false;
     glm::vec3 velocity = glm::vec3(0.0f);
     float gravity = -20.0f;
     float jumpForce = 8.0f;
-    float walkingSpeed = 4.317f;  // Blocks per second
+    float walkingSpeed = 4.317f; // Blocks per second
     float sprintingSpeed = 5.612f; // Blocks per second while sprinting
-    float sprintJumpForce = 9.5f;  // Increased jump force while sprinting
+    float sprintJumpForce = 9.5f; // Increased jump force while sprinting
 
     // Sprinting state
     bool isSprinting = false;
@@ -45,6 +45,7 @@ struct PlayerCollider {
     bool wasWPressed = false;
     static constexpr double DOUBLE_TAP_TIME = 0.3; // Time window for double-tap detection in seconds
 };
+
 PlayerCollider player;
 
 struct Vertex {
@@ -90,6 +91,7 @@ struct SelectedBlock {
 // Add these new vertex data structures after the existing Block struct
 struct LineVertex {
     float pos[3];
+
     static vk::VertexInputBindingDescription getBindingDescription() {
         vk::VertexInputBindingDescription bindingDescription{};
         bindingDescription.binding = 0;
@@ -118,7 +120,7 @@ public:
     }
 
 private:
-    GLFWwindow* window = nullptr;
+    GLFWwindow *window = nullptr;
     vk::Instance instance;
     vk::PhysicalDevice physicalDevice;
     vk::Device device;
@@ -142,7 +144,7 @@ private:
     std::vector<vk::CommandBuffer> commandBuffers;
     std::vector<vk::Buffer> uniformBuffers;
     std::vector<vk::DeviceMemory> uniformBuffersMemory;
-    std::vector<void*> uniformBuffersMapped;
+    std::vector<void *> uniformBuffersMapped;
     vk::DescriptorPool descriptorPool;
     vk::DescriptorSetLayout descriptorSetLayout;
     vk::DescriptorSet descriptorSet;
@@ -173,9 +175,10 @@ private:
             vk::Format::eD24UnormS8Uint
         };
 
-        for (vk::Format format : candidates) {
+        for (vk::Format format: candidates) {
             vk::FormatProperties props = physicalDevice.getFormatProperties(format);
-            if ((props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) == vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
+            if ((props.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment) ==
+                vk::FormatFeatureFlagBits::eDepthStencilAttachment) {
                 return format;
             }
         }
@@ -206,7 +209,7 @@ private:
         vk::MemoryAllocateInfo allocInfo{};
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-            vk::MemoryPropertyFlagBits::eDeviceLocal);
+                                                   vk::MemoryPropertyFlagBits::eDeviceLocal);
 
         depthImageMemory = device.allocateMemory(allocInfo);
         device.bindImageMemory(depthImage, depthImageMemory, 0);
@@ -228,7 +231,7 @@ private:
         if (!selectedBlock.hasSelection) {
             // Clear the selection buffer
             selectionVertices.clear();
-            void* data = device.mapMemory(selectionBufferMemory, 0, sizeof(LineVertex) * 24);
+            void *data = device.mapMemory(selectionBufferMemory, 0, sizeof(LineVertex) * 24);
             memset(data, 0, sizeof(LineVertex) * 24);
             device.unmapMemory(selectionBufferMemory);
             return;
@@ -279,7 +282,7 @@ private:
         };
 
         // Update buffer data
-        void* data = device.mapMemory(selectionBufferMemory, 0, sizeof(LineVertex) * selectionVertices.size());
+        void *data = device.mapMemory(selectionBufferMemory, 0, sizeof(LineVertex) * selectionVertices.size());
         memcpy(data, selectionVertices.data(), sizeof(LineVertex) * selectionVertices.size());
         device.unmapMemory(selectionBufferMemory);
 
@@ -299,7 +302,8 @@ private:
         vk::MemoryAllocateInfo allocInfo{};
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+                                                   vk::MemoryPropertyFlagBits::eHostVisible |
+                                                   vk::MemoryPropertyFlagBits::eHostCoherent);
 
         selectionBufferMemory = device.allocateMemory(allocInfo);
         device.bindBufferMemory(selectionBuffer, selectionBufferMemory, 0);
@@ -319,8 +323,8 @@ private:
         }
     }
 
-    static void focusCallback(GLFWwindow* window, int focused) {
-        auto app = reinterpret_cast<Zerith*>(glfwGetWindowUserPointer(window));
+    static void focusCallback(GLFWwindow *window, int focused) {
+        auto app = reinterpret_cast<Zerith *>(glfwGetWindowUserPointer(window));
         app->windowFocused = focused == GLFW_TRUE;
 
         if (app->windowFocused && app->cursorLocked) {
@@ -379,7 +383,8 @@ private:
         device.freeCommandBuffers(commandPool, 1, &commandBuffer);
     }
 
-    void createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Buffer& buffer, vk::DeviceMemory& bufferMemory) {
+    void createBuffer(vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties,
+                      vk::Buffer &buffer, vk::DeviceMemory &bufferMemory) {
         vk::BufferCreateInfo bufferInfo{};
         bufferInfo.size = size;
         bufferInfo.usage = usage;
@@ -397,7 +402,9 @@ private:
         device.bindBufferMemory(buffer, bufferMemory, 0);
     }
 
-    void createImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling, vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Image& image, vk::DeviceMemory& imageMemory) {
+    void createImage(uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
+                     vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties, vk::Image &image,
+                     vk::DeviceMemory &imageMemory) {
         vk::ImageCreateInfo imageInfo{};
         imageInfo.imageType = vk::ImageType::e2D;
         imageInfo.extent.width = width;
@@ -424,7 +431,8 @@ private:
         device.bindImageMemory(image, imageMemory, 0);
     }
 
-    void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+    void transitionImageLayout(vk::Image image, vk::Format format, vk::ImageLayout oldLayout,
+                               vk::ImageLayout newLayout) {
         vk::CommandBuffer commandBuffer = beginSingleTimeCommands();
 
         vk::ImageMemoryBarrier barrier{};
@@ -448,7 +456,8 @@ private:
 
             sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
             destinationStage = vk::PipelineStageFlagBits::eTransfer;
-        } else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+        } else if (oldLayout == vk::ImageLayout::eTransferDstOptimal && newLayout ==
+                   vk::ImageLayout::eShaderReadOnlyOptimal) {
             barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
             barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
@@ -482,9 +491,9 @@ private:
         endSingleTimeCommands(commandBuffer);
     }
 
-    void createTextureImage(const char* filepath) {
+    void createTextureImage(const char *filepath) {
         int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load(filepath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+        stbi_uc *pixels = stbi_load(filepath, &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
         VkDeviceSize imageSize = texWidth * texHeight * 4;
 
         if (!pixels) {
@@ -495,25 +504,25 @@ private:
         vk::DeviceMemory stagingBufferMemory;
 
         createBuffer(imageSize, vk::BufferUsageFlagBits::eTransferSrc,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
-            stagingBuffer, stagingBufferMemory);
+                     vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+                     stagingBuffer, stagingBufferMemory);
 
-        void* data = device.mapMemory(stagingBufferMemory, 0, imageSize);
+        void *data = device.mapMemory(stagingBufferMemory, 0, imageSize);
         memcpy(data, pixels, static_cast<size_t>(imageSize));
         device.unmapMemory(stagingBufferMemory);
 
         stbi_image_free(pixels);
 
         createImage(texWidth, texHeight, vk::Format::eR8G8B8A8Srgb, vk::ImageTiling::eOptimal,
-            vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
-            vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory);
+                    vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+                    vk::MemoryPropertyFlagBits::eDeviceLocal, textureImage, textureImageMemory);
 
         transitionImageLayout(textureImage, vk::Format::eR8G8B8A8Srgb,
-            vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
+                              vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal);
         copyBufferToImage(stagingBuffer, textureImage,
-            static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
+                          static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
         transitionImageLayout(textureImage, vk::Format::eR8G8B8A8Srgb,
-            vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
+                              vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal);
 
         device.destroyBuffer(stagingBuffer);
         device.freeMemory(stagingBufferMemory);
@@ -559,228 +568,287 @@ private:
     }
 
     void updateBlockMesh() {
-    vertices.clear();
-    indices.clear();
+        vertices.clear();
+        indices.clear();
 
-    for (const auto& block : blocks) {
-        if (!block.exists) continue;
+        for (const auto &block: blocks) {
+            if (!block.exists) continue;
 
-        // Get neighboring block positions
-        glm::vec3 pos = block.position;
-        bool hasNeighbor[6] = {false};  // left, right, bottom, top, front, back
+            // Get neighboring block positions
+            glm::vec3 pos = block.position;
+            bool hasNeighbor[6] = {false}; // left, right, bottom, top, front, back
 
-        // Check for neighbors
-        for (const auto& other : blocks) {
-            if (!other.exists) continue;
-            if (other.position == pos) continue;
+            // Check for neighbors
+            for (const auto &other: blocks) {
+                if (!other.exists) continue;
+                if (other.position == pos) continue;
 
-            glm::vec3 diff = other.position - pos;
-            if (glm::length(diff) > 1.01f) continue;
+                glm::vec3 diff = other.position - pos;
+                if (glm::length(diff) > 1.01f) continue;
 
-            // Check exact positions for neighbors
-            if (diff.x == -1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[0] = true;      // left
-            else if (diff.x == 1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[1] = true;  // right
-            if (diff.y == -1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[2] = true;      // bottom
-            else if (diff.y == 1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[3] = true;  // top
-            if (diff.z == -1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[4] = true;      // front
-            else if (diff.z == 1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[5] = true;  // back
-        }
+                // Check exact positions for neighbors
+                if (diff.x == -1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[0] = true; // left
+                else if (diff.x == 1.0f && diff.y == 0.0f && diff.z == 0.0f) hasNeighbor[1] = true; // right
+                if (diff.y == -1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[2] = true; // bottom
+                else if (diff.y == 1.0f && diff.x == 0.0f && diff.z == 0.0f) hasNeighbor[3] = true; // top
+                if (diff.z == -1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[4] = true; // front
+                else if (diff.z == 1.0f && diff.x == 0.0f && diff.y == 0.0f) hasNeighbor[5] = true; // back
+            }
 
-        uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
+            uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
 
-        // Front face (-Z)
-        if (!hasNeighbor[4]) {
-            vertices.push_back({{pos.x, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}});           // Bottom-left
-            vertices.push_back({{pos.x + 1, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}});      // Bottom-right
-            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}});  // Top-right
-            vertices.push_back({{pos.x, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}});      // Top-left
+            // Front face (-Z)
+            if (!hasNeighbor[4]) {
+                vertices.push_back({{pos.x, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}); // Bottom-left
+                vertices.push_back({{pos.x + 1, pos.y, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}); // Bottom-right
+                vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}); // Top-right
+                vertices.push_back({{pos.x, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}); // Top-left
 
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2);
-            indices.push_back(baseIndex + 1);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 3);
-            indices.push_back(baseIndex + 2);
-            baseIndex += 4;
-        }
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
+                baseIndex += 4;
+            }
 
-        // Back face (+Z)
-        if (!hasNeighbor[5]) {
-            vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {0.0f, 1.0f}});   // Bottom-left
-            vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {1.0f, 1.0f}});      // Bottom-right
-            vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {1.0f, 0.0f}});  // Top-right
-            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {0.0f, 0.0f}}); // Top-left
+            // Back face (+Z)
+            if (!hasNeighbor[5]) {
+                vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {0.0f, 1.0f}}); // Bottom-left
+                vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {1.0f, 1.0f}}); // Bottom-right
+                vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {1.0f, 0.0f}}); // Top-right
+                vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {0.9f, 0.9f, 0.9f}, {0.0f, 0.0f}}); // Top-left
 
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2);
-            indices.push_back(baseIndex + 1);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 3);
-            indices.push_back(baseIndex + 2);
-            baseIndex += 4;
-        }
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
+                baseIndex += 4;
+            }
 
-        // Right face (+X)
-        if (!hasNeighbor[1]) {
-            vertices.push_back({{pos.x + 1, pos.y, pos.z}, {0.8f, 0.8f, 0.8f}, {0.0f, 1.0f}});        // Bottom-left
-            vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {1.0f, 1.0f}});    // Bottom-right
-            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {1.0f, 0.0f}}); // Top-right
-            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {0.8f, 0.8f, 0.8f}, {0.0f, 0.0f}});    // Top-left
+            // Right face (+X)
+            if (!hasNeighbor[1]) {
+                vertices.push_back({{pos.x + 1, pos.y, pos.z}, {0.8f, 0.8f, 0.8f}, {0.0f, 1.0f}}); // Bottom-left
+                vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {1.0f, 1.0f}}); // Bottom-right
+                vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {1.0f, 0.0f}}); // Top-right
+                vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {0.8f, 0.8f, 0.8f}, {0.0f, 0.0f}}); // Top-left
 
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2);
-            indices.push_back(baseIndex + 1);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 3);
-            indices.push_back(baseIndex + 2);
-            baseIndex += 4;
-        }
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
+                baseIndex += 4;
+            }
 
-        // Left face (-X)
-        if (!hasNeighbor[0]) {
-            vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {0.0f, 1.0f}});     // Bottom-left
-            vertices.push_back({{pos.x, pos.y, pos.z}, {0.8f, 0.8f, 0.8f}, {1.0f, 1.0f}});         // Bottom-right
-            vertices.push_back({{pos.x, pos.y + 1, pos.z}, {0.8f, 0.8f, 0.8f}, {1.0f, 0.0f}});     // Top-right
-            vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {0.0f, 0.0f}}); // Top-left
+            // Left face (-X)
+            if (!hasNeighbor[0]) {
+                vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {0.0f, 1.0f}}); // Bottom-left
+                vertices.push_back({{pos.x, pos.y, pos.z}, {0.8f, 0.8f, 0.8f}, {1.0f, 1.0f}}); // Bottom-right
+                vertices.push_back({{pos.x, pos.y + 1, pos.z}, {0.8f, 0.8f, 0.8f}, {1.0f, 0.0f}}); // Top-right
+                vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {0.8f, 0.8f, 0.8f}, {0.0f, 0.0f}}); // Top-left
 
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2);
-            indices.push_back(baseIndex + 1);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 3);
-            indices.push_back(baseIndex + 2);
-            baseIndex += 4;
-        }
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
+                baseIndex += 4;
+            }
 
-        // Top face (+Y)
-        if (!hasNeighbor[3]) {
-            vertices.push_back({{pos.x, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}});         // Bottom-left
-            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}});     // Bottom-right
-            vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}); // Top-right
-            vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}});     // Top-left
+            // Top face (+Y)
+            if (!hasNeighbor[3]) {
+                vertices.push_back({{pos.x, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {0.0f, 1.0f}}); // Bottom-left
+                vertices.push_back({{pos.x + 1, pos.y + 1, pos.z}, {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f}}); // Bottom-right
+                vertices.push_back({{pos.x + 1, pos.y + 1, pos.z + 1}, {1.0f, 1.0f, 1.0f}, {1.0f, 0.0f}}); // Top-right
+                vertices.push_back({{pos.x, pos.y + 1, pos.z + 1}, {1.0f, 1.0f, 1.0f}, {0.0f, 0.0f}}); // Top-left
 
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2);
-            indices.push_back(baseIndex + 1);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 3);
-            indices.push_back(baseIndex + 2);
-            baseIndex += 4;
-        }
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
+                baseIndex += 4;
+            }
 
-        // Bottom face (-Y)
-        if (!hasNeighbor[2]) {
-            vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.7f, 0.7f, 0.7f}, {0.0f, 1.0f}});         // Bottom-left
-            vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.7f, 0.7f, 0.7f}, {1.0f, 1.0f}});     // Bottom-right
-            vertices.push_back({{pos.x + 1, pos.y, pos.z}, {0.7f, 0.7f, 0.7f}, {1.0f, 0.0f}});         // Top-right
-            vertices.push_back({{pos.x, pos.y, pos.z}, {0.7f, 0.7f, 0.7f}, {0.0f, 0.0f}});             // Top-left
+            // Bottom face (-Y)
+            if (!hasNeighbor[2]) {
+                vertices.push_back({{pos.x, pos.y, pos.z + 1}, {0.7f, 0.7f, 0.7f}, {0.0f, 1.0f}}); // Bottom-left
+                vertices.push_back({{pos.x + 1, pos.y, pos.z + 1}, {0.7f, 0.7f, 0.7f}, {1.0f, 1.0f}}); // Bottom-right
+                vertices.push_back({{pos.x + 1, pos.y, pos.z}, {0.7f, 0.7f, 0.7f}, {1.0f, 0.0f}}); // Top-right
+                vertices.push_back({{pos.x, pos.y, pos.z}, {0.7f, 0.7f, 0.7f}, {0.0f, 0.0f}}); // Top-left
 
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 2);
-            indices.push_back(baseIndex + 1);
-            indices.push_back(baseIndex);
-            indices.push_back(baseIndex + 3);
-            indices.push_back(baseIndex + 2);
-        }
-    }
-
-    // Recreate vertex and index buffers
-    recreateBlockBuffers();
-}
-
-    void recreateBlockBuffers() {
-        // Clean up existing buffers
-        device.destroyBuffer(vertexBuffer);
-        device.freeMemory(vertexBufferMemory);
-        device.destroyBuffer(indexBuffer);
-        device.freeMemory(indexBufferMemory);
-
-        // Recreate buffers with new data
-        createVertexBuffer();
-        createIndexBuffer();
-    }
-
-    bool raycastBlock(glm::vec3& hitPosition, glm::vec3& hitNormal, bool& hit) {
-    glm::vec3 rayStart = camera.pos;
-    glm::vec3 rayDir = glm::normalize(camera.front);
-
-    float closest = MAX_REACH;
-    hit = false;
-    bool selectionChanged = false;
-
-    for (const auto& block : blocks) {
-        if (!block.exists) continue;
-
-        glm::vec3 mins = block.position;
-        glm::vec3 maxs = block.position + glm::vec3(1.0f);
-
-        float tmin = (mins.x - rayStart.x) / rayDir.x;
-        float tmax = (maxs.x - rayStart.x) / rayDir.x;
-
-        if (tmin > tmax) std::swap(tmin, tmax);
-
-        float tymin = (mins.y - rayStart.y) / rayDir.y;
-        float tymax = (maxs.y - rayStart.y) / rayDir.y;
-
-        if (tymin > tymax) std::swap(tymin, tymax);
-
-        if ((tmin > tymax) || (tymin > tmax)) continue;
-
-        tmin = std::max(tmin, tymin);
-        tmax = std::min(tmax, tymax);
-
-        float tzmin = (mins.z - rayStart.z) / rayDir.z;
-        float tzmax = (maxs.z - rayStart.z) / rayDir.z;
-
-        if (tzmin > tzmax) std::swap(tzmin, tzmax);
-
-        if ((tmin > tzmax) || (tzmin > tmax)) continue;
-
-        tmin = std::max(tmin, tzmin);
-        tmax = std::min(tmax, tzmax);
-
-        if (tmin < 0) {
-            if (tmax < 0) continue;
-            tmin = tmax;
-        }
-
-        if (tmin < closest) {
-            closest = tmin;
-            hitPosition = rayStart + rayDir * tmin;
-
-            glm::vec3 center = block.position + glm::vec3(0.5f);
-            glm::vec3 diff = hitPosition - center;
-            float x = abs(diff.x);
-            float y = abs(diff.y);
-            float z = abs(diff.z);
-
-            if (x > y && x > z)
-                hitNormal = glm::vec3(diff.x > 0 ? 1 : -1, 0, 0);
-            else if (y > z)
-                hitNormal = glm::vec3(0, diff.y > 0 ? 1 : -1, 0);
-            else
-                hitNormal = glm::vec3(0, 0, diff.z > 0 ? 1 : -1);
-
-            hit = true;
-            if (!selectedBlock.hasSelection || selectedBlock.position != block.position) {
-                selectedBlock.hasSelection = true;
-                selectedBlock.position = block.position;
-                selectionChanged = true;
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 2);
+                indices.push_back(baseIndex + 1);
+                indices.push_back(baseIndex);
+                indices.push_back(baseIndex + 3);
+                indices.push_back(baseIndex + 2);
             }
         }
+
+        // Recreate vertex and index buffers
+        recreateBlockBuffers();
     }
 
-    if (!hit && selectedBlock.hasSelection) {
-        selectedBlock.hasSelection = false;
-        selectionChanged = true;
+    void recreateBlockBuffers() {
+        // Create new buffers first
+        vk::Buffer newVertexBuffer;
+        vk::DeviceMemory newVertexBufferMemory;
+        vk::Buffer newIndexBuffer;
+        vk::DeviceMemory newIndexBufferMemory;
+
+        // Create temporary buffers
+        vk::BufferCreateInfo bufferInfo{};
+        bufferInfo.size = sizeof(vertices[0]) * vertices.size();
+        bufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
+        bufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+        newVertexBuffer = device.createBuffer(bufferInfo);
+
+        vk::MemoryRequirements memRequirements = device.getBufferMemoryRequirements(newVertexBuffer);
+        vk::MemoryAllocateInfo allocInfo{};
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   vk::MemoryPropertyFlagBits::eHostVisible |
+                                                   vk::MemoryPropertyFlagBits::eHostCoherent);
+
+        newVertexBufferMemory = device.allocateMemory(allocInfo);
+        device.bindBufferMemory(newVertexBuffer, newVertexBufferMemory, 0);
+
+        void *data = device.mapMemory(newVertexBufferMemory, 0, bufferInfo.size);
+        memcpy(data, vertices.data(), (size_t) bufferInfo.size);
+        device.unmapMemory(newVertexBufferMemory);
+
+        // Create new index buffer
+        bufferInfo.size = sizeof(indices[0]) * indices.size();
+        bufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
+
+        newIndexBuffer = device.createBuffer(bufferInfo);
+
+        memRequirements = device.getBufferMemoryRequirements(newIndexBuffer);
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                                   vk::MemoryPropertyFlagBits::eHostVisible |
+                                                   vk::MemoryPropertyFlagBits::eHostCoherent);
+
+        newIndexBufferMemory = device.allocateMemory(allocInfo);
+        device.bindBufferMemory(newIndexBuffer, newIndexBufferMemory, 0);
+
+        data = device.mapMemory(newIndexBufferMemory, 0, bufferInfo.size);
+        memcpy(data, indices.data(), (size_t) bufferInfo.size);
+        device.unmapMemory(newIndexBufferMemory);
+
+        // Wait for the device to finish any ongoing operations
+        device.waitIdle();
+
+        // Clean up old buffers
+        if (vertexBuffer) {
+            device.destroyBuffer(vertexBuffer);
+            device.freeMemory(vertexBufferMemory);
+        }
+        if (indexBuffer) {
+            device.destroyBuffer(indexBuffer);
+            device.freeMemory(indexBufferMemory);
+        }
+
+        // Assign new buffers
+        vertexBuffer = newVertexBuffer;
+        vertexBufferMemory = newVertexBufferMemory;
+        indexBuffer = newIndexBuffer;
+        indexBufferMemory = newIndexBufferMemory;
+
+        // Recreate command buffers to use new vertex/index buffers
+        createCommandBuffers();
     }
 
-    if (selectionChanged) {
-        updateSelectionBuffer();
-    }
+    bool raycastBlock(glm::vec3 &hitPosition, glm::vec3 &hitNormal, bool &hit) {
+        glm::vec3 rayStart = camera.pos;
+        glm::vec3 rayDir = glm::normalize(camera.front);
 
-    return hit;
-}
+        float closest = MAX_REACH;
+        hit = false;
+        bool selectionChanged = false;
+
+        for (const auto &block: blocks) {
+            if (!block.exists) continue;
+
+            glm::vec3 mins = block.position;
+            glm::vec3 maxs = block.position + glm::vec3(1.0f);
+
+            float tmin = (mins.x - rayStart.x) / rayDir.x;
+            float tmax = (maxs.x - rayStart.x) / rayDir.x;
+
+            if (tmin > tmax) std::swap(tmin, tmax);
+
+            float tymin = (mins.y - rayStart.y) / rayDir.y;
+            float tymax = (maxs.y - rayStart.y) / rayDir.y;
+
+            if (tymin > tymax) std::swap(tymin, tymax);
+
+            if ((tmin > tymax) || (tymin > tmax)) continue;
+
+            tmin = std::max(tmin, tymin);
+            tmax = std::min(tmax, tymax);
+
+            float tzmin = (mins.z - rayStart.z) / rayDir.z;
+            float tzmax = (maxs.z - rayStart.z) / rayDir.z;
+
+            if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+            if ((tmin > tzmax) || (tzmin > tmax)) continue;
+
+            tmin = std::max(tmin, tzmin);
+            tmax = std::min(tmax, tzmax);
+
+            if (tmin < 0) {
+                if (tmax < 0) continue;
+                tmin = tmax;
+            }
+
+            if (tmin < closest) {
+                closest = tmin;
+                hitPosition = rayStart + rayDir * tmin;
+
+                glm::vec3 center = block.position + glm::vec3(0.5f);
+                glm::vec3 diff = hitPosition - center;
+                float x = abs(diff.x);
+                float y = abs(diff.y);
+                float z = abs(diff.z);
+
+                if (x > y && x > z)
+                    hitNormal = glm::vec3(diff.x > 0 ? 1 : -1, 0, 0);
+                else if (y > z)
+                    hitNormal = glm::vec3(0, diff.y > 0 ? 1 : -1, 0);
+                else
+                    hitNormal = glm::vec3(0, 0, diff.z > 0 ? 1 : -1);
+
+                hit = true;
+                if (!selectedBlock.hasSelection || selectedBlock.position != block.position) {
+                    selectedBlock.hasSelection = true;
+                    selectedBlock.position = block.position;
+                    selectionChanged = true;
+                }
+            }
+        }
+
+        if (!hit && selectedBlock.hasSelection) {
+            selectedBlock.hasSelection = false;
+            selectionChanged = true;
+        }
+
+        if (selectionChanged) {
+            updateSelectionBuffer();
+        }
+
+        return hit;
+    }
 
     void handleBlockInteraction() {
         static bool leftPressed = false;
@@ -797,7 +865,7 @@ private:
         if (raycastBlock(hitPos, hitNormal, hit)) {
             // Break block
             if (leftClick && !leftPressed) {
-                for (auto& block : blocks) {
+                for (auto &block: blocks) {
                     if (!block.exists) continue;
 
                     // Check if the hit position is within the block's bounds
@@ -810,16 +878,17 @@ private:
                         block.exists = false;
                         updateBlockMesh();
                         break;
-                        }
+                    }
                 }
             }
             // Place block
             else if (rightClick && !rightPressed) {
-                glm::vec3 newPos = glm::floor(hitPos + hitNormal + glm::vec3(0.001f));  // Add small offset to avoid floating point issues
+                glm::vec3 newPos = glm::floor(hitPos + hitNormal + glm::vec3(0.001f));
+                // Add small offset to avoid floating point issues
 
                 // Check if position is occupied
                 bool occupied = false;
-                for (const auto& block : blocks) {
+                for (const auto &block: blocks) {
                     if (!block.exists) continue;
                     if (block.position == newPos) {
                         occupied = true;
@@ -860,8 +929,8 @@ private:
         float speed = 2.5f;
     } camera;
 
-    static void mouseCallback(GLFWwindow* window, double xpos, double ypos) {
-        auto app = reinterpret_cast<Zerith*>(glfwGetWindowUserPointer(window));
+    static void mouseCallback(GLFWwindow *window, double xpos, double ypos) {
+        auto app = reinterpret_cast<Zerith *>(glfwGetWindowUserPointer(window));
         app->processMouseMovement(xpos, ypos);
     }
 
@@ -902,138 +971,138 @@ private:
     }
 
     void processInput() {
-    static bool escapePressed = false;
-    static bool spacePressed = false;
-    static auto lastTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
-    lastTime = currentTime;
+        static bool escapePressed = false;
+        static bool spacePressed = false;
+        static auto lastTime = std::chrono::high_resolution_clock::now();
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float deltaTime = std::chrono::duration<float>(currentTime - lastTime).count();
+        lastTime = currentTime;
 
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        if (!escapePressed) {
-            toggleCursorLock();
-            escapePressed = true;
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+            if (!escapePressed) {
+                toggleCursorLock();
+                escapePressed = true;
+            }
+        } else {
+            escapePressed = false;
         }
-    } else {
-        escapePressed = false;
-    }
 
-    if (!cursorLocked) return;
+        if (!cursorLocked) return;
 
-    // Handle sprint input (Ctrl key or double-tap W)
-    bool wKeyPressed = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
-    bool ctrlPressed = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
-                      glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
+        // Handle sprint input (Ctrl key or double-tap W)
+        bool wKeyPressed = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+        bool ctrlPressed = glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS ||
+                           glfwGetKey(window, GLFW_KEY_RIGHT_CONTROL) == GLFW_PRESS;
 
-    // Double-tap W detection
-    if (wKeyPressed && !player.wasWPressed) {
-        double currentTime = glfwGetTime();
-        double timeSinceLastPress = currentTime - player.lastWPress;
+        // Double-tap W detection
+        if (wKeyPressed && !player.wasWPressed) {
+            double currentTime = glfwGetTime();
+            double timeSinceLastPress = currentTime - player.lastWPress;
 
-        if (timeSinceLastPress < player.DOUBLE_TAP_TIME) {
+            if (timeSinceLastPress < player.DOUBLE_TAP_TIME) {
+                player.isSprinting = true;
+            }
+
+            player.lastWPress = currentTime;
+        }
+        player.wasWPressed = wKeyPressed;
+
+        // Direct sprint key (Ctrl) handling
+        if (ctrlPressed && wKeyPressed) {
             player.isSprinting = true;
         }
 
-        player.lastWPress = currentTime;
-    }
-    player.wasWPressed = wKeyPressed;
-
-    // Direct sprint key (Ctrl) handling
-    if (ctrlPressed && wKeyPressed) {
-        player.isSprinting = true;
-    }
-
-    // Stop sprinting if not moving forward
-    if (!wKeyPressed) {
-        player.isSprinting = false;
-    }
-
-    // Calculate movement vector from input
-    glm::vec3 movement(0.0f);
-    if (wKeyPressed)
-        movement += camera.front;
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        movement -= camera.front;
-        player.isSprinting = false; // Can't sprint backwards
-    }
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        movement -= glm::normalize(glm::cross(camera.front, camera.up));
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        movement += glm::normalize(glm::cross(camera.front, camera.up));
-
-    // Remove vertical component for ground movement
-    movement.y = 0;
-    if (glm::length(movement) > 0) {
-        movement = glm::normalize(movement);
-    }
-
-    // Handle jumping with sprint jump boost
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-        if (!spacePressed && player.onGround) {
-            // Apply sprint jump boost if sprinting
-            player.velocity.y = player.isSprinting ? player.sprintJumpForce : player.jumpForce;
-            player.onGround = false;
+        // Stop sprinting if not moving forward
+        if (!wKeyPressed) {
+            player.isSprinting = false;
         }
-        spacePressed = true;
-    } else {
-        spacePressed = false;
+
+        // Calculate movement vector from input
+        glm::vec3 movement(0.0f);
+        if (wKeyPressed)
+            movement += camera.front;
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+            movement -= camera.front;
+            player.isSprinting = false; // Can't sprint backwards
+        }
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+            movement -= glm::normalize(glm::cross(camera.front, camera.up));
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+            movement += glm::normalize(glm::cross(camera.front, camera.up));
+
+        // Remove vertical component for ground movement
+        movement.y = 0;
+        if (glm::length(movement) > 0) {
+            movement = glm::normalize(movement);
+        }
+
+        // Handle jumping with sprint jump boost
+        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+            if (!spacePressed && player.onGround) {
+                // Apply sprint jump boost if sprinting
+                player.velocity.y = player.isSprinting ? player.sprintJumpForce : player.jumpForce;
+                player.onGround = false;
+            }
+            spacePressed = true;
+        } else {
+            spacePressed = false;
+        }
+
+        // Apply movement speed based on sprint state
+        float currentSpeed = player.isSprinting ? player.sprintingSpeed : player.walkingSpeed;
+        float speed = currentSpeed * deltaTime;
+
+        // Apply horizontal movement
+        player.velocity.x = movement.x * speed * 100.0f;
+        player.velocity.z = movement.z * speed * 100.0f;
+
+        // Apply gravity
+        if (!player.onGround) {
+            player.velocity.y += player.gravity * deltaTime;
+        }
+
+        // Calculate new position
+        glm::vec3 newPos = player.position + player.velocity * deltaTime;
+
+        // Resolve collisions
+        resolveCollisions(newPos);
+
+        // Update player and camera positions
+        player.position = newPos;
+        camera.pos = player.position + glm::vec3(0.0f, player.dimensions.y / 2, 0.0f);
+
+        updateUniformBuffer(currentFrame);
     }
 
-    // Apply movement speed based on sprint state
-    float currentSpeed = player.isSprinting ? player.sprintingSpeed : player.walkingSpeed;
-    float speed = currentSpeed * deltaTime;
-
-    // Apply horizontal movement
-    player.velocity.x = movement.x * speed * 100.0f;
-    player.velocity.z = movement.z * speed * 100.0f;
-
-    // Apply gravity
-    if (!player.onGround) {
-        player.velocity.y += player.gravity * deltaTime;
+    // Add a helper function to reset sprint state when needed
+    void resetSprintState() {
+        player.isSprinting = false;
+        player.wasWPressed = false;
+        player.lastWPress = 0.0;
     }
 
-    // Calculate new position
-    glm::vec3 newPos = player.position + player.velocity * deltaTime;
 
-    // Resolve collisions
-    resolveCollisions(newPos);
-
-    // Update player and camera positions
-    player.position = newPos;
-    camera.pos = player.position + glm::vec3(0.0f, player.dimensions.y/2, 0.0f);
-
-    updateUniformBuffer(currentFrame);
-}
-
-// Add a helper function to reset sprint state when needed
-void resetSprintState() {
-    player.isSprinting = false;
-    player.wasWPressed = false;
-    player.lastWPress = 0.0;
-}
-
-
-    bool checkCollision(const glm::vec3& pos, const glm::vec3& dimensions, const Block& block) {
+    bool checkCollision(const glm::vec3 &pos, const glm::vec3 &dimensions, const Block &block) {
         if (!block.exists) return false;
 
         // AABB collision check
-        bool collisionX = pos.x + dimensions.x/2 > block.position.x &&
-                         block.position.x + 1.0f > pos.x - dimensions.x/2;
-        bool collisionY = pos.y + dimensions.y/2 > block.position.y &&
-                         block.position.y + 1.0f > pos.y - dimensions.y/2;
-        bool collisionZ = pos.z + dimensions.z/2 > block.position.z &&
-                         block.position.z + 1.0f > pos.z - dimensions.z/2;
+        bool collisionX = pos.x + dimensions.x / 2 > block.position.x &&
+                          block.position.x + 1.0f > pos.x - dimensions.x / 2;
+        bool collisionY = pos.y + dimensions.y / 2 > block.position.y &&
+                          block.position.y + 1.0f > pos.y - dimensions.y / 2;
+        bool collisionZ = pos.z + dimensions.z / 2 > block.position.z &&
+                          block.position.z + 1.0f > pos.z - dimensions.z / 2;
 
         return collisionX && collisionY && collisionZ;
     }
 
-    void resolveCollisions(glm::vec3& newPos) {
+    void resolveCollisions(glm::vec3 &newPos) {
         // Check collisions for each axis independently
         glm::vec3 testPos = player.position;
 
         // X axis
         testPos.x = newPos.x;
-        for (const auto& block : blocks) {
+        for (const auto &block: blocks) {
             if (checkCollision(testPos, player.dimensions, block)) {
                 newPos.x = player.position.x;
                 player.velocity.x = 0;
@@ -1045,7 +1114,7 @@ void resetSprintState() {
         testPos = player.position;
         testPos.y = newPos.y;
         player.onGround = false;
-        for (const auto& block : blocks) {
+        for (const auto &block: blocks) {
             if (checkCollision(testPos, player.dimensions, block)) {
                 if (newPos.y < player.position.y) {
                     player.onGround = true;
@@ -1059,7 +1128,7 @@ void resetSprintState() {
         // Z axis
         testPos = player.position;
         testPos.z = newPos.z;
-        for (const auto& block : blocks) {
+        for (const auto &block: blocks) {
             if (checkCollision(testPos, player.dimensions, block)) {
                 newPos.z = player.position.z;
                 player.velocity.z = 0;
@@ -1068,8 +1137,8 @@ void resetSprintState() {
         }
     }
 
-    static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<Zerith*>(glfwGetWindowUserPointer(window));
+    static void framebufferResizeCallback(GLFWwindow *window, int width, int height) {
+        auto app = reinterpret_cast<Zerith *>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
     }
 
@@ -1091,19 +1160,19 @@ void resetSprintState() {
         glfwSetCursorPosCallback(window, mouseCallback);
         glfwSetWindowFocusCallback(window, focusCallback);
 
-        GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+        GLFWmonitor *monitor = glfwGetPrimaryMonitor();
         if (monitor) {
-            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+            const GLFWvidmode *mode = glfwGetVideoMode(monitor);
             int monitorX, monitorY;
             glfwGetMonitorPos(monitor, &monitorX, &monitorY);
             glfwSetWindowPos(window,
-                monitorX + (mode->width - 800) / 2,
-                monitorY + (mode->height - 600) / 2);
+                             monitorX + (mode->width - 800) / 2,
+                             monitorY + (mode->height - 600) / 2);
         }
     }
 
-        void cleanupSwapChain() {
-        for (auto framebuffer : swapChainFramebuffers) {
+    void cleanupSwapChain() {
+        for (auto framebuffer: swapChainFramebuffers) {
             device.destroyFramebuffer(framebuffer);
         }
 
@@ -1112,7 +1181,7 @@ void resetSprintState() {
         device.destroyPipelineLayout(pipelineLayout);
         device.destroyRenderPass(renderPass);
 
-        for (auto imageView : swapChainImageViews) {
+        for (auto imageView: swapChainImageViews) {
             device.destroyImageView(imageView);
         }
 
@@ -1166,7 +1235,7 @@ void resetSprintState() {
         createSyncObjects();
     }
 
-    static std::vector<char> readFile(const std::string& filename) {
+    static std::vector<char> readFile(const std::string &filename) {
         std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
         if (!file.is_open()) {
@@ -1183,7 +1252,7 @@ void resetSprintState() {
         return buffer;
     }
 
-    std::vector<const char*> validationLayers = {
+    std::vector<const char *> validationLayers = {
         "VK_LAYER_KHRONOS_validation"
     };
 
@@ -1196,8 +1265,8 @@ void resetSprintState() {
         appInfo.apiVersion = VK_API_VERSION_1_3;
 
         uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+        const char **glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        std::vector<const char *> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
         vk::InstanceCreateInfo createInfo{};
         createInfo.pApplicationInfo = &appInfo;
@@ -1232,7 +1301,7 @@ void resetSprintState() {
         auto queueFamilies = device.getQueueFamilyProperties();
 
         int i = 0;
-        for (const auto& queueFamily : queueFamilies) {
+        for (const auto &queueFamily: queueFamilies) {
             if (queueFamily.queueFlags & vk::QueueFlagBits::eGraphics) {
                 indices.graphicsFamily = i;
             }
@@ -1253,7 +1322,7 @@ void resetSprintState() {
 
     void pickPhysicalDevice() {
         auto devices = instance.enumeratePhysicalDevices();
-        for (const auto& device : devices) {
+        for (const auto &device: devices) {
             if (isDeviceSuitable(device)) {
                 physicalDevice = device;
                 break;
@@ -1280,7 +1349,7 @@ void resetSprintState() {
         };
 
         float queuePriority = 1.0f;
-        for (uint32_t queueFamily : uniqueQueueFamilies) {
+        for (uint32_t queueFamily: uniqueQueueFamilies) {
             vk::DeviceQueueCreateInfo queueCreateInfo{};
             queueCreateInfo.queueFamilyIndex = queueFamily;
             queueCreateInfo.queueCount = 1;
@@ -1293,7 +1362,7 @@ void resetSprintState() {
 
         deviceFeatures.samplerAnisotropy = VK_TRUE;
 
-        std::vector<const char*> deviceExtensions = {
+        std::vector<const char *> deviceExtensions = {
             VK_KHR_SWAPCHAIN_EXTENSION_NAME
         };
 
@@ -1354,7 +1423,7 @@ void resetSprintState() {
         swapChainExtent = extent;
     }
 
-void createImageViews() {
+    void createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
 
         for (size_t i = 0; i < swapChainImages.size(); i++) {
@@ -1416,10 +1485,13 @@ void createImageViews() {
         vk::SubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
         dependency.dstSubpass = 0;
-        dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
+        dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
+                                  vk::PipelineStageFlagBits::eEarlyFragmentTests;
         dependency.srcAccessMask = vk::AccessFlagBits::eNone;
-        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests;
-        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+        dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput |
+                                  vk::PipelineStageFlagBits::eEarlyFragmentTests;
+        dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite |
+                                   vk::AccessFlagBits::eDepthStencilAttachmentWrite;
 
         vk::RenderPassCreateInfo renderPassInfo{};
         renderPassInfo.attachmentCount = attachments.size();
@@ -1432,10 +1504,10 @@ void createImageViews() {
         renderPass = device.createRenderPass(renderPassInfo);
     }
 
-    vk::ShaderModule createShaderModule(const std::vector<char>& code) {
+    vk::ShaderModule createShaderModule(const std::vector<char> &code) {
         vk::ShaderModuleCreateInfo createInfo{};
         createInfo.codeSize = code.size();
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+        createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
 
         return device.createShaderModule(createInfo);
     }
@@ -1504,7 +1576,8 @@ void createImageViews() {
         multisampling.rasterizationSamples = vk::SampleCountFlagBits::e1;
 
         vk::PipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+        colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                                              vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
         colorBlendAttachment.blendEnable = VK_FALSE;
 
         vk::PipelineColorBlendStateCreateInfo colorBlending{};
@@ -1638,12 +1711,13 @@ void createImageViews() {
         vk::MemoryAllocateInfo allocInfo{};
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+                                                   vk::MemoryPropertyFlagBits::eHostVisible |
+                                                   vk::MemoryPropertyFlagBits::eHostCoherent);
 
         vertexBufferMemory = device.allocateMemory(allocInfo);
         device.bindBufferMemory(vertexBuffer, vertexBufferMemory, 0);
 
-        void* data = device.mapMemory(vertexBufferMemory, 0, bufferInfo.size);
+        void *data = device.mapMemory(vertexBufferMemory, 0, bufferInfo.size);
         memcpy(data, vertices.data(), (size_t) bufferInfo.size);
         device.unmapMemory(vertexBufferMemory);
     }
@@ -1661,12 +1735,13 @@ void createImageViews() {
         vk::MemoryAllocateInfo allocInfo{};
         allocInfo.allocationSize = memRequirements.size;
         allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+                                                   vk::MemoryPropertyFlagBits::eHostVisible |
+                                                   vk::MemoryPropertyFlagBits::eHostCoherent);
 
         indexBufferMemory = device.allocateMemory(allocInfo);
         device.bindBufferMemory(indexBuffer, indexBufferMemory, 0);
 
-        void* data = device.mapMemory(indexBufferMemory, 0, bufferInfo.size);
+        void *data = device.mapMemory(indexBufferMemory, 0, bufferInfo.size);
         memcpy(data, indices.data(), (size_t) bufferInfo.size);
         device.unmapMemory(indexBufferMemory);
     }
@@ -1691,7 +1766,8 @@ void createImageViews() {
             vk::MemoryAllocateInfo allocInfo{};
             allocInfo.allocationSize = memRequirements.size;
             allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-                vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent);
+                                                       vk::MemoryPropertyFlagBits::eHostVisible |
+                                                       vk::MemoryPropertyFlagBits::eHostCoherent);
 
             uniformBuffersMemory[i] = device.allocateMemory(allocInfo);
             device.bindBufferMemory(uniformBuffers[i], uniformBuffersMemory[i], 0);
@@ -1703,14 +1779,14 @@ void createImageViews() {
         static auto startTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>
-            (currentTime - startTime).count();
+                (currentTime - startTime).count();
 
         UniformBufferObject ubo{};
         ubo.model = glm::mat4(1.0f);
         ubo.view = glm::lookAt(camera.pos, camera.pos + camera.front, camera.up);
         ubo.proj = glm::perspective(glm::radians(45.0f),
-            swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 1000.0f);
-        ubo.proj[1][1] *= -1;  // Flip Y coordinate for Vulkan
+                                    swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 1000.0f);
+        ubo.proj[1][1] *= -1; // Flip Y coordinate for Vulkan
 
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
@@ -1822,7 +1898,7 @@ void createImageViews() {
             commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
             commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, graphicsPipeline);
             commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
-                pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+                                                 pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
             vk::Buffer vertexBuffers[] = {vertexBuffer};
             vk::DeviceSize offsets[] = {0};
@@ -1843,7 +1919,7 @@ void createImageViews() {
         }
     }
 
-void createSyncObjects() {
+    void createSyncObjects() {
         imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
         renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
         inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1865,9 +1941,9 @@ void createSyncObjects() {
         uint32_t imageIndex;
         try {
             auto result = device.acquireNextImageKHR(swapChain, UINT64_MAX,
-                imageAvailableSemaphores[currentFrame], nullptr);
+                                                     imageAvailableSemaphores[currentFrame], nullptr);
             imageIndex = result.value;
-        } catch (vk::OutOfDateKHRError& e) {
+        } catch (vk::OutOfDateKHRError &e) {
             return;
         }
 
@@ -1900,7 +1976,7 @@ void createSyncObjects() {
         bool needsRecreation = false;
         try {
             auto result = presentQueue.presentKHR(presentInfo);
-        } catch (vk::OutOfDateKHRError& e) {
+        } catch (vk::OutOfDateKHRError &e) {
             needsRecreation = true;
         }
 
@@ -1979,7 +2055,7 @@ int main() {
 
     try {
         app.run();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
