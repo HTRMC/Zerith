@@ -1,3 +1,5 @@
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -280,6 +282,10 @@ public:
         glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
     }
 
+    void setInt(const std::string &name, int value) const {
+        glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
+    }
+
     Shader(const char* vertexPath, const char* fragmentPath) {
         std::string vertexCode;
         std::string fragmentCode;
@@ -520,6 +526,41 @@ void processInput(GLFWwindow* window) {
     camera.update(moveDir, deltaTime);
 }
 
+unsigned int loadTexture(const char* path) {
+    unsigned int textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+
+    if (data) {
+        GLenum format;
+        if (nrChannels == 1)
+            format = GL_RED;
+        else if (nrChannels == 3)
+            format = GL_RGB;
+        else if (nrChannels == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // Set texture parameters
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    }
+    else {
+        std::cout << "Failed to load texture at path: " << path << std::endl;
+    }
+
+    stbi_image_free(data);
+    return textureID;
+}
+
 int main() {
     // Initialize GLFW
     glfwInit();
@@ -555,54 +596,54 @@ int main() {
 
     // Vertex data for cube
     float vertices[] = {
-        // positions          // colors
+        // positions          // colors           // texture coords
         // Front face (z = 1)
-        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,  // 0,0,1
-        1.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,  // 1,0,1
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,  // 1,1,1
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,  // 1,1,1
-        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,  // 0,1,1
-        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,  // 0,0,1
+        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
+        1.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,  // top-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,  // top-right
+        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 1.0f,  // top-left
+        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
 
         // Back face (z = 0)
-        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,  // 0,0,0
-        1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,  // 1,0,0
-        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,  // 1,1,0
-        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,  // 1,1,0
-        0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,  // 0,1,0
-        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,  // 0,0,0
+        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
+        1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 0.0f,  // bottom-left
+        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
+        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
+        0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 1.0f,  // top-right
+        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
 
         // Left face (x = 0)
-        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,  // 0,1,1
-        0.0f, 1.0f, 0.0f,    0.0f, 1.0f, 1.0f,  // 0,1,0
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,  // 0,0,0
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,  // 0,0,0
-        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,  // 0,0,1
-        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,  // 0,1,1
+        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,  // top-right
+        0.0f, 1.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 1.0f,  // top-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
+        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
+        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,  // top-right
 
         // Right face (x = 1)
-        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,  // 1,1,1
-        1.0f, 1.0f, 0.0f,    0.0f, 0.0f, 1.0f,  // 1,1,0
-        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,  // 1,0,0
-        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,  // 1,0,0
-        1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 1.0f,  // 1,0,1
-        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,  // 1,1,1
+        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,  // top-left
+        1.0f, 1.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 1.0f,  // top-right
+        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
+        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
+        1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
+        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,  // top-left
 
         // Bottom face (y = 0)
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,  // 0,0,0
-        1.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,  // 1,0,0
-        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,  // 1,0,1
-        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,  // 1,0,1
-        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,  // 0,0,1
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,  // 0,0,0
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
+        1.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 1.0f,  // top-right
+        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
+        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
+        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   0.0f, 0.0f,  // bottom-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
 
         // Top face (y = 1)
-        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,  // 0,1,0
-        1.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,  // 1,1,0
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,  // 1,1,1
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,  // 1,1,1
-        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,  // 0,1,1
-        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f   // 0,1,0
+        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f,  // bottom-left
+        1.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,  // top-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,  // top-right
+        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   0.0f, 1.0f,  // top-left
+        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f   // bottom-left
     };
 
     // Create buffers/arrays
@@ -615,23 +656,34 @@ int main() {
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
     // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
     // Color attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
+    // Texture attribute
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+    glEnableVertexAttribArray(2);
 
     // Move camera back to see the full grid
     camera.position = glm::vec3(8.0f, 20.0f, 8.0f);
+
+    unsigned int texture = loadTexture("cobblestone.png");
+    shader.use();
+    shader.setInt("blockTexture", 0);
+    shader.setBool("useTexture", true);
 
     // Render loop
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
 
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.4157f, 0.9961f, 0.9961f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         shader.use();
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
 
         // Create transformations
         glm::mat4 view = glm::mat4(1.0f);
@@ -681,6 +733,7 @@ int main() {
     // Clean up
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
+    glDeleteTextures(1, &texture);
 
     glfwTerminate();
     return 0;
