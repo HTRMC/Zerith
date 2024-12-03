@@ -12,6 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "blocks/BlockModel.h"
+
 // Camera movement enum
 enum Camera_Movement {
     FORWARD,
@@ -561,6 +563,17 @@ unsigned int loadTexture(const char* path) {
     return textureID;
 }
 
+std::string loadFileContent(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open file: " << path << std::endl;
+        return "";
+    }
+    std::stringstream buffer;
+    buffer << file.rdbuf();
+    return buffer.str();
+}
+
 int main() {
     // Initialize GLFW
     glfwInit();
@@ -594,57 +607,12 @@ int main() {
     // Create and compile shaders
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
-    // Vertex data for cube
-    float vertices[] = {
-        // positions          // colors           // texture coords  // face index
-        // Front face (z = 1)
-        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,       2.0f,  // bottom-left
-        1.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 0.0f,       2.0f,  // bottom-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,       2.0f,  // top-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,       2.0f,  // top-right
-        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 1.0f,       2.0f,  // top-left
-        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,       2.0f,  // bottom-left
+    // Load a block model
+    std::string jsonContent = loadFileContent("assets/minecraft/models/block/stairs.json"); // You'll need to implement this
+    BlockModel model = BlockModel::loadFromJson(jsonContent);
 
-        // Back face (z = 0)
-        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,       3.0f,  // bottom-right
-        1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 0.0f,       3.0f,  // bottom-left
-        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,       3.0f,  // top-left
-        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,       3.0f,  // top-left
-        0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 1.0f,       3.0f,  // top-right
-        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,       3.0f,  // bottom-right
-
-        // Left face (x = 0)
-        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,       5.0f,  // top-right
-        0.0f, 1.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 1.0f,       5.0f,  // top-left
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,       5.0f,  // bottom-left
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,       5.0f,  // bottom-left
-        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 0.0f,       5.0f,  // bottom-right
-        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,       5.0f,  // top-right
-
-        // Right face (x = 1)
-        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,       4.0f,  // top-left
-        1.0f, 1.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 1.0f,       4.0f,  // top-right
-        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,       4.0f,  // bottom-right
-        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,       4.0f,  // bottom-right
-        1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 0.0f,       4.0f,  // bottom-left
-        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,       4.0f,  // top-left
-
-        // Bottom face (y = 0)
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,       1.0f,  // top-left
-        1.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 1.0f,       1.0f,  // top-right
-        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,       1.0f,  // bottom-right
-        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,       1.0f,  // bottom-right
-        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   0.0f, 0.0f,       1.0f,  // bottom-left
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,       1.0f,  // top-left
-
-        // Top face (y = 1)
-        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f,       0.0f,  // bottom-left
-        1.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   1.0f, 0.0f,       0.0f,  // bottom-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,       0.0f,  // top-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,       0.0f,  // top-right
-        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   0.0f, 1.0f,       0.0f,  // top-left
-        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f,       0.0f   // bottom-left
-    };
+    // Generate vertex data
+    std::vector<float> vertices = model.generateVertexData();
 
     // Create buffers/arrays
     unsigned int VBO, VAO;
@@ -653,7 +621,7 @@ int main() {
 
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);                   // position
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float))); // color
