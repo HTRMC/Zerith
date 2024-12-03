@@ -12,13 +12,19 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(glfw3 3.4 REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenGL REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # Add GLAD library
 add_library(glad STATIC "C:/Users/HTRMC/Dev/Libraries/glad/src/glad.c")
 target_include_directories(glad PUBLIC "C:/Users/HTRMC/Dev/Libraries/glad/include")
 
+file(GLOB_RECURSE SOURCES
+        "src/*.cpp"
+        "src/blocks/*.cpp"
+)
+
 # Create executable
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} ${SOURCES})
 
 # Include directories for main executable
 target_include_directories(${PROJECT_NAME} PRIVATE "C:/Users/HTRMC/Dev/Libraries/glad/include")
@@ -37,4 +43,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         glfw
         glm::glm
         OpenGL::GL
+        nlohmann_json::nlohmann_json
 )
