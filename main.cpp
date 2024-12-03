@@ -23,7 +23,7 @@ struct Block {
     glm::vec3 color;
 };
 
-std::vector<std::vector<Block>> blocks(16, std::vector<Block>(16, {true, glm::vec3(1.0f, 1.0f, 1.0f)}));
+std::vector<std::vector<std::vector<Block>>> blocks(16, std::vector<std::vector<Block>>(16, std::vector<Block>(16, {true, glm::vec3(1.0f, 1.0f, 1.0f)})));
 
 struct AABB {
     glm::vec3 min;
@@ -122,23 +122,22 @@ public:
     }
 
     bool checkCollision(const glm::vec3& newPosition) {
-        // Offset the position to account for where the camera is relative to the player body
         glm::vec3 playerPos = newPosition - glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
-
         glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
         AABB playerBox(playerPos - halfExtents, playerPos + halfExtents);
 
-        // Check collision with all existing blocks
         for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                if (blocks[x][z].exists) {
-                    AABB blockBox(
-                        glm::vec3(x, 0.0f, z),
-                        glm::vec3(x + 1.0f, 1.0f, z + 1.0f)
-                    );
+            for (int y = 0; y < 16; y++) {
+                for (int z = 0; z < 16; z++) {
+                    if (blocks[x][y][z].exists) {
+                        AABB blockBox(
+                            glm::vec3(x, y, z),
+                            glm::vec3(x + 1.0f, y + 1.0f, z + 1.0f)
+                        );
 
-                    if (playerBox.intersects(blockBox)) {
-                        return true;
+                        if (playerBox.intersects(blockBox)) {
+                            return true;
+                        }
                     }
                 }
             }
@@ -360,16 +359,16 @@ float lastY = 300.0f;
 bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
-glm::ivec2 highlightedBlock(-1, -1);
+glm::ivec3 highlightedBlock(-1);
 float lastSpacePressTime = 0.0f; // Time of the last space key press
 const float DOUBLE_TAP_THRESHOLD = 0.3f; // Maximum time interval for double-tap in seconds
 
 // Ray casting function to detect block intersection
 bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
-                 glm::ivec2& outBlockPos, glm::vec3& outHitPos) {
+                 glm::ivec3& outBlockPos, glm::vec3& outHitPos) {
     glm::vec3 rayDir = glm::normalize(direction);
     glm::vec3 rayPos = start;
-    const float STEP_SIZE = 0.05f; // Smaller steps for better precision
+    const float STEP_SIZE = 0.05f;
     glm::vec3 rayStep = rayDir * STEP_SIZE;
 
     float distance = 0.0f;
@@ -378,28 +377,31 @@ bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxD
         distance += STEP_SIZE;
 
         int gridX = static_cast<int>(floor(rayPos.x));
+        int gridY = static_cast<int>(floor(rayPos.y));
         int gridZ = static_cast<int>(floor(rayPos.z));
 
         // Check if we're within the grid bounds
-        if (gridX >= 0 && gridX < 16 && gridZ >= 0 && gridZ < 16) {
-            if (blocks[gridX][gridZ].exists) {
+        if (gridX >= 0 && gridX < 16 &&
+            gridY >= 0 && gridY < 16 &&
+            gridZ >= 0 && gridZ < 16) {
+            if (blocks[gridX][gridY][gridZ].exists) {
                 // Define block boundaries
-                glm::vec3 blockMin(gridX, 0.0f, gridZ);
-                glm::vec3 blockMax = blockMin + glm::vec3(1.0f, 1.0f, 1.0f);
+                glm::vec3 blockMin(gridX, gridY, gridZ);
+                glm::vec3 blockMax = blockMin + glm::vec3(1.0f);
 
                 // Check if the ray position is within the block's bounds
                 if (rayPos.x >= blockMin.x && rayPos.x <= blockMax.x &&
                     rayPos.y >= blockMin.y && rayPos.y <= blockMax.y &&
                     rayPos.z >= blockMin.z && rayPos.z <= blockMax.z) {
-                    outBlockPos = glm::ivec2(gridX, gridZ);
+                    outBlockPos = glm::ivec3(gridX, gridY, gridZ);
                     outHitPos = rayPos;
                     return true;
                     }
             }
-        }
+            }
     }
 
-    outBlockPos = glm::ivec2(-1, -1);
+    outBlockPos = glm::ivec3(-1);
     outHitPos = glm::vec3(0.0f);
     return false;
 }
@@ -426,26 +428,28 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
     if (action == GLFW_PRESS) {
-        glm::ivec2 blockPos;
+        glm::ivec3 blockPos;
         glm::vec3 hitPos;
 
         if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
             if (button == GLFW_MOUSE_BUTTON_LEFT) {
                 // Break block
-                blocks[blockPos.x][blockPos.y].exists = false;
+                blocks[blockPos.x][blockPos.y][blockPos.z].exists = false;
             }
             else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-                // Place block
                 // Calculate adjacent block position based on hit normal
-                glm::vec3 blockCenter = glm::vec3(blockPos.x + 0.55f, 0.0f, blockPos.y + 0.55f);
+                glm::vec3 blockCenter = glm::vec3(blockPos) + glm::vec3(0.5f);
                 glm::vec3 normal = glm::normalize(hitPos - blockCenter);
 
                 int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
-                int newZ = blockPos.y + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
+                int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
+                int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
 
-                if (newX >= 0 && newX < 16 && newZ >= 0 && newZ < 16) {
-                    blocks[newX][newZ].exists = true;
-                    blocks[newX][newZ].color = glm::vec3(0.8f, 0.4f, 0.2f); // Different color for new blocks
+                if (newX >= 0 && newX < 16 &&
+                    newY >= 0 && newY < 16 &&
+                    newZ >= 0 && newZ < 16) {
+                    blocks[newX][newY][newZ].exists = true;
+                    blocks[newX][newY][newZ].color = glm::vec3(0.8f, 0.4f, 0.2f);
                 }
             }
         }
@@ -618,7 +622,7 @@ int main() {
     glEnableVertexAttribArray(1);
 
     // Move camera back to see the full grid
-    camera.position = glm::vec3(8.0f, 8.0f, 8.0f);
+    camera.position = glm::vec3(8.0f, 20.0f, 8.0f);
 
     // Render loop
     while (!glfwWindowShouldClose(window)) {
@@ -640,28 +644,32 @@ int main() {
         shader.setMat4("projection", projection);
 
         // Add this before your cube drawing loop
-        glm::ivec2 blockPos;
+        glm::ivec3 blockPos;
         glm::vec3 hitPos;
 
         glm::vec3 rayDirection = glm::normalize(camera.front);
         bool lookingAtBlock = raycastBlock(camera.position, rayDirection, 5.0f, blockPos, hitPos);
 
-        highlightedBlock = lookingAtBlock ? blockPos : glm::ivec2(-1, -1);
+        highlightedBlock = lookingAtBlock ? blockPos : glm::ivec3(-1);
 
         // Then in your cube drawing loop, update it to:
         for(int x = 0; x < 16; x++) {
-            for(int z = 0; z < 16; z++) {
-                if (blocks[x][z].exists) {
-                    glm::mat4 model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(x, 0.0f, z));
-                    shader.setMat4("model", model);
-                    shader.setVec3("blockColor", blocks[x][z].color);
+            for(int y = 0; y < 16; y++) {
+                for(int z = 0; z < 16; z++) {
+                    if (blocks[x][y][z].exists) {
+                        glm::mat4 model = glm::mat4(1.0f);
+                        model = glm::translate(model, glm::vec3(x, y, z));
+                        shader.setMat4("model", model);
+                        shader.setVec3("blockColor", blocks[x][y][z].color);
 
-                    // Only highlight if we're looking at this specific block
-                    bool isHighlighted = lookingAtBlock && (highlightedBlock.x == x && highlightedBlock.y == z);
-                    shader.setBool("isHighlighted", isHighlighted);
+                        bool isHighlighted = lookingAtBlock &&
+                            (highlightedBlock.x == x &&
+                             highlightedBlock.y == y &&
+                             highlightedBlock.z == z);
+                        shader.setBool("isHighlighted", isHighlighted);
 
-                    glDrawArrays(GL_TRIANGLES, 0, 36);
+                        glDrawArrays(GL_TRIANGLES, 0, 36);
+                    }
                 }
             }
         }
