@@ -596,54 +596,54 @@ int main() {
 
     // Vertex data for cube
     float vertices[] = {
-        // positions          // colors           // texture coords
+        // positions          // colors           // texture coords  // face index
         // Front face (z = 1)
-        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
-        1.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,  // top-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,  // top-right
-        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 1.0f,  // top-left
-        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
+        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,       2.0f,  // bottom-left
+        1.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 0.0f,       2.0f,  // bottom-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,       2.0f,  // top-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   1.0f, 1.0f,       2.0f,  // top-right
+        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 1.0f,       2.0f,  // top-left
+        0.0f, 0.0f, 1.0f,    1.0f, 0.0f, 1.0f,   0.0f, 0.0f,       2.0f,  // bottom-left
 
         // Back face (z = 0)
-        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
-        1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 0.0f,  // bottom-left
-        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
-        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
-        0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 1.0f,  // top-right
-        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
+        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,       3.0f,  // bottom-right
+        1.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 0.0f,       3.0f,  // bottom-left
+        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,       3.0f,  // top-left
+        1.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   0.0f, 1.0f,       3.0f,  // top-left
+        0.0f, 1.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 1.0f,       3.0f,  // top-right
+        0.0f, 0.0f, 0.0f,    1.0f, 1.0f, 0.0f,   1.0f, 0.0f,       3.0f,  // bottom-right
 
         // Left face (x = 0)
-        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,  // top-right
-        0.0f, 1.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 1.0f,  // top-left
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
-        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
-        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,  // top-right
+        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,       5.0f,  // top-right
+        0.0f, 1.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 1.0f,       5.0f,  // top-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,       5.0f,  // bottom-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 1.0f,   0.0f, 0.0f,       5.0f,  // bottom-left
+        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 0.0f,       5.0f,  // bottom-right
+        0.0f, 1.0f, 1.0f,    0.0f, 1.0f, 1.0f,   1.0f, 1.0f,       5.0f,  // top-right
 
         // Right face (x = 1)
-        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,  // top-left
-        1.0f, 1.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 1.0f,  // top-right
-        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
-        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,  // bottom-right
-        1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 0.0f,  // bottom-left
-        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,  // top-left
+        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,       4.0f,  // top-left
+        1.0f, 1.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 1.0f,       4.0f,  // top-right
+        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,       4.0f,  // bottom-right
+        1.0f, 0.0f, 0.0f,    0.0f, 0.0f, 1.0f,   1.0f, 0.0f,       4.0f,  // bottom-right
+        1.0f, 0.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 0.0f,       4.0f,  // bottom-left
+        1.0f, 1.0f, 1.0f,    0.0f, 0.0f, 1.0f,   0.0f, 1.0f,       4.0f,  // top-left
 
         // Bottom face (y = 0)
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
-        1.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 1.0f,  // top-right
-        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
-        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
-        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   0.0f, 0.0f,  // bottom-left
-        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,  // top-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,       1.0f,  // top-left
+        1.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   1.0f, 1.0f,       1.0f,  // top-right
+        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,       1.0f,  // bottom-right
+        1.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   1.0f, 0.0f,       1.0f,  // bottom-right
+        0.0f, 0.0f, 1.0f,    0.0f, 1.0f, 0.0f,   0.0f, 0.0f,       1.0f,  // bottom-left
+        0.0f, 0.0f, 0.0f,    0.0f, 1.0f, 0.0f,   0.0f, 1.0f,       1.0f,  // top-left
 
         // Top face (y = 1)
-        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f,  // bottom-left
-        1.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   1.0f, 0.0f,  // bottom-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,  // top-right
-        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,  // top-right
-        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   0.0f, 1.0f,  // top-left
-        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f   // bottom-left
+        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f,       0.0f,  // bottom-left
+        1.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   1.0f, 0.0f,       0.0f,  // bottom-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,       0.0f,  // top-right
+        1.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   1.0f, 1.0f,       0.0f,  // top-right
+        0.0f, 1.0f, 1.0f,    1.0f, 0.0f, 0.0f,   0.0f, 1.0f,       0.0f,  // top-left
+        0.0f, 1.0f, 0.0f,    1.0f, 0.0f, 0.0f,   0.0f, 0.0f,       0.0f   // bottom-left
     };
 
     // Create buffers/arrays
@@ -655,15 +655,15 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-    // Position attribute
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);                   // position
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float))); // color
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float))); // texture
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(8 * sizeof(float))); // face index
+
     glEnableVertexAttribArray(0);
-    // Color attribute
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
-    // Texture attribute
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+    glEnableVertexAttribArray(3);
 
     // Move camera back to see the full grid
     camera.position = glm::vec3(8.0f, 20.0f, 8.0f);
