@@ -8,44 +8,25 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find packages
+find_package(glfw3 3.4 REQUIRED)
+find_package(glm REQUIRED)
+find_package(OpenGL REQUIRED)
 
-
-# Find Vulkan SDK
-find_package(Vulkan REQUIRED)
-
-# Find GLFW
-find_package(glfw3 CONFIG REQUIRED)
-
-# Find GLM
-find_package(glm CONFIG REQUIRED)
-
-# Shader compilation
-find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/bin)
-
-# Compile shaders
-file(GLOB SHADERS
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.vert
-        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.frag
-)
-
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)
-
-foreach(SHADER ${SHADERS})
-    get_filename_component(SHADER_NAME ${SHADER} NAME)
-    add_custom_command(
-            OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/shaders/${SHADER_NAME}.spv
-            COMMAND ${GLSL_VALIDATOR} -V ${SHADER} -o ${CMAKE_CURRENT_BINARY_DIR}/shaders/${SHADER_NAME}.spv
-            DEPENDS ${SHADER}
-            COMMENT "Compiling shader ${SHADER_NAME}"
-    )
-    list(APPEND SPV_SHADERS ${CMAKE_CURRENT_BINARY_DIR}/shaders/${SHADER_NAME}.spv)
-endforeach()
-
-add_custom_target(shaders DEPENDS ${SPV_SHADERS})
+# Add GLAD library
+add_library(glad STATIC "C:/Users/HTRMC/Dev/Libraries/glad/src/glad.c")
+target_include_directories(glad PUBLIC "C:/Users/HTRMC/Dev/Libraries/glad/include")
 
 # Create executable
 add_executable(${PROJECT_NAME} main.cpp)
-add_dependencies(${PROJECT_NAME} shaders)
 
-# Link Vulkan SDK
-target_link_libraries(${PROJECT_NAME} Vulkan::Vulkan glfw)
+# Include directories for main executable
+target_include_directories(${PROJECT_NAME} PRIVATE "C:/Users/HTRMC/Dev/Libraries/glad/include")
+
+# Link all libraries
+target_link_libraries(${PROJECT_NAME} PRIVATE
+        glad
+        glfw
+        glm::glm
+        OpenGL::GL
+)
