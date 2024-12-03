@@ -23,6 +23,14 @@ add_executable(${PROJECT_NAME} main.cpp)
 # Include directories for main executable
 target_include_directories(${PROJECT_NAME} PRIVATE "C:/Users/HTRMC/Dev/Libraries/glad/include")
 
+# Copy shader directory to build directory
+add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/shaders
+        ${CMAKE_BINARY_DIR}/shaders
+)
+
 # Link all libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
         glad
