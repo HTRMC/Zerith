@@ -18,6 +18,13 @@ enum Camera_Movement {
     RIGHT
 };
 
+struct Block {
+    bool exists;
+    glm::vec3 color;
+};
+
+std::vector<std::vector<Block>> blocks(16, std::vector<Block>(16, {true, glm::vec3(1.0f, 1.0f, 1.0f)}));
+
 // Camera class
 class Camera {
 public:
@@ -34,7 +41,7 @@ public:
     // Constants for movement
     const float TICK_RATE = 20.0f;  // Minecraft runs at 20 ticks per second
     const float BASE_ACCELERATION = 0.049f;  // Matches Minecraft's flying acceleration
-    const float AIR_FRICTION = 0.91f;       // Matches Minecraft's air resistance
+    const float AIR_FRICTION = 0.91f / 2;       // Matches Minecraft's air resistance
     const float MAX_SPEED = 10.79f;         // Matches Minecraft's max flying speed
 
     float mouseSensitivity;
@@ -102,6 +109,10 @@ public:
 class Shader {
 public:
     unsigned int ID;
+
+    void setVec3(const std::string &name, const glm::vec3 &value) const {
+        glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
+    }
 
     Shader(const char* vertexPath, const char* fragmentPath) {
         std::string vertexCode;
@@ -183,6 +194,31 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 
+// Ray casting function to detect block intersection
+bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
+                 glm::ivec2& outBlockPos, glm::vec3& outHitPos) {
+    glm::vec3 rayPos = start;
+    glm::vec3 rayStep = direction * 0.1f; // Small steps for accuracy
+
+    for (float dist = 0; dist < maxDistance; dist += 0.1f) {
+        rayPos += rayStep;
+
+        // Convert world position to grid position
+        int gridX = static_cast<int>(rayPos.x / 1.1f);
+        int gridZ = static_cast<int>(rayPos.z / 1.1f);
+
+        // Check if we're within grid bounds
+        if (gridX >= 0 && gridX < 16 && gridZ >= 0 && gridZ < 16) {
+            if (blocks[gridX][gridZ].exists) {
+                outBlockPos = glm::ivec2(gridX, gridZ);
+                outHitPos = rayPos;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // Add these callback functions after your existing framebuffer_size_callback
 void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
     float xpos = static_cast<float>(xposIn);
@@ -201,6 +237,34 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
     lastY = ypos;
 
     camera.processMouseMovement(xoffset, yoffset);
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (action == GLFW_PRESS) {
+        glm::ivec2 blockPos;
+        glm::vec3 hitPos;
+
+        if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
+            if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                // Break block
+                blocks[blockPos.x][blockPos.y].exists = false;
+            }
+            else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                // Place block
+                // Calculate adjacent block position based on hit normal
+                glm::vec3 blockCenter = glm::vec3(blockPos.x * 1.1f + 0.55f, 0.0f, blockPos.y * 1.1f + 0.55f);
+                glm::vec3 normal = glm::normalize(hitPos - blockCenter);
+
+                int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
+                int newZ = blockPos.y + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
+
+                if (newX >= 0 && newX < 16 && newZ >= 0 && newZ < 16) {
+                    blocks[newX][newZ].exists = true;
+                    blocks[newX][newZ].color = glm::vec3(0.8f, 0.4f, 0.2f); // Different color for new blocks
+                }
+            }
+        }
+    }
 }
 
 // Modify your existing processInput function
@@ -273,6 +337,7 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
 
     // Create and compile shaders
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
@@ -335,7 +400,6 @@ int main() {
     glGenBuffers(1, &VBO);
 
     glBindVertexArray(VAO);
-
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
@@ -348,21 +412,6 @@ int main() {
 
     // Move camera back to see the full grid
     camera.position = glm::vec3(8.0f, 8.0f, 20.0f);
-
-    // Store transformations for each cube
-    std::vector<glm::mat4> modelMatrices;
-    for(int x = 0; x < 16; x++) {
-        for(int z = 0; z < 16; z++) {
-            glm::mat4 model = glm::mat4(1.0f);
-            // Position each cube with small gaps between them
-            model = glm::translate(model, glm::vec3(
-                x * 1.1f,  // Add 0.1 spacing between cubes
-                0.0f,      // All cubes at same height
-                z * 1.1f   // Add 0.1 spacing between cubes
-            ));
-            modelMatrices.push_back(model);
-        }
-    }
 
     // Render loop
     while (!glfwWindowShouldClose(window)) {
@@ -384,10 +433,16 @@ int main() {
         shader.setMat4("projection", projection);
 
         // Draw all cubes
-        glBindVertexArray(VAO);
-        for(const auto& model : modelMatrices) {
-            shader.setMat4("model", model);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
+        for(int x = 0; x < 16; x++) {
+            for(int z = 0; z < 16; z++) {
+                if (blocks[x][z].exists) {
+                    glm::mat4 model = glm::mat4(1.0f);
+                    model = glm::translate(model, glm::vec3(x * 1.1f, 0.0f, z * 1.1f));
+                    shader.setMat4("model", model);
+                    shader.setVec3("blockColor", blocks[x][z].color);  // Set the block's color
+                    glDrawArrays(GL_TRIANGLES, 0, 36);
+                }
+            }
         }
 
         glfwSwapBuffers(window);
