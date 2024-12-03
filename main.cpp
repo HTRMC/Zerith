@@ -25,6 +25,19 @@ struct Block {
 
 std::vector<std::vector<Block>> blocks(16, std::vector<Block>(16, {true, glm::vec3(1.0f, 1.0f, 1.0f)}));
 
+struct AABB {
+    glm::vec3 min;
+    glm::vec3 max;
+
+    AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
+
+    bool intersects(const AABB& other) const {
+        return (min.x <= other.max.x && max.x >= other.min.x) &&
+               (min.y <= other.max.y && max.y >= other.min.y) &&
+               (min.z <= other.max.z && max.z >= other.min.z);
+    }
+};
+
 // Camera class
 class Camera {
 public:
@@ -45,6 +58,37 @@ public:
     const float MAX_SPEED = 10.79f;         // Matches Minecraft's max flying speed
 
     float mouseSensitivity;
+
+    const float PLAYER_WIDTH = 0.6f;  // Minecraft player is ~0.6 blocks wide
+    const float PLAYER_HEIGHT = 1.8f; // Minecraft player is ~1.8 blocks tall
+
+    AABB getBoundingBox() const {
+        glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
+        return AABB(position - halfExtents, position + halfExtents);
+    }
+
+    bool checkCollision(const glm::vec3& newPosition) {
+        // Create AABB for proposed new position
+        glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
+        AABB playerBox(newPosition - halfExtents, newPosition + halfExtents);
+
+        // Check collision with all existing blocks
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                if (blocks[x][z].exists) {
+                    AABB blockBox(
+                        glm::vec3(x, 0.0f, z),
+                        glm::vec3(x + 1.0f, 1.0f, z + 1.0f)
+                    );
+
+                    if (playerBox.intersects(blockBox)) {
+                        return true; // Collision detected
+                    }
+                }
+            }
+        }
+        return false; // No collision
+    }
 
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f))
         : position(position)
@@ -86,8 +130,41 @@ public:
         float frictionFactor = pow(AIR_FRICTION, ticks);
         velocity *= frictionFactor;
 
-        // Update position (convert back to real time)
-        position += velocity;
+        // Calculate new position but don't apply it yet
+        glm::vec3 newPosition = position + velocity;
+
+        // Handle collisions by checking each axis separately
+        glm::vec3 finalPosition = position;
+
+        // Try X movement
+        glm::vec3 xMovement = position;
+        xMovement.x = newPosition.x;
+        if (!checkCollision(xMovement)) {
+            finalPosition.x = xMovement.x;
+        } else {
+            velocity.x = 0; // Stop X movement on collision
+        }
+
+        // Try Y movement
+        glm::vec3 yMovement = finalPosition;
+        yMovement.y = newPosition.y;
+        if (!checkCollision(yMovement)) {
+            finalPosition.y = yMovement.y;
+        } else {
+            velocity.y = 0; // Stop Y movement on collision
+        }
+
+        // Try Z movement
+        glm::vec3 zMovement = finalPosition;
+        zMovement.z = newPosition.z;
+        if (!checkCollision(zMovement)) {
+            finalPosition.z = zMovement.z;
+        } else {
+            velocity.z = 0; // Stop Z movement on collision
+        }
+
+        // Update final position
+        position = finalPosition;
     }
 
     void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
@@ -298,31 +375,31 @@ void processInput(GLFWwindow* window) {
 
     // Calculate move direction based on all pressed keys
     glm::vec3 moveDir(0.0f);
-    bool moving = false;
 
+    // Create a horizontal front vector by zeroing the Y component and renormalizing
+    glm::vec3 horizontalFront = glm::normalize(glm::vec3(camera.front.x, 0.0f, camera.front.z));
+    glm::vec3 horizontalRight = glm::normalize(glm::vec3(camera.right.x, 0.0f, camera.right.z));
+
+    // Handle horizontal movement (WASD)
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        moveDir += camera.front;
-        moving = true;
+        moveDir += horizontalFront;
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        moveDir -= camera.front;
-        moving = true;
+        moveDir -= horizontalFront;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        moveDir -= camera.right;
-        moving = true;
+        moveDir -= horizontalRight;
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        moveDir += camera.right;
-        moving = true;
+        moveDir += horizontalRight;
     }
+
+    // Add vertical movement separately (SPACE/SHIFT)
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
         moveDir += camera.worldUp;
-        moving = true;
     }
     if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
         moveDir -= camera.worldUp;
-        moving = true;
     }
 
     // Update camera movement
