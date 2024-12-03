@@ -114,6 +114,10 @@ public:
         glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
     }
 
+    void setBool(const std::string &name, bool value) const {
+        glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
+    }
+
     Shader(const char* vertexPath, const char* fragmentPath) {
         std::string vertexCode;
         std::string fragmentCode;
@@ -193,29 +197,45 @@ float lastY = 300.0f;
 bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+glm::ivec2 highlightedBlock(-1, -1);
 
 // Ray casting function to detect block intersection
 bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
                  glm::ivec2& outBlockPos, glm::vec3& outHitPos) {
+    glm::vec3 rayDir = glm::normalize(direction);
     glm::vec3 rayPos = start;
-    glm::vec3 rayStep = direction * 0.1f; // Small steps for accuracy
+    const float STEP_SIZE = 0.05f; // Smaller steps for better precision
+    glm::vec3 rayStep = rayDir * STEP_SIZE;
 
-    for (float dist = 0; dist < maxDistance; dist += 0.1f) {
+    float distance = 0.0f;
+    while (distance < maxDistance) {
         rayPos += rayStep;
+        distance += STEP_SIZE;
 
-        // Convert world position to grid position
-        int gridX = static_cast<int>(rayPos.x / 1.1f);
-        int gridZ = static_cast<int>(rayPos.z / 1.1f);
+        int gridX = static_cast<int>(floor(rayPos.x));
+        int gridZ = static_cast<int>(floor(rayPos.z));
 
-        // Check if we're within grid bounds
+        // Check if we're within the grid bounds
         if (gridX >= 0 && gridX < 16 && gridZ >= 0 && gridZ < 16) {
             if (blocks[gridX][gridZ].exists) {
-                outBlockPos = glm::ivec2(gridX, gridZ);
-                outHitPos = rayPos;
-                return true;
+                // Define block boundaries
+                glm::vec3 blockMin(gridX, 0.0f, gridZ);
+                glm::vec3 blockMax = blockMin + glm::vec3(1.0f, 1.0f, 1.0f);
+
+                // Check if the ray position is within the block's bounds
+                if (rayPos.x >= blockMin.x && rayPos.x <= blockMax.x &&
+                    rayPos.y >= blockMin.y && rayPos.y <= blockMax.y &&
+                    rayPos.z >= blockMin.z && rayPos.z <= blockMax.z) {
+                    outBlockPos = glm::ivec2(gridX, gridZ);
+                    outHitPos = rayPos;
+                    return true;
+                    }
             }
         }
     }
+
+    outBlockPos = glm::ivec2(-1, -1);
+    outHitPos = glm::vec3(0.0f);
     return false;
 }
 
@@ -252,7 +272,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
             else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
                 // Place block
                 // Calculate adjacent block position based on hit normal
-                glm::vec3 blockCenter = glm::vec3(blockPos.x * 1.1f + 0.55f, 0.0f, blockPos.y * 1.1f + 0.55f);
+                glm::vec3 blockCenter = glm::vec3(blockPos.x + 0.55f, 0.0f, blockPos.y + 0.55f);
                 glm::vec3 normal = glm::normalize(hitPos - blockCenter);
 
                 int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
@@ -432,14 +452,28 @@ int main() {
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
 
-        // Draw all cubes
+        // Add this before your cube drawing loop
+        glm::ivec2 blockPos;
+        glm::vec3 hitPos;
+
+        glm::vec3 rayDirection = glm::normalize(camera.front);
+        bool lookingAtBlock = raycastBlock(camera.position, rayDirection, 5.0f, blockPos, hitPos);
+
+        highlightedBlock = lookingAtBlock ? blockPos : glm::ivec2(-1, -1);
+
+        // Then in your cube drawing loop, update it to:
         for(int x = 0; x < 16; x++) {
             for(int z = 0; z < 16; z++) {
                 if (blocks[x][z].exists) {
                     glm::mat4 model = glm::mat4(1.0f);
-                    model = glm::translate(model, glm::vec3(x * 1.1f, 0.0f, z * 1.1f));
+                    model = glm::translate(model, glm::vec3(x, 0.0f, z));
                     shader.setMat4("model", model);
-                    shader.setVec3("blockColor", blocks[x][z].color);  // Set the block's color
+                    shader.setVec3("blockColor", blocks[x][z].color);
+
+                    // Only highlight if we're looking at this specific block
+                    bool isHighlighted = lookingAtBlock && (highlightedBlock.x == x && highlightedBlock.y == z);
+                    shader.setBool("isHighlighted", isHighlighted);
+
                     glDrawArrays(GL_TRIANGLES, 0, 36);
                 }
             }
