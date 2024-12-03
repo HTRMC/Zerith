@@ -26,12 +26,30 @@ public:
     glm::vec3 up;
     glm::vec3 right;
     glm::vec3 worldUp;
+    glm::vec3 velocity;
 
     float yaw;
     float pitch;
 
-    float movementSpeed;
+    // Constants for movement
+    const float TICK_RATE = 20.0f;  // Minecraft runs at 20 ticks per second
+    const float BASE_ACCELERATION = 0.049f;  // Matches Minecraft's flying acceleration
+    const float AIR_FRICTION = 0.91f;       // Matches Minecraft's air resistance
+    const float MAX_SPEED = 10.79f;         // Matches Minecraft's max flying speed
+
     float mouseSensitivity;
+
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f))
+        : position(position)
+        , front(glm::vec3(0.0f, 0.0f, -1.0f))
+        , worldUp(glm::vec3(0.0f, 1.0f, 0.0f))
+        , velocity(glm::vec3(0.0f))
+        , yaw(-90.0f)
+        , pitch(0.0f)
+        , mouseSensitivity(0.1f)
+    {
+        updateCameraVectors();
+    }
 
     void updateCameraVectors() {
         glm::vec3 direction;
@@ -43,33 +61,26 @@ public:
         up = glm::normalize(glm::cross(right, front));
     }
 
-public:
-    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f))
-        : position(position)
-        , front(glm::vec3(0.0f, 0.0f, -1.0f))
-        , worldUp(glm::vec3(0.0f, 1.0f, 0.0f))
-        , yaw(-90.0f)
-        , pitch(0.0f)
-        , movementSpeed(2.5f)
-        , mouseSensitivity(0.1f)
-    {
-        updateCameraVectors();
-    }
-
     glm::mat4 getViewMatrix() {
         return glm::lookAt(position, position + front, up);
     }
 
-    void processKeyboard(Camera_Movement direction, float deltaTime) {
-        float velocity = movementSpeed * deltaTime;
-        if (direction == FORWARD)
-            position += front * velocity;
-        if (direction == BACKWARD)
-            position -= front * velocity;
-        if (direction == LEFT)
-            position -= right * velocity;
-        if (direction == RIGHT)
-            position += right * velocity;
+    void update(const glm::vec3& moveDir, float deltaTime) {
+        // Convert real time to minecraft ticks
+        float ticks = deltaTime * TICK_RATE;
+
+        // Apply acceleration if there's input
+        if (glm::length(moveDir) > 0.0f) {
+            glm::vec3 normalizedDir = glm::normalize(moveDir);
+            velocity += normalizedDir * (BASE_ACCELERATION * ticks);
+        }
+
+        // Apply air friction (per tick)
+        float frictionFactor = pow(AIR_FRICTION, ticks);
+        velocity *= frictionFactor;
+
+        // Update position (convert back to real time)
+        position += velocity;
     }
 
     void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
@@ -80,10 +91,7 @@ public:
         pitch += yoffset;
 
         if (constrainPitch) {
-            if (pitch > 89.0f)
-                pitch = 89.0f;
-            if (pitch < -89.0f)
-                pitch = -89.0f;
+            pitch = glm::clamp(pitch, -89.0f, 89.0f);
         }
 
         updateCameraVectors();
@@ -196,7 +204,7 @@ void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
 }
 
 // Modify your existing processInput function
-void processInput(GLFWwindow *window) {
+void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
@@ -204,14 +212,37 @@ void processInput(GLFWwindow *window) {
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
 
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-        camera.processKeyboard(FORWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-        camera.processKeyboard(BACKWARD, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-        camera.processKeyboard(LEFT, deltaTime);
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-        camera.processKeyboard(RIGHT, deltaTime);
+    // Calculate move direction based on all pressed keys
+    glm::vec3 moveDir(0.0f);
+    bool moving = false;
+
+    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+        moveDir += camera.front;
+        moving = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        moveDir -= camera.front;
+        moving = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+        moveDir -= camera.right;
+        moving = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        moveDir += camera.right;
+        moving = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        moveDir += camera.worldUp;
+        moving = true;
+    }
+    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+        moveDir -= camera.worldUp;
+        moving = true;
+    }
+
+    // Update camera movement
+    camera.update(moveDir, deltaTime);
 }
 
 int main() {
