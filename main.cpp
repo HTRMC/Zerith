@@ -59,6 +59,60 @@ public:
 
     float mouseSensitivity;
 
+    enum class MovementMode {
+        WALKING,
+        FLYING
+    };
+
+    MovementMode currentMode = MovementMode::WALKING;
+    bool isGrounded = false;
+    float lastJumpTime = 0.0f;
+    const float DOUBLE_JUMP_TIME = 0.3f; // Time window for double jump in seconds
+    const float GRAVITY = -20.0f;
+    float verticalVelocity = 0.0f;
+    bool canFly = true; // Set to false for survival mode
+    const float EYE_HEIGHT = 1.6f;  // Eyes are slightly below total height
+    const float JUMP_VELOCITY = 8.0f;
+
+    void applyGravity(float deltaTime) {
+        if (currentMode == MovementMode::WALKING && !isGrounded) {
+            verticalVelocity += GRAVITY * deltaTime;
+            position.y += verticalVelocity * deltaTime;
+
+            // Check if we hit the ground (y = 0)
+            if (position.y <= 1.0f) { // 1.0f because player height is 1.8
+                position.y = 1.0f;
+                verticalVelocity = 0.0f;
+                isGrounded = true;
+            }
+        }
+    }
+
+    void jump(float currentTime) {
+        if (currentMode == MovementMode::WALKING) {
+            if (isGrounded) {
+                verticalVelocity = JUMP_VELOCITY;
+                isGrounded = false;
+
+                // Check for double jump
+                if (currentTime - lastJumpTime < DOUBLE_JUMP_TIME && canFly) {
+                    currentMode = MovementMode::FLYING;
+                    velocity = glm::vec3(0.0f);
+                    verticalVelocity = 0.0f;
+                }
+                lastJumpTime = currentTime;
+            }
+        } else if (currentMode == MovementMode::FLYING) {
+            // Double tap space in flying mode returns to walking
+            if (currentTime - lastJumpTime < DOUBLE_JUMP_TIME) {
+                currentMode = MovementMode::WALKING;
+                velocity = glm::vec3(0.0f);
+                verticalVelocity = 0.0f;
+            }
+            lastJumpTime = currentTime;
+        }
+    }
+
     const float PLAYER_WIDTH = 0.6f;  // Minecraft player is ~0.6 blocks wide
     const float PLAYER_HEIGHT = 1.8f; // Minecraft player is ~1.8 blocks tall
 
@@ -68,9 +122,11 @@ public:
     }
 
     bool checkCollision(const glm::vec3& newPosition) {
-        // Create AABB for proposed new position
+        // Offset the position to account for where the camera is relative to the player body
+        glm::vec3 playerPos = newPosition - glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
+
         glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
-        AABB playerBox(newPosition - halfExtents, newPosition + halfExtents);
+        AABB playerBox(playerPos - halfExtents, playerPos + halfExtents);
 
         // Check collision with all existing blocks
         for (int x = 0; x < 16; x++) {
@@ -82,12 +138,12 @@ public:
                     );
 
                     if (playerBox.intersects(blockBox)) {
-                        return true; // Collision detected
+                        return true;
                     }
                 }
             }
         }
-        return false; // No collision
+        return false;
     }
 
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f))
@@ -99,6 +155,8 @@ public:
         , pitch(0.0f)
         , mouseSensitivity(0.1f)
     {
+        // Adjust initial position to account for eye height
+        position.y += EYE_HEIGHT;
         updateCameraVectors();
     }
 
@@ -116,7 +174,7 @@ public:
         return glm::lookAt(position, position + front, up);
     }
 
-    void update(const glm::vec3& moveDir, float deltaTime) {
+        void update(const glm::vec3& moveDir, float deltaTime) {
         // Convert real time to minecraft ticks
         float ticks = deltaTime * TICK_RATE;
 
@@ -133,6 +191,17 @@ public:
         // Calculate new position but don't apply it yet
         glm::vec3 newPosition = position + velocity;
 
+        // Apply movement mode specific behavior
+        if (currentMode == MovementMode::WALKING) {
+            velocity.y = 0; // Don't accumulate Y velocity in walking mode
+
+            // Apply gravity
+            if (!isGrounded) {
+                verticalVelocity += GRAVITY * deltaTime;
+            }
+            newPosition.y += verticalVelocity * deltaTime;
+        }
+
         // Handle collisions by checking each axis separately
         glm::vec3 finalPosition = position;
 
@@ -142,7 +211,7 @@ public:
         if (!checkCollision(xMovement)) {
             finalPosition.x = xMovement.x;
         } else {
-            velocity.x = 0; // Stop X movement on collision
+            velocity.x = 0;
         }
 
         // Try Y movement
@@ -150,8 +219,16 @@ public:
         yMovement.y = newPosition.y;
         if (!checkCollision(yMovement)) {
             finalPosition.y = yMovement.y;
+            isGrounded = false;
         } else {
-            velocity.y = 0; // Stop Y movement on collision
+            if (verticalVelocity < 0) {
+                // We hit something below us
+                isGrounded = true;
+                verticalVelocity = 0;
+            } else {
+                // We hit something above us
+                verticalVelocity = 0;
+            }
         }
 
         // Try Z movement
@@ -160,11 +237,20 @@ public:
         if (!checkCollision(zMovement)) {
             finalPosition.z = zMovement.z;
         } else {
-            velocity.z = 0; // Stop Z movement on collision
+            velocity.z = 0;
         }
 
         // Update final position
         position = finalPosition;
+
+        // Check if we're grounded by doing a small check below us
+        if (currentMode == MovementMode::WALKING && !isGrounded) {
+            glm::vec3 groundCheck = position - glm::vec3(0.0f, 0.1f, 0.0f);
+            if (checkCollision(groundCheck)) {
+                isGrounded = true;
+                verticalVelocity = 0;
+            }
+        }
     }
 
     void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
@@ -275,6 +361,8 @@ bool firstMouse = true;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
 glm::ivec2 highlightedBlock(-1, -1);
+float lastSpacePressTime = 0.0f; // Time of the last space key press
+const float DOUBLE_TAP_THRESHOLD = 0.3f; // Maximum time interval for double-tap in seconds
 
 // Ray casting function to detect block intersection
 bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
@@ -373,19 +461,17 @@ void processInput(GLFWwindow* window) {
     deltaTime = currentFrame - lastFrame;
     lastFrame = currentFrame;
 
-    // Calculate move direction based on all pressed keys
+    // Track movement direction
     glm::vec3 moveDir(0.0f);
 
-    // Create a horizontal front vector by zeroing the Y component and renormalizing
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(camera.front.x, 0.0f, camera.front.z));
     glm::vec3 horizontalRight = glm::normalize(glm::vec3(camera.right.x, 0.0f, camera.right.z));
 
-    // Handle horizontal movement (WASD)
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        moveDir += horizontalFront;
+        moveDir += (camera.currentMode == Camera::MovementMode::FLYING) ? camera.front : horizontalFront;
     }
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        moveDir -= horizontalFront;
+        moveDir -= (camera.currentMode == Camera::MovementMode::FLYING) ? camera.front : horizontalFront;
     }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
         moveDir -= horizontalRight;
@@ -394,12 +480,36 @@ void processInput(GLFWwindow* window) {
         moveDir += horizontalRight;
     }
 
-    // Add vertical movement separately (SPACE/SHIFT)
-    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-        moveDir += camera.worldUp;
+    // Check for space double-tap and jumping
+    static bool spaceWasPressed = false;
+    bool spaceIsPressed = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+
+    if (spaceIsPressed && !spaceWasPressed) {
+        // Handle jumping for walking mode
+        if (camera.currentMode == Camera::MovementMode::WALKING) {
+            camera.jump(currentFrame);
+        }
+
+        // Detect double-tap for flying toggle
+        if (currentFrame - lastSpacePressTime < DOUBLE_TAP_THRESHOLD) {
+            if (camera.currentMode == Camera::MovementMode::FLYING) {
+                camera.currentMode = Camera::MovementMode::WALKING;
+            } else {
+                camera.currentMode = Camera::MovementMode::FLYING;
+            }
+        }
+        lastSpacePressTime = currentFrame;
     }
-    if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-        moveDir -= camera.worldUp;
+    spaceWasPressed = spaceIsPressed;
+
+    // Handle flying vertical movement
+    if (camera.currentMode == Camera::MovementMode::FLYING) {
+        if (spaceIsPressed) {
+            moveDir += camera.worldUp;
+        }
+        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+            moveDir -= camera.worldUp;
+        }
     }
 
     // Update camera movement
@@ -508,7 +618,7 @@ int main() {
     glEnableVertexAttribArray(1);
 
     // Move camera back to see the full grid
-    camera.position = glm::vec3(8.0f, 8.0f, 20.0f);
+    camera.position = glm::vec3(8.0f, 8.0f, 8.0f);
 
     // Render loop
     while (!glfwWindowShouldClose(window)) {
@@ -524,7 +634,7 @@ int main() {
         glm::mat4 projection = glm::mat4(1.0f);
 
         view = camera.getViewMatrix();
-        projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+        projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 1000.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
