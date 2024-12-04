@@ -608,7 +608,7 @@ int main() {
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
     // Load a block model
-    std::string jsonContent = loadFileContent("assets/minecraft/models/block/stairs.json"); // You'll need to implement this
+    std::string jsonContent = loadFileContent("assets/minecraft/models/block/stairs.json");
     BlockModel model = BlockModel::loadFromJson(jsonContent);
 
     // Generate vertex data
@@ -688,7 +688,7 @@ int main() {
                              highlightedBlock.z == z);
                         shader.setBool("isHighlighted", isHighlighted);
 
-                        glDrawArrays(GL_TRIANGLES, 0, 36);
+                        glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 9);
                     }
                 }
             }
