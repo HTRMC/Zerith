@@ -608,8 +608,9 @@ int main() {
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
     // Load a block model
-    std::string jsonContent = loadFileContent("assets/minecraft/models/block/stairs.json");
-    BlockModel model = BlockModel::loadFromJson(jsonContent);
+    std::map<std::string, BlockModel> loadedModels;
+    std::string jsonContent = loadFileContent("assets/minecraft/models/block/stone_stairs.json");
+    BlockModel model = BlockModel::loadFromJson(jsonContent, loadedModels);
 
     // Generate vertex data
     std::vector<float> vertices = model.generateVertexData();

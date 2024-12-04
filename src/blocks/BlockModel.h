@@ -22,26 +22,93 @@ class BlockModel {
 public:
     std::string parent;
     std::vector<BlockElement> elements;
+    std::map<std::string, std::string> textures;
+
+    static std::string resolveParentPath(const std::string& parentName) {
+        // Convert Minecraft-style path to file system path
+        std::string path = parentName;
+        if (path.find("minecraft:") == 0) {
+            path = path.substr(10); // Remove "minecraft:"
+        }
+        return "assets/minecraft/models/" + path + ".json";
+    }
+
+    static std::string resolveTextureVariable(const std::string& texture, const std::map<std::string, std::string>& textureMap) {
+        if (texture.empty() || texture[0] != '#') return texture;
+
+        std::string key = texture.substr(1); // Remove '#'
+        auto it = textureMap.find(key);
+        if (it != textureMap.end()) {
+            // Recursively resolve texture references
+            return resolveTextureVariable(it->second, textureMap);
+        }
+        return texture;
+    }
 
     // Load model from JSON file
-    static BlockModel loadFromJson(const std::string &jsonContent) {
+    static BlockModel loadFromJson(const std::string& jsonContent, std::map<std::string, BlockModel>& loadedModels) {
         using json = nlohmann::json;
         BlockModel model;
 
         try {
             auto j = json::parse(jsonContent);
 
-            // Parse parent if it exists
-            if (j.contains("parent")) {
-                model.parent = j["parent"].get<std::string>();
+            // Parse textures if they exist
+            if (j.contains("textures")) {
+                for (const auto& [key, value] : j["textures"].items()) {
+                    model.textures[key] = value.get<std::string>();
+                }
             }
 
-            // Parse elements
+            // Load parent first if it exists
+            if (j.contains("parent")) {
+                std::string parentName = j["parent"].get<std::string>();
+                model.parent = parentName;
+
+                // Check if parent is already loaded
+                auto it = loadedModels.find(parentName);
+                if (it == loadedModels.end()) {
+                    // Load parent model
+                    std::string parentPath = resolveParentPath(parentName);
+                    std::ifstream parentFile(parentPath);
+                    if (parentFile.is_open()) {
+                        std::string parentContent((std::istreambuf_iterator<char>(parentFile)),
+                                               std::istreambuf_iterator<char>());
+                        BlockModel parentModel = loadFromJson(parentContent, loadedModels);
+
+                        // Store the loaded parent model
+                        loadedModels[parentName] = parentModel;
+
+                        // Inherit elements from parent
+                        model.elements = parentModel.elements;
+
+                        // Merge textures, with child overriding parent
+                        for (const auto& [key, value] : parentModel.textures) {
+                            if (model.textures.find(key) == model.textures.end()) {
+                                model.textures[key] = value;
+                            }
+                        }
+                    }
+                } else {
+                    // Use cached parent model
+                    const BlockModel& parentModel = it->second;
+                    model.elements = parentModel.elements;
+
+                    // Merge textures
+                    for (const auto& [key, value] : parentModel.textures) {
+                        if (model.textures.find(key) == model.textures.end()) {
+                            model.textures[key] = value;
+                        }
+                    }
+                }
+            }
+
+            // Parse elements if they exist in this model
             if (j.contains("elements")) {
-                for (const auto &elem: j["elements"]) {
+                model.elements.clear(); // Clear inherited elements if we have our own
+                for (const auto& elem : j["elements"]) {
                     BlockElement element;
 
-                    // Convert from/to from pixel space (0-16) to normalized space (0-1)
                     auto from = elem["from"];
                     element.from = glm::vec3(
                         from[0].get<float>() / 16.0f,
@@ -56,16 +123,14 @@ public:
                         to[2].get<float>() / 16.0f
                     );
 
-                    // Parse faces
                     if (elem.contains("faces")) {
                         auto faces = elem["faces"];
-                        for (const auto &[faceName, faceData]: faces.items()) {
+                        for (const auto& [faceName, faceData] : faces.items()) {
                             BlockFace face;
-                            face.texture = faceData["texture"].get<std::string>();
+                            std::string rawTexture = faceData["texture"].get<std::string>();
+                            face.texture = resolveTextureVariable(rawTexture, model.textures);
                             face.cullface = faceData.contains("cullface");
 
-                            // Set default UVs if not specified
-                            // Default UVs cover the entire texture (0,0 to 1,1)
                             if (faceData.contains("uv")) {
                                 auto uv = faceData["uv"];
                                 face.uv[0] = glm::vec2(uv[0].get<float>() / 16.0f, uv[1].get<float>() / 16.0f);
@@ -73,7 +138,6 @@ public:
                                 face.uv[2] = glm::vec2(uv[2].get<float>() / 16.0f, uv[3].get<float>() / 16.0f);
                                 face.uv[3] = glm::vec2(uv[0].get<float>() / 16.0f, uv[3].get<float>() / 16.0f);
                             } else {
-                                // Calculate UVs based on face position
                                 setDefaultUVs(face, faceName, element.from, element.to);
                             }
 
@@ -84,7 +148,8 @@ public:
                     model.elements.push_back(element);
                 }
             }
-        } catch (const std::exception &e) {
+
+        } catch (const std::exception& e) {
             std::cerr << "Error parsing block model JSON: " << e.what() << std::endl;
         }
 
@@ -279,5 +344,10 @@ private:
                             min.x, max.y, min.z, color.r, color.g, color.b, uv[3].x, uv[3].y, faceIndex,
                             min.x, min.y, min.z, color.r, color.g, color.b, uv[0].x, uv[0].y, faceIndex
                         });
+    }
+
+    static BlockModel loadFromJson(const std::string& jsonContent) {
+        std::map<std::string, BlockModel> loadedModels;
+        return loadFromJson(jsonContent, loadedModels);
     }
 };
