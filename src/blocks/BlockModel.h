@@ -170,6 +170,30 @@ public:
         return vertices;
     }
 
+    std::vector<float> generateFaceVertices(const std::string& face, const glm::mat4& transform) const {
+        std::vector<float> vertices;
+
+        for (const auto& element : elements) {
+            auto it = element.faces.find(face);
+            if (it != element.faces.end()) {
+                auto baseVertices = generateFaceVertices(element, face, it->second);
+
+                // Transform vertices by the provided matrix
+                for (size_t i = 0; i < baseVertices.size(); i += 9) {
+                    glm::vec4 pos(baseVertices[i], baseVertices[i+1], baseVertices[i+2], 1.0f);
+                    pos = transform * pos;
+                    baseVertices[i] = pos.x;
+                    baseVertices[i+1] = pos.y;
+                    baseVertices[i+2] = pos.z;
+                }
+
+                vertices.insert(vertices.end(), baseVertices.begin(), baseVertices.end());
+            }
+        }
+
+        return vertices;
+    }
+
 private:
     static void setDefaultUVs(BlockFace &face, const std::string &faceName,
                               const glm::vec3 &from, const glm::vec3 &to) {

@@ -11,25 +11,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find packages
 find_package(glfw3 3.4 REQUIRED)
 find_package(glm REQUIRED)
+find_package(glad CONFIG REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
-
-# Add GLAD library
-add_library(glad STATIC "C:/Users/HTRMC/Dev/Libraries/glad/src/glad.c")
-target_include_directories(glad PUBLIC "C:/Users/HTRMC/Dev/Libraries/glad/include")
 
 file(GLOB_RECURSE SOURCES
         "src/*.cpp"
         "src/blocks/*.cpp"
+        "src/world/*.cpp"
         "src/*.h"
         "src/blocks/*.h"
+        "src/world/*.h"
 )
 
 # Create executable
 add_executable(${PROJECT_NAME} ${SOURCES})
-
-# Include directories for main executable
-target_include_directories(${PROJECT_NAME} PRIVATE "C:/Users/HTRMC/Dev/Libraries/glad/include")
 
 # Copy shader directory to build directory
 add_custom_command(
@@ -46,4 +42,5 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         glm::glm
         OpenGL::GL
         nlohmann_json::nlohmann_json
+        glad::glad
 )

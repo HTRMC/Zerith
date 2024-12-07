@@ -14,12 +14,9 @@
 
 #include "blocks/BlockModel.h"
 #include "blocks/BlockType.h"
+#include "world/ World.h"
 
-std::vector<std::vector<std::vector<Block>>> blocks(16,
-    std::vector<std::vector<Block>>(16,
-        std::vector<Block>(16, Block())
-    )
-);
+World world;
 
 // Camera movement enum
 enum Camera_Movement {
@@ -27,19 +24,6 @@ enum Camera_Movement {
     BACKWARD,
     LEFT,
     RIGHT
-};
-
-struct AABB {
-    glm::vec3 min;
-    glm::vec3 max;
-
-    AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
-
-    bool intersects(const AABB& other) const {
-        return (min.x <= other.max.x && max.x >= other.min.x) &&
-               (min.y <= other.max.y && max.y >= other.min.y) &&
-               (min.z <= other.max.z && max.z >= other.min.z);
-    }
 };
 
 // Camera class
@@ -56,10 +40,10 @@ public:
     float pitch;
 
     // Constants for movement
-    const float TICK_RATE = 20.0f;  // Minecraft runs at 20 ticks per second
-    const float BASE_ACCELERATION = 0.049f;  // Matches Minecraft's flying acceleration
-    const float AIR_FRICTION = 0.91f / 2;       // Matches Minecraft's air resistance
-    const float MAX_SPEED = 10.79f;         // Matches Minecraft's max flying speed
+    const float TICK_RATE = 20.0f; // Minecraft runs at 20 ticks per second
+    const float BASE_ACCELERATION = 0.049f; // Matches Minecraft's flying acceleration
+    const float AIR_FRICTION = 0.91f; // Matches Minecraft's air resistance
+    const float MAX_SPEED = 10.79f; // Matches Minecraft's max flying speed
 
     float mouseSensitivity;
 
@@ -75,7 +59,7 @@ public:
     const float GRAVITY = -20.0f;
     float verticalVelocity = 0.0f;
     bool canFly = true; // Set to false for survival mode
-    const float EYE_HEIGHT = 1.6f;  // Eyes are slightly below total height
+    const float EYE_HEIGHT = 1.6f; // Eyes are slightly below total height
     const float JUMP_VELOCITY = 8.0f;
 
     void applyGravity(float deltaTime) {
@@ -84,7 +68,8 @@ public:
             position.y += verticalVelocity * deltaTime;
 
             // Check if we hit the ground (y = 0)
-            if (position.y <= 1.0f) { // 1.0f because player height is 1.8
+            if (position.y <= 1.0f) {
+                // 1.0f because player height is 1.8
                 position.y = 1.0f;
                 verticalVelocity = 0.0f;
                 isGrounded = true;
@@ -117,7 +102,7 @@ public:
         }
     }
 
-    const float PLAYER_WIDTH = 0.6f;  // Minecraft player is ~0.6 blocks wide
+    const float PLAYER_WIDTH = 0.6f; // Minecraft player is ~0.6 blocks wide
     const float PLAYER_HEIGHT = 1.8f; // Minecraft player is ~1.8 blocks tall
 
     AABB getBoundingBox() const {
@@ -125,39 +110,21 @@ public:
         return AABB(position - halfExtents, position + halfExtents);
     }
 
-    bool checkCollision(const glm::vec3& newPosition) {
+    bool checkCollision(const glm::vec3 &newPosition) {
         glm::vec3 playerPos = newPosition - glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
         glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
         AABB playerBox(playerPos - halfExtents, playerPos + halfExtents);
-
-        for (int x = 0; x < 16; x++) {
-            for (int y = 0; y < 16; y++) {
-                for (int z = 0; z < 16; z++) {
-                    if (blocks[x][y][z].exists) {
-                        AABB blockBox(
-                            glm::vec3(x, y, z),
-                            glm::vec3(x + 1.0f, y + 1.0f, z + 1.0f)
-                        );
-
-                        if (playerBox.intersects(blockBox)) {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        return false;
+        return world.checkCollision(playerBox);
     }
 
     Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 3.0f))
         : position(position)
-        , front(glm::vec3(0.0f, 0.0f, -1.0f))
-        , worldUp(glm::vec3(0.0f, 1.0f, 0.0f))
-        , velocity(glm::vec3(0.0f))
-        , yaw(-90.0f)
-        , pitch(0.0f)
-        , mouseSensitivity(0.1f)
-    {
+          , front(glm::vec3(0.0f, 0.0f, -1.0f))
+          , worldUp(glm::vec3(0.0f, 1.0f, 0.0f))
+          , velocity(glm::vec3(0.0f))
+          , yaw(-90.0f)
+          , pitch(0.0f)
+          , mouseSensitivity(0.1f) {
         // Adjust initial position to account for eye height
         position.y += EYE_HEIGHT;
         updateCameraVectors();
@@ -177,9 +144,42 @@ public:
         return glm::lookAt(position, position + front, up);
     }
 
-    void update(const glm::vec3 &moveDir, float deltaTime) {
-        // Convert real time to minecraft ticks
-        float ticks = deltaTime * TICK_RATE;
+    const float FIXED_TIMESTEP = 1.0f / 60.0f; // 60 Hz physics update
+    float accumulator = 0.0f;
+
+    void updateWithFixedTimestep(const glm::vec3 &moveDir, float deltaTime) {
+        // Accumulate the frame time
+        accumulator += deltaTime;
+
+        // Update physics in fixed timesteps while we have accumulated enough time
+        while (accumulator >= FIXED_TIMESTEP) {
+            updatePhysics(moveDir, FIXED_TIMESTEP);
+            accumulator -= FIXED_TIMESTEP;
+        }
+
+        // Optional: Interpolate state for smooth rendering
+        // float alpha = accumulator / FIXED_TIMESTEP;
+        // Could interpolate position/rotation here if needed
+    }
+
+    void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
+        xoffset *= mouseSensitivity;
+        yoffset *= mouseSensitivity;
+
+        yaw += xoffset;
+        pitch += yoffset;
+
+        if (constrainPitch) {
+            pitch = glm::clamp(pitch, -89.0f, 89.0f);
+        }
+
+        updateCameraVectors();
+    }
+
+private:
+    void updatePhysics(const glm::vec3 &moveDir, float dt) {
+        // Convert real time to minecraft ticks (now using fixed timestep)
+        float ticks = dt * TICK_RATE;
 
         // Apply acceleration if there's input
         if (glm::length(moveDir) > 0.0f) {
@@ -198,11 +198,11 @@ public:
         if (currentMode == MovementMode::WALKING) {
             velocity.y = 0; // Don't accumulate Y velocity in walking mode
 
-            // Apply gravity
+            // Apply gravity with fixed timestep
             if (!isGrounded) {
-                verticalVelocity += GRAVITY * deltaTime;
+                verticalVelocity += GRAVITY * dt;
             }
-            newPosition.y += verticalVelocity * deltaTime;
+            newPosition.y += verticalVelocity * dt;
         }
 
         // Handle collisions by checking each axis separately
@@ -225,11 +225,9 @@ public:
             isGrounded = false;
         } else {
             if (verticalVelocity < 0) {
-                // We hit something below us
                 isGrounded = true;
                 verticalVelocity = 0;
             } else {
-                // We hit something above us
                 verticalVelocity = 0;
             }
         }
@@ -246,7 +244,7 @@ public:
         // Update final position
         position = finalPosition;
 
-        // Check if we're grounded by doing a small check below us
+        // Check if we're grounded
         if (currentMode == MovementMode::WALKING && !isGrounded) {
             glm::vec3 groundCheck = position - glm::vec3(0.0f, 0.1f, 0.0f);
             if (checkCollision(groundCheck)) {
@@ -254,20 +252,6 @@ public:
                 verticalVelocity = 0;
             }
         }
-    }
-
-    void processMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
-        xoffset *= mouseSensitivity;
-        yoffset *= mouseSensitivity;
-
-        yaw += xoffset;
-        pitch += yoffset;
-
-        if (constrainPitch) {
-            pitch = glm::clamp(pitch, -89.0f, 89.0f);
-        }
-
-        updateCameraVectors();
     }
 };
 
@@ -281,14 +265,14 @@ public:
     }
 
     void setBool(const std::string &name, bool value) const {
-        glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
+        glUniform1i(glGetUniformLocation(ID, name.c_str()), (int) value);
     }
 
     void setInt(const std::string &name, int value) const {
         glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
     }
 
-    Shader(const char* vertexPath, const char* fragmentPath) {
+    Shader(const char *vertexPath, const char *fragmentPath) {
         std::string vertexCode;
         std::string fragmentCode;
         std::ifstream vShaderFile;
@@ -304,8 +288,8 @@ public:
         vertexCode = vShaderStream.str();
         fragmentCode = fShaderStream.str();
 
-        const char* vShaderCode = vertexCode.c_str();
-        const char* fShaderCode = fragmentCode.c_str();
+        const char *vShaderCode = vertexCode.c_str();
+        const char *fShaderCode = fragmentCode.c_str();
 
         unsigned int vertex, fragment;
         vertex = glCreateShader(GL_VERTEX_SHADER);
@@ -356,7 +340,7 @@ private:
     }
 };
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
@@ -373,78 +357,67 @@ const float DOUBLE_TAP_THRESHOLD = 0.3f; // Maximum time interval for double-tap
 
 std::string chatInput;
 bool isChatOpen = false;
-BlockType selectedBlockType = BlockType::STONE;  // Default block type
+BlockType selectedBlockType = BlockType::STONE; // Default block type
 bool acceptingInput = false;
 
 // Add this function to handle text input
-void character_callback(GLFWwindow* window, unsigned int codepoint) {
+void character_callback(GLFWwindow *window, unsigned int codepoint) {
     if (isChatOpen && acceptingInput) {
         chatInput += static_cast<char>(codepoint);
     }
 }
 
 // Add this function to process chat commands
-void processCommand(const std::string& command) {
+void processCommand(const std::string &command) {
     // Remove the leading '/' if present
     if (command.empty() || command[0] != '/') return;
 
-    std::string cmd = command.substr(1);  // Remove the '/'
+    std::string cmd = command.substr(1); // Remove the '/'
 
     // Convert to lowercase for case-insensitive comparison
     std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
 
     if (cmd.substr(0, 4) == "give") {
-        std::string blockName = cmd.substr(5);  // Get the block name after "give "
+        std::string blockName = cmd.substr(5); // Get the block name after "give "
 
         // Map block names to BlockType
         if (blockName == "stone") {
             selectedBlockType = BlockType::STONE;
-        }
-        else if (blockName == "dirt") {
+        } else if (blockName == "dirt") {
             selectedBlockType = BlockType::DIRT;
-        }
-        else if (blockName == "grass_block") {
+        } else if (blockName == "grass_block") {
             selectedBlockType = BlockType::GRASS_BLOCK;
-        }
-        else if (blockName == "oak_planks") {
+        } else if (blockName == "oak_planks") {
             selectedBlockType = BlockType::OAK_PLANKS;
-        }
-        else if (blockName == "oak_slab") {
+        } else if (blockName == "oak_slab") {
             selectedBlockType = BlockType::OAK_SLAB;
-        }
-        else if (blockName == "oak_stairs") {
+        } else if (blockName == "oak_stairs") {
             selectedBlockType = BlockType::OAK_STAIRS;
-        }
-        else if (blockName == "oak_log") {
+        } else if (blockName == "oak_log") {
             selectedBlockType = BlockType::OAK_LOG;
         }
         std::cout << "Selected block type: " << blockName << std::endl;
     }
 }
 
-void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_T && action == GLFW_PRESS && !isChatOpen) {
         isChatOpen = true;
-        chatInput = "/";  // Initialize with '/' when opening chat
+        chatInput = "/"; // Initialize with '/' when opening chat
         acceptingInput = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-    }
-
-    else if (isChatOpen && !acceptingInput) {
-        acceptingInput = true;  // Enable input on any subsequent key press
-    }
-    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS && isChatOpen) {
+    } else if (isChatOpen && !acceptingInput) {
+        acceptingInput = true; // Enable input on any subsequent key press
+    } else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS && isChatOpen) {
         isChatOpen = false;
         chatInput.clear();
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    }
-    else if (isChatOpen) {
+    } else if (isChatOpen) {
         if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS) {
             if (!chatInput.empty()) {
                 chatInput.pop_back();
             }
-        }
-        else if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+        } else if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
             processCommand(chatInput);
             chatInput.clear();
             isChatOpen = false;
@@ -454,8 +427,8 @@ void key_callback(GLFWwindow* window, int key, int scancode, int action, int mod
 }
 
 // Ray casting function to detect block intersection
-bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
-                 glm::ivec3& outBlockPos, glm::vec3& outHitPos) {
+bool raycastBlock(const glm::vec3 &start, const glm::vec3 &direction, float maxDistance,
+                  glm::ivec3 &outBlockPos, glm::vec3 &outHitPos) {
     glm::vec3 rayDir = glm::normalize(direction);
     glm::vec3 rayPos = start;
     const float STEP_SIZE = 0.05f;
@@ -470,25 +443,12 @@ bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxD
         int gridY = static_cast<int>(floor(rayPos.y));
         int gridZ = static_cast<int>(floor(rayPos.z));
 
-        // Check if we're within the grid bounds
-        if (gridX >= 0 && gridX < 16 &&
-            gridY >= 0 && gridY < 16 &&
-            gridZ >= 0 && gridZ < 16) {
-            if (blocks[gridX][gridY][gridZ].exists) {
-                // Define block boundaries
-                glm::vec3 blockMin(gridX, gridY, gridZ);
-                glm::vec3 blockMax = blockMin + glm::vec3(1.0f);
-
-                // Check if the ray position is within the block's bounds
-                if (rayPos.x >= blockMin.x && rayPos.x <= blockMax.x &&
-                    rayPos.y >= blockMin.y && rayPos.y <= blockMax.y &&
-                    rayPos.z >= blockMin.z && rayPos.z <= blockMax.z) {
-                    outBlockPos = glm::ivec3(gridX, gridY, gridZ);
-                    outHitPos = rayPos;
-                    return true;
-                    }
-            }
-            }
+        Block *block = world.getBlock(gridX, gridY, gridZ);
+        if (block && block->exists) {
+            outBlockPos = glm::ivec3(gridX, gridY, gridZ);
+            outHitPos = rayPos;
+            return true;
+        }
     }
 
     outBlockPos = glm::ivec3(-1);
@@ -497,7 +457,7 @@ bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxD
 }
 
 // Add these callback functions after your existing framebuffer_size_callback
-void mouse_callback(GLFWwindow* window, double xposIn, double yposIn) {
+void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
     float xpos = static_cast<float>(xposIn);
     float ypos = static_cast<float>(yposIn);
 
@@ -522,55 +482,118 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
         glm::vec3 hitPos;
 
         if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
-            if (button == GLFW_MOUSE_BUTTON_LEFT) {
-                // Break block
-                blocks[blockPos.x][blockPos.y][blockPos.z].exists = false;
-            }
-            else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-                // Calculate adjacent block position based on hit normal
-                glm::vec3 blockCenter = glm::vec3(blockPos) + glm::vec3(0.5f);
-                glm::vec3 normal = glm::normalize(hitPos - blockCenter);
+            Block* block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+            if (block) {
+                if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                    // Break block
+                    *block = Block();
+                    block->exists = false;
 
-                int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
-                int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
-                int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
+                    // Add this: Get the chunk coordinates and mark chunk for remesh
+                    int chunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
+                    int chunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
+                    glm::ivec2 chunkPos(chunkX, chunkZ);
 
-                if (newX >= 0 && newX < 16 &&
-                    newY >= 0 && newY < 16 &&
-                    newZ >= 0 && newZ < 16) {
+                    // Mark chunk for remesh
+                    auto it = world.chunks.find(chunkPos);
+                    if (it != world.chunks.end()) {
+                        it->second.needsRemesh = true;
+                    }
 
-                    // Special handling for stairs
-                    if (selectedBlockType == BlockType::OAK_STAIRS) {
-                        // Determine facing direction based on player's rotation
-                        float yaw = camera.yaw;
-                        BlockFacing facing;
+                    // Also mark neighboring chunks for remesh if block is on chunk border
+                    int localX = blockPos.x - (chunkX * Chunk::CHUNK_SIZE);
+                    int localZ = blockPos.z - (chunkZ * Chunk::CHUNK_SIZE);
 
-                        // Convert yaw to facing direction
-                        // Normalize yaw to 0-360 range
-                        while (yaw < 0) yaw += 360.0f;
-                        while (yaw >= 360.0f) yaw -= 360.0f;
+                    if (localX == 0) {  // On west border
+                        auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
+                        if (westChunk != world.chunks.end())
+                            westChunk->second.needsRemesh = true;
+                    }
+                    if (localX == Chunk::CHUNK_SIZE - 1) {  // On east border
+                        auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
+                        if (eastChunk != world.chunks.end())
+                            eastChunk->second.needsRemesh = true;
+                    }
+                    if (localZ == 0) {  // On north border
+                        auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
+                        if (northChunk != world.chunks.end())
+                            northChunk->second.needsRemesh = true;
+                    }
+                    if (localZ == Chunk::CHUNK_SIZE - 1) {  // On south border
+                        auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
+                        if (southChunk != world.chunks.end())
+                            southChunk->second.needsRemesh = true;
+                    }
+                } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                    // Calculate adjacent block position based on hit normal
+                    glm::vec3 blockCenter = glm::vec3(blockPos) + glm::vec3(0.5f);
+                    glm::vec3 normal = glm::normalize(hitPos - blockCenter);
 
-                        // Determine facing based on player's yaw
-                        if (yaw >= 315.0f || yaw < 45.0f) {
-                            facing = BlockFacing::NORTH;
-                        } else if (yaw >= 45.0f && yaw < 135.0f) {
-                            facing = BlockFacing::WEST;
-                        } else if (yaw >= 135.0f && yaw < 225.0f) {
-                            facing = BlockFacing::SOUTH;
+                    int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
+                    int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
+                    int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
+
+                    Block* newBlock = world.getBlock(newX, newY, newZ);
+                    if (newBlock && !newBlock->exists) {
+                        if (selectedBlockType == BlockType::OAK_STAIRS) {
+                            float yaw = camera.yaw;
+                            BlockFacing facing;
+                            while (yaw < 0) yaw += 360.0f;
+                            while (yaw >= 360.0f) yaw -= 360.0f;
+
+                            if (yaw >= 315.0f || yaw < 45.0f) {
+                                facing = BlockFacing::NORTH;
+                            } else if (yaw >= 45.0f && yaw < 135.0f) {
+                                facing = BlockFacing::WEST;
+                            } else if (yaw >= 135.0f && yaw < 225.0f) {
+                                facing = BlockFacing::SOUTH;
+                            } else {
+                                facing = BlockFacing::EAST;
+                            }
+
+                            StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
+                            *newBlock = createOakStairs(facing, half);
                         } else {
-                            facing = BlockFacing::EAST;
+                            *newBlock = Block(selectedBlockType);
+                        }
+                        newBlock->exists = true;
+
+                        // Mark chunks for remesh after placing block
+                        int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
+                        int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
+                        glm::ivec2 chunkPos(chunkX, chunkZ);
+
+                        // Mark chunk for remesh
+                        auto it = world.chunks.find(chunkPos);
+                        if (it != world.chunks.end()) {
+                            it->second.needsRemesh = true;
                         }
 
-                        // Determine if stairs should be upside down based on where player is looking
-                        StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
+                        // Check neighboring chunks
+                        int localX = newX - (chunkX * Chunk::CHUNK_SIZE);
+                        int localZ = newZ - (chunkZ * Chunk::CHUNK_SIZE);
 
-                        // Create stairs with proper orientation
-                        blocks[newX][newY][newZ] = createOakStairs(facing, half);
-                    } else {
-                        // Handle other block types normally
-                        blocks[newX][newY][newZ] = Block(selectedBlockType);
+                        if (localX == 0) {  // On west border
+                            auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
+                            if (westChunk != world.chunks.end())
+                                westChunk->second.needsRemesh = true;
+                        }
+                        if (localX == Chunk::CHUNK_SIZE - 1) {  // On east border
+                            auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
+                            if (eastChunk != world.chunks.end())
+                                eastChunk->second.needsRemesh = true;
+                        }
+                        if (localZ == 0) {  // On north border
+                            auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
+                            if (northChunk != world.chunks.end())
+                                northChunk->second.needsRemesh = true;
+                        }
+                        if (localZ == Chunk::CHUNK_SIZE - 1) {  // On south border
+                            auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
+                            if (southChunk != world.chunks.end())
+                                southChunk->second.needsRemesh = true;
+                        }
                     }
-                    blocks[newX][newY][newZ].exists = true;
                 }
             }
         }
@@ -578,7 +601,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 }
 
 // Modify your existing processInput function
-void processInput(GLFWwindow* window) {
+void processInput(GLFWwindow *window) {
     if (isChatOpen) {
         return; // Don't process movement when chat is open
     }
@@ -642,16 +665,16 @@ void processInput(GLFWwindow* window) {
     }
 
     // Update camera movement
-    camera.update(moveDir, deltaTime);
+    camera.updateWithFixedTimestep(moveDir, deltaTime);
 }
 
-unsigned int loadTexture(const char* path) {
+unsigned int loadTexture(const char *path) {
     unsigned int textureID;
     glGenTextures(1, &textureID);
 
     int width, height, nrChannels;
     stbi_set_flip_vertically_on_load(true);
-    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+    unsigned char *data = stbi_load(path, &width, &height, &nrChannels, 0);
 
     if (data) {
         GLenum format;
@@ -671,43 +694,13 @@ unsigned int loadTexture(const char* path) {
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    }
-    else {
+    } else {
         std::cout << "Failed to load texture at path: " << path << std::endl;
     }
 
     stbi_image_free(data);
     return textureID;
 }
-
-std::string loadFileContent(const std::string& path) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << path << std::endl;
-        return "";
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
-}
-
-class BlockModelManager {
-public:
-    static BlockModel& getModel(const std::string& path) {
-        static std::map<std::string, BlockModel> modelCache;
-        static std::map<std::string, BlockModel> loadedModels;
-
-        auto it = modelCache.find(path);
-        if (it != modelCache.end()) {
-            return it->second;
-        }
-
-        std::string fullPath = "assets/minecraft/models/" + path + ".json";
-        std::string jsonContent = loadFileContent(fullPath);
-        BlockModel model = BlockModel::loadFromJson(jsonContent, loadedModels);
-        return modelCache.emplace(path, std::move(model)).first->second;
-    }
-};
 
 int main() {
     // Initialize GLFW
@@ -717,7 +710,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Create window
-    GLFWwindow* window = glfwCreateWindow(800, 600, "OpenGL Cube", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(800, 600, "OpenGL Cube", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -726,7 +719,7 @@ int main() {
     glfwMakeContextCurrent(window);
 
     // Initialize GLAD
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+    if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress)) {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
@@ -744,7 +737,27 @@ int main() {
     // Create and compile shaders
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
-    // Generate vertex data
+    std::vector<unsigned int> textureArray;
+    textureArray.push_back(TextureManager::getTexture("block/dirt"));          // 0
+    textureArray.push_back(TextureManager::getTexture("block/stone"));         // 1
+    textureArray.push_back(TextureManager::getTexture("block/grass_block_side")); // 2
+    textureArray.push_back(TextureManager::getTexture("block/grass_block_top")); // 3
+    textureArray.push_back(TextureManager::getTexture("block/oak_planks"));    // 4
+    textureArray.push_back(TextureManager::getTexture("block/oak_log"));       // 5
+    textureArray.push_back(TextureManager::getTexture("block/oak_log_top"));   // 6
+
+    // Bind all textures to different texture units
+    shader.use();  // Make sure shader is active when setting uniforms
+    for (size_t i = 0; i < textureArray.size(); i++) {
+        glActiveTexture(GL_TEXTURE0 + i);
+        glBindTexture(GL_TEXTURE_2D, textureArray[i]);
+        std::string uniformName = "blockTextures[" + std::to_string(i) + "]";
+        GLint location = glGetUniformLocation(shader.ID, uniformName.c_str());
+        if(location == -1) {
+            std::cout << "Warning: Uniform " << uniformName << " not found!" << std::endl;
+        }
+        shader.setInt(uniformName, i);
+    }
 
     // Create buffers/arrays
     unsigned int VBO, VAO;
@@ -754,10 +767,10 @@ int main() {
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);                   // position
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float))); // color
-    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(6 * sizeof(float))); // texture
-    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(8 * sizeof(float))); // face index
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void *) 0); // position
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void *) (3 * sizeof(float))); // color
+    glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void *) (6 * sizeof(float))); // texture
+    glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void *) (8 * sizeof(float))); // face index
 
     glEnableVertexAttribArray(0);
     glEnableVertexAttribArray(1);
@@ -767,37 +780,6 @@ int main() {
     // Move camera back to see the full grid
     camera.position = glm::vec3(8.0f, 20.0f, 8.0f);
 
-    unsigned int texture = loadTexture("cobblestone.png");
-    shader.use();
-    shader.setInt("blockTexture", 0);
-    shader.setBool("useTexture", true);
-
-    // Place various blocks
-    blocks[6][5][8] = Block(BlockType::GRASS_BLOCK);
-    blocks[7][5][8] = Block(BlockType::DIRT);
-    blocks[8][5][8] = Block(BlockType::STONE);
-    blocks[9][5][8] = Block(BlockType::OAK_PLANKS);
-    blocks[10][5][8] = Block(BlockType::OAK_SLAB);
-    blocks[11][5][8] = createOakStairs(BlockFacing::NORTH, StairHalf::BOTTOM);
-    blocks[12][5][8] = createOakLog(Axis::Y);
-
-    for (int y = 0; y <= 2; y++) {
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                blocks[x][y][z] = Block(BlockType::STONE);
-            }
-        }
-    }
-
-    for (int y = 0; y <= 2; y++) {
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                blocks[x][3][z] = Block(BlockType::DIRT);
-                blocks[x][4][z] = Block(BlockType::GRASS_BLOCK);
-            }
-        }
-    }
-
     // Render loop
     while (!glfwWindowShouldClose(window)) {
         processInput(window);
@@ -806,9 +788,6 @@ int main() {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         shader.use();
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, texture);
 
         // Create transformations
         glm::mat4 view = glm::mat4(1.0f);
@@ -829,40 +808,49 @@ int main() {
 
         highlightedBlock = lookingAtBlock ? blockPos : glm::ivec3(-1);
 
+        shader.use();
+        shader.setInt("blockTexture", 0);  // Set texture unit 0
+        shader.setBool("useTexture", true);
+
         // Then in your cube drawing loop, update it to:
-        for(int x = 0; x < 16; x++) {
-            for(int y = 0; y < 16; y++) {
-                for(int z = 0; z < 16; z++) {
-                    if (blocks[x][y][z].exists) {
-                        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
-                        model = model * blocks[x][y][z].getTransform(); // Apply block-specific transform
-
-                        glActiveTexture(GL_TEXTURE0);
-                        glBindTexture(GL_TEXTURE_2D, blocks[x][y][z].getTexture());
-
-                        shader.setMat4("model", model);
-                        shader.setVec3("blockColor", blocks[x][y][z].color);
-
-                        std::string modelPath = blocks[x][y][z].getModelPath();
-                        BlockModel& blockModel = BlockModelManager::getModel(modelPath);
-
-                        auto vertices = blockModel.generateVertexData();
-                        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
-
-                        bool isHighlighted = lookingAtBlock && (highlightedBlock == glm::ivec3(x, y, z));
-                        shader.setBool("isHighlighted", isHighlighted);
-
-                        glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 9);
-                    }
-                }
+        for (auto& [chunkPos, chunk] : world.chunks) {
+            if (chunk.needsRemesh) {
+                chunk.generateMesh();
             }
+
+            glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0, chunkPos.y * Chunk::CHUNK_SIZE));
+            shader.setMat4("model", model);
+
+            shader.setBool("useTexture", true);
+
+            // Check if highlighted block is in this chunk
+            bool hasHighlight = false;
+            if (highlightedBlock.x >= chunkPos.x * Chunk::CHUNK_SIZE &&
+                highlightedBlock.x < (chunkPos.x + 1) * Chunk::CHUNK_SIZE &&
+                highlightedBlock.z >= chunkPos.y * Chunk::CHUNK_SIZE &&
+                highlightedBlock.z < (chunkPos.y + 1) * Chunk::CHUNK_SIZE) {
+                hasHighlight = true;
+            }
+
+            shader.setBool("isHighlighted", hasHighlight);
+            if (hasHighlight) {
+                shader.setVec3("highlightedBlockPos", glm::vec3(
+                                   highlightedBlock.x,
+                                   highlightedBlock.y,
+                                   highlightedBlock.z
+                               ));
+            }
+
+            glBindVertexArray(chunk.VAO);
+            glDrawArrays(GL_TRIANGLES, 0, chunk.vertexCount);
         }
 
         if (isChatOpen) {
             // Render chat input
             // Note: You'll need to implement actual text rendering
             // For now, we'll just print to console
-            std::cout << "\rChat: " << chatInput  << std::endl << std::flush;
+            std::cout << "\rChat: " << chatInput << std::endl << std::flush;
         }
 
         glfwSwapBuffers(window);
@@ -872,7 +860,6 @@ int main() {
     // Clean up
     glDeleteVertexArrays(1, &VAO);
     glDeleteBuffers(1, &VBO);
-    glDeleteTextures(1, &texture);
 
     glfwTerminate();
     return 0;

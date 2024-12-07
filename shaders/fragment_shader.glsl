@@ -4,12 +4,14 @@ in vec3 vertexColor;
 in vec2 TexCoord;
 in vec3 fragPos;
 flat in float faceIndex;
+flat in float textureIndex;
 
 out vec4 FragColor;
 
-uniform sampler2D blockTexture;
+uniform sampler2D blockTextures[16];
 uniform bool isHighlighted;
 uniform bool useTexture;
+uniform vec3 highlightedBlockPos;
 
 void main()
 {
@@ -24,14 +26,18 @@ void main()
 
     vec4 texColor;
     if (useTexture) {
-        texColor = texture(blockTexture, TexCoord) * vec4(vertexColor, 1.0);
+        int texIndex = int(textureIndex);
+        texColor = texture(blockTextures[texIndex], TexCoord);
     } else {
         texColor = vec4(vertexColor, 1.0);
     }
 
     texColor.rgb *= faceBrightness;
 
-    if (isHighlighted) {
+    if (isHighlighted &&
+    floor(fragPos.x) == highlightedBlockPos.x &&
+    floor(fragPos.y) == highlightedBlockPos.y &&
+    floor(fragPos.z) == highlightedBlockPos.z) {
         vec3 highlightColor = vec3(0.0, 1.0, 0.0);
         FragColor = vec4(mix(texColor.rgb, highlightColor, 0.3), texColor.a);
     } else {

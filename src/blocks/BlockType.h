@@ -68,14 +68,46 @@ struct Block {
 
     unsigned int getTexture() const {
         switch(type) {
-            case BlockType::GRASS_BLOCK: return TextureManager::getTexture("block/grass_block_side");
-            case BlockType::DIRT: return TextureManager::getTexture("block/dirt");
-            case BlockType::STONE: return TextureManager::getTexture("block/stone");
-            case BlockType::OAK_PLANKS: return TextureManager::getTexture("block/oak_planks");
-            case BlockType::OAK_LOG: return TextureManager::getTexture("block/oak_log");
-            case BlockType::OAK_SLAB: return TextureManager::getTexture("block/oak_planks");
-            case BlockType::OAK_STAIRS: return TextureManager::getTexture("block/oak_planks");
-            default: return TextureManager::getTexture("block/stone");
+            case BlockType::GRASS_BLOCK:
+                // Grass block needs different textures for top/sides/bottom
+                    return TextureManager::getTexture("block/grass_block_side");  // Need to handle top/bottom differently
+            case BlockType::DIRT:
+                return TextureManager::getTexture("block/dirt");
+            case BlockType::STONE:
+                return TextureManager::getTexture("block/stone");
+            case BlockType::OAK_PLANKS:
+                return TextureManager::getTexture("block/oak_planks");
+            case BlockType::OAK_LOG: {
+                // Logs need different textures for top/sides
+                return TextureManager::getTexture("block/oak_log_side");
+            }
+            case BlockType::OAK_SLAB:
+                return TextureManager::getTexture("block/oak_planks");
+            case BlockType::OAK_STAIRS:
+                return TextureManager::getTexture("block/oak_planks");
+            default:
+                return TextureManager::getTexture("block/stone");
+        }
+    }
+
+    unsigned int getTextureForFace(const std::string& face) const {
+        switch(type) {
+            case BlockType::GRASS_BLOCK:
+                if (face == "up")
+                    return TextureManager::getTexture("block/grass_block_top");
+                else if (face == "down")
+                    return TextureManager::getTexture("block/dirt");
+                else
+                    return TextureManager::getTexture("block/grass_block_side");
+
+            case BlockType::OAK_LOG:
+                if (face == "up" || face == "down")
+                    return TextureManager::getTexture("block/oak_log_top");
+                else
+                    return TextureManager::getTexture("block/oak_log_side");
+
+            default:
+                return getTexture();  // Use default texture for other blocks
         }
     }
 
@@ -111,6 +143,47 @@ struct Block {
         }
 
         return transform;
+    }
+
+    unsigned int getTextureIndex() const {
+        switch(type) {
+            case BlockType::DIRT: return 0;
+            case BlockType::STONE: return 1;
+            case BlockType::GRASS_BLOCK: return 2;  // side texture
+            case BlockType::OAK_PLANKS: return 4;   // add new index
+            case BlockType::OAK_LOG: return 5;      // add new index
+            case BlockType::OAK_SLAB: return 4;     // uses planks texture
+            case BlockType::OAK_STAIRS: return 4;   // uses planks texture
+            default: return 0;
+        }
+    }
+
+    unsigned int getTextureIndexForFace(const std::string& face) const {
+        switch(type) {
+            case BlockType::GRASS_BLOCK:
+                if (face == "up") return 3;      // grass_block_top
+            if (face == "down") return 0;     // dirt
+            return 2;                         // grass_block_side
+
+            case BlockType::OAK_LOG:
+                if (face == "up" || face == "down")
+                    return 6;    // oak_log_top
+            return 5;        // oak_log_side
+
+            case BlockType::DIRT:
+                return 0;        // dirt texture
+
+            case BlockType::STONE:
+                return 1;        // stone texture
+
+            case BlockType::OAK_PLANKS:
+            case BlockType::OAK_SLAB:
+            case BlockType::OAK_STAIRS:
+                return 4;        // oak_planks texture
+
+            default:
+                return 0;        // fallback to dirt texture
+        }
     }
 };
 
