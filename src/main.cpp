@@ -479,13 +479,13 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
     camera.processMouseMovement(xoffset, yoffset);
 }
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
     if (action == GLFW_PRESS) {
         glm::ivec3 blockPos;
         glm::vec3 hitPos;
 
         if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
-            Block* block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+            Block *block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
             if (block) {
                 if (button == GLFW_MOUSE_BUTTON_LEFT) {
                     // Break block
@@ -507,22 +507,26 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                     int localX = blockPos.x - (chunkX * Chunk::CHUNK_SIZE);
                     int localZ = blockPos.z - (chunkZ * Chunk::CHUNK_SIZE);
 
-                    if (localX == 0) {  // On west border
+                    if (localX == 0) {
+                        // On west border
                         auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
                         if (westChunk != world.chunks.end())
                             westChunk->second.needsRemesh = true;
                     }
-                    if (localX == Chunk::CHUNK_SIZE - 1) {  // On east border
+                    if (localX == Chunk::CHUNK_SIZE - 1) {
+                        // On east border
                         auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
                         if (eastChunk != world.chunks.end())
                             eastChunk->second.needsRemesh = true;
                     }
-                    if (localZ == 0) {  // On north border
+                    if (localZ == 0) {
+                        // On north border
                         auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
                         if (northChunk != world.chunks.end())
                             northChunk->second.needsRemesh = true;
                     }
-                    if (localZ == Chunk::CHUNK_SIZE - 1) {  // On south border
+                    if (localZ == Chunk::CHUNK_SIZE - 1) {
+                        // On south border
                         auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
                         if (southChunk != world.chunks.end())
                             southChunk->second.needsRemesh = true;
@@ -536,9 +540,20 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                     int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
                     int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
 
-                    Block* newBlock = world.getBlock(newX, newY, newZ);
+                    Block *newBlock = world.getBlock(newX, newY, newZ);
                     if (newBlock && !newBlock->exists) {
-                        if (selectedBlockType == BlockType::OAK_STAIRS) {
+                        if (selectedBlockType == BlockType::OAK_LOG) {
+                            // Determine log axis based on the face we're placing against
+                            Axis axis;
+                            if (abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z)) {
+                                axis = Axis::X; // Placing against east/west face
+                            } else if (abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z)) {
+                                axis = Axis::Y; // Placing against top/bottom face
+                            } else {
+                                axis = Axis::Z; // Placing against north/south face
+                            }
+                            *newBlock = createOakLog(axis);
+                        } else if (selectedBlockType == BlockType::OAK_STAIRS) {
                             float yaw = camera.yaw;
                             BlockFacing facing;
                             while (yaw < 0) yaw += 360.0f;
@@ -557,13 +572,14 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                             StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
                             *newBlock = createOakStairs(facing, half);
                         } else if (selectedBlockType == BlockType::OAK_SLAB) {
-                            Block* existingBlock = world.getBlock(newX, newY, newZ);
+                            Block *existingBlock = world.getBlock(newX, newY, newZ);
 
                             // Check if we're clicking on an existing slab
-                            Block* targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                            Block *targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
                             if (targetBlock && targetBlock->exists && targetBlock->type == BlockType::OAK_SLAB) {
                                 // If clicking on a slab, check if we can form a double slab
-                                SlabType existingType = std::get<SlabType>(targetBlock->properties.properties.at("type"));
+                                SlabType existingType = std::get<SlabType>(
+                                    targetBlock->properties.properties.at("type"));
                                 SlabType newType = determineSlabType(hitPos, glm::ivec3(blockPos));
 
                                 if ((existingType == SlabType::BOTTOM && newType == SlabType::TOP) ||
@@ -580,7 +596,7 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                                         it->second.needsRemesh = true;
                                     }
                                     return;
-                                    }
+                                }
                             }
 
                             // Place new slab
@@ -596,7 +612,10 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                                 if (it != world.chunks.end()) {
                                     it->second.needsRemesh = true;
                                 }
+                            } else {
+                                *newBlock = Block(selectedBlockType);
                             }
+                            newBlock->exists = true;
                         } else {
                             *newBlock = Block(selectedBlockType);
                         }
@@ -617,22 +636,26 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                         int localX = newX - (chunkX * Chunk::CHUNK_SIZE);
                         int localZ = newZ - (chunkZ * Chunk::CHUNK_SIZE);
 
-                        if (localX == 0) {  // On west border
+                        if (localX == 0) {
+                            // On west border
                             auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
                             if (westChunk != world.chunks.end())
                                 westChunk->second.needsRemesh = true;
                         }
-                        if (localX == Chunk::CHUNK_SIZE - 1) {  // On east border
+                        if (localX == Chunk::CHUNK_SIZE - 1) {
+                            // On east border
                             auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
                             if (eastChunk != world.chunks.end())
                                 eastChunk->second.needsRemesh = true;
                         }
-                        if (localZ == 0) {  // On north border
+                        if (localZ == 0) {
+                            // On north border
                             auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
                             if (northChunk != world.chunks.end())
                                 northChunk->second.needsRemesh = true;
                         }
-                        if (localZ == Chunk::CHUNK_SIZE - 1) {  // On south border
+                        if (localZ == Chunk::CHUNK_SIZE - 1) {
+                            // On south border
                             auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
                             if (southChunk != world.chunks.end())
                                 southChunk->second.needsRemesh = true;
@@ -782,23 +805,23 @@ int main() {
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
     std::vector<unsigned int> textureArray;
-    textureArray.push_back(TextureManager::getTexture("block/dirt"));          // 0
-    textureArray.push_back(TextureManager::getTexture("block/stone"));         // 1
+    textureArray.push_back(TextureManager::getTexture("block/dirt")); // 0
+    textureArray.push_back(TextureManager::getTexture("block/stone")); // 1
     textureArray.push_back(TextureManager::getTexture("block/grass_block_side")); // 2
     textureArray.push_back(TextureManager::getTexture("block/grass_block_top")); // 3
-    textureArray.push_back(TextureManager::getTexture("block/oak_planks"));    // 4
-    textureArray.push_back(TextureManager::getTexture("block/oak_log"));       // 5
-    textureArray.push_back(TextureManager::getTexture("block/oak_log_top"));   // 6
+    textureArray.push_back(TextureManager::getTexture("block/oak_planks")); // 4
+    textureArray.push_back(TextureManager::getTexture("block/oak_log")); // 5
+    textureArray.push_back(TextureManager::getTexture("block/oak_log_top")); // 6
     textureArray.push_back(TextureManager::getTexture("block/grass_block_side_overlay")); // 7
 
     // Bind all textures to different texture units
-    shader.use();  // Make sure shader is active when setting uniforms
+    shader.use(); // Make sure shader is active when setting uniforms
     for (size_t i = 0; i < textureArray.size(); i++) {
         glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(GL_TEXTURE_2D, textureArray[i]);
         std::string uniformName = "blockTextures[" + std::to_string(i) + "]";
         GLint location = glGetUniformLocation(shader.ID, uniformName.c_str());
-        if(location == -1) {
+        if (location == -1) {
             std::cout << "Warning: Uniform " << uniformName << " not found!" << std::endl;
         }
         shader.setInt(uniformName, i);
@@ -839,7 +862,9 @@ int main() {
         glm::mat4 projection = glm::mat4(1.0f);
 
         view = camera.getViewMatrix();
-        projection = glm::perspective(glm::radians(90.0f), static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT), 0.1f, 1000.0f);
+        projection = glm::perspective(glm::radians(90.0f),
+                                      static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT), 0.1f,
+                                      1000.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
@@ -854,17 +879,18 @@ int main() {
         highlightedBlock = lookingAtBlock ? blockPos : glm::ivec3(-1);
 
         shader.use();
-        shader.setInt("blockTexture", 0);  // Set texture unit 0
+        shader.setInt("blockTexture", 0); // Set texture unit 0
         shader.setBool("useTexture", true);
 
         // Then in your cube drawing loop, update it to:
-        for (auto& [chunkPos, chunk] : world.chunks) {
+        for (auto &[chunkPos, chunk]: world.chunks) {
             if (chunk.needsRemesh) {
                 chunk.generateMesh();
             }
 
             glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0, chunkPos.y * Chunk::CHUNK_SIZE));
+                                             glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
+                                                       chunkPos.y * Chunk::CHUNK_SIZE));
             shader.setMat4("model", model);
 
             shader.setBool("useTexture", true);
