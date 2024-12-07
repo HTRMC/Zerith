@@ -371,6 +371,88 @@ glm::ivec3 highlightedBlock(-1);
 float lastSpacePressTime = 0.0f; // Time of the last space key press
 const float DOUBLE_TAP_THRESHOLD = 0.3f; // Maximum time interval for double-tap in seconds
 
+std::string chatInput;
+bool isChatOpen = false;
+BlockType selectedBlockType = BlockType::STONE;  // Default block type
+bool acceptingInput = false;
+
+// Add this function to handle text input
+void character_callback(GLFWwindow* window, unsigned int codepoint) {
+    if (isChatOpen && acceptingInput) {
+        chatInput += static_cast<char>(codepoint);
+    }
+}
+
+// Add this function to process chat commands
+void processCommand(const std::string& command) {
+    // Remove the leading '/' if present
+    if (command.empty() || command[0] != '/') return;
+
+    std::string cmd = command.substr(1);  // Remove the '/'
+
+    // Convert to lowercase for case-insensitive comparison
+    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
+
+    if (cmd.substr(0, 4) == "give") {
+        std::string blockName = cmd.substr(5);  // Get the block name after "give "
+
+        // Map block names to BlockType
+        if (blockName == "stone") {
+            selectedBlockType = BlockType::STONE;
+        }
+        else if (blockName == "dirt") {
+            selectedBlockType = BlockType::DIRT;
+        }
+        else if (blockName == "grass_block") {
+            selectedBlockType = BlockType::GRASS_BLOCK;
+        }
+        else if (blockName == "oak_planks") {
+            selectedBlockType = BlockType::OAK_PLANKS;
+        }
+        else if (blockName == "oak_slab") {
+            selectedBlockType = BlockType::OAK_SLAB;
+        }
+        else if (blockName == "oak_stairs") {
+            selectedBlockType = BlockType::OAK_STAIRS;
+        }
+        else if (blockName == "oak_log") {
+            selectedBlockType = BlockType::OAK_LOG;
+        }
+        std::cout << "Selected block type: " << blockName << std::endl;
+    }
+}
+
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_T && action == GLFW_PRESS && !isChatOpen) {
+        isChatOpen = true;
+        chatInput = "/";  // Initialize with '/' when opening chat
+        acceptingInput = false;
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+    }
+
+    else if (isChatOpen && !acceptingInput) {
+        acceptingInput = true;  // Enable input on any subsequent key press
+    }
+    else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS && isChatOpen) {
+        isChatOpen = false;
+        chatInput.clear();
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    }
+    else if (isChatOpen) {
+        if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS) {
+            if (!chatInput.empty()) {
+                chatInput.pop_back();
+            }
+        }
+        else if (key == GLFW_KEY_ENTER && action == GLFW_PRESS) {
+            processCommand(chatInput);
+            chatInput.clear();
+            isChatOpen = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        }
+    }
+}
+
 // Ray casting function to detect block intersection
 bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
                  glm::ivec3& outBlockPos, glm::vec3& outHitPos) {
@@ -456,8 +538,39 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
                 if (newX >= 0 && newX < 16 &&
                     newY >= 0 && newY < 16 &&
                     newZ >= 0 && newZ < 16) {
+
+                    // Special handling for stairs
+                    if (selectedBlockType == BlockType::OAK_STAIRS) {
+                        // Determine facing direction based on player's rotation
+                        float yaw = camera.yaw;
+                        BlockFacing facing;
+
+                        // Convert yaw to facing direction
+                        // Normalize yaw to 0-360 range
+                        while (yaw < 0) yaw += 360.0f;
+                        while (yaw >= 360.0f) yaw -= 360.0f;
+
+                        // Determine facing based on player's yaw
+                        if (yaw >= 315.0f || yaw < 45.0f) {
+                            facing = BlockFacing::NORTH;
+                        } else if (yaw >= 45.0f && yaw < 135.0f) {
+                            facing = BlockFacing::WEST;
+                        } else if (yaw >= 135.0f && yaw < 225.0f) {
+                            facing = BlockFacing::SOUTH;
+                        } else {
+                            facing = BlockFacing::EAST;
+                        }
+
+                        // Determine if stairs should be upside down based on where player is looking
+                        StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
+
+                        // Create stairs with proper orientation
+                        blocks[newX][newY][newZ] = createOakStairs(facing, half);
+                    } else {
+                        // Handle other block types normally
+                        blocks[newX][newY][newZ] = Block(selectedBlockType);
+                    }
                     blocks[newX][newY][newZ].exists = true;
-                    blocks[newX][newY][newZ].color = glm::vec3(0.8f, 0.4f, 0.2f);
                 }
             }
         }
@@ -466,6 +579,10 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
 // Modify your existing processInput function
 void processInput(GLFWwindow* window) {
+    if (isChatOpen) {
+        return; // Don't process movement when chat is open
+    }
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
@@ -621,6 +738,8 @@ int main() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetKeyCallback(window, key_callback);
+    glfwSetCharCallback(window, character_callback);
 
     // Create and compile shaders
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
@@ -737,6 +856,13 @@ int main() {
                     }
                 }
             }
+        }
+
+        if (isChatOpen) {
+            // Render chat input
+            // Note: You'll need to implement actual text rendering
+            // For now, we'll just print to console
+            std::cout << "\rChat: " << chatInput  << std::endl << std::flush;
         }
 
         glfwSwapBuffers(window);
