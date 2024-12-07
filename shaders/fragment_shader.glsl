@@ -28,6 +28,19 @@ void main()
     if (useTexture) {
         int texIndex = int(textureIndex);
         texColor = texture(blockTextures[texIndex], TexCoord);
+
+        vec3 grassTint = vec3(0.7, 0.9, 0.5);
+
+        // Handle grass block top
+        if (texIndex == 3) { // grass_block_top
+            texColor.rgb *= grassTint;
+        }
+        // Handle grass block side overlay
+        else if (texIndex == 2) { // grass_block_side
+            vec4 overlayColor = texture(blockTextures[7], TexCoord);
+            overlayColor.rgb *= grassTint;
+            texColor.rgb = mix(texColor.rgb, overlayColor.rgb, overlayColor.a);
+        }
     } else {
         texColor = vec4(vertexColor, 1.0);
     }

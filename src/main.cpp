@@ -16,6 +16,9 @@
 #include "blocks/BlockType.h"
 #include "world/ World.h"
 
+#define SCREEN_WIDTH 1920
+#define SCREEN_HEIGHT 1080
+
 World world;
 
 // Camera movement enum
@@ -710,7 +713,7 @@ int main() {
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Create window
-    GLFWwindow *window = glfwCreateWindow(800, 600, "OpenGL Cube", NULL, NULL);
+    GLFWwindow *window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Zerith", NULL, NULL);
     if (window == NULL) {
         std::cout << "Failed to create GLFW window" << std::endl;
         glfwTerminate();
@@ -726,7 +729,7 @@ int main() {
 
     // Configure global OpenGL state
     glEnable(GL_DEPTH_TEST);
-    glViewport(0, 0, 800, 600);
+    glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetCursorPosCallback(window, mouse_callback);
@@ -745,6 +748,7 @@ int main() {
     textureArray.push_back(TextureManager::getTexture("block/oak_planks"));    // 4
     textureArray.push_back(TextureManager::getTexture("block/oak_log"));       // 5
     textureArray.push_back(TextureManager::getTexture("block/oak_log_top"));   // 6
+    textureArray.push_back(TextureManager::getTexture("block/grass_block_side_overlay")); // 7
 
     // Bind all textures to different texture units
     shader.use();  // Make sure shader is active when setting uniforms
@@ -794,7 +798,7 @@ int main() {
         glm::mat4 projection = glm::mat4(1.0f);
 
         view = camera.getViewMatrix();
-        projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 1000.0f);
+        projection = glm::perspective(glm::radians(90.0f), static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT), 0.1f, 1000.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);

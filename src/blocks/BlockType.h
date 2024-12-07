@@ -126,19 +126,29 @@ struct Block {
             BlockFacing facing = std::get<BlockFacing>(properties.properties.at("facing"));
             StairHalf half = std::get<StairHalf>(properties.properties.at("half"));
 
-            float rotation = 0.0f;
+            // Apply rotation based on facing direction
             switch(facing) {
-                case BlockFacing::EAST: rotation = 90.0f; break;
-                case BlockFacing::SOUTH: rotation = 180.0f; break;
-                case BlockFacing::WEST: rotation = 270.0f; break;
-                default: break;
+                case BlockFacing::EAST:
+                    transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(0, 1, 0));
+                transform = glm::translate(transform, glm::vec3(-1, 0, 0));
+                break;
+                case BlockFacing::SOUTH:
+                    transform = glm::rotate(transform, glm::radians(180.0f), glm::vec3(0, 1, 0));
+                    transform = glm::translate(transform, glm::vec3(-1, 0, -1));
+                break;
+                case BlockFacing::WEST:
+                    transform = glm::rotate(transform, glm::radians(270.0f), glm::vec3(0, 1, 0));
+                    transform = glm::translate(transform, glm::vec3(0, 0, -1));
+                break;
+                case BlockFacing::NORTH:
+                    transform = glm::translate(transform, glm::vec3(0, 0, 0));
+                break;
             }
 
-            transform = glm::rotate(transform, glm::radians(rotation), glm::vec3(0, 1, 0));
-
+            // Handle upside-down stairs
             if(half == StairHalf::TOP) {
                 transform = glm::rotate(transform, glm::radians(180.0f), glm::vec3(1, 0, 0));
-                transform = glm::translate(transform, glm::vec3(0, -1, 0));
+                transform = glm::translate(transform, glm::vec3(0, -1, -1));
             }
         }
 
@@ -184,6 +194,12 @@ struct Block {
             default:
                 return 0;        // fallback to dirt texture
         }
+    }
+
+    bool hasOverlay(const std::string& face) const {
+        return type == BlockType::GRASS_BLOCK &&
+               face != "up" &&
+               face != "down";
     }
 };
 

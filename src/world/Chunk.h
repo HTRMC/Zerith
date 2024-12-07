@@ -111,10 +111,19 @@ public:
 
         auto faceVertices = model.generateFaceVertices(face, transform);
 
-        // Add vertices with correct texture index
+        // Add base texture vertices
         for (size_t i = 0; i < faceVertices.size(); i += 9) {
             vertices.insert(vertices.end(), faceVertices.begin() + i, faceVertices.begin() + i + 9);
-            vertices.push_back(textureIndex);  // Add texture index as the 10th component
+            vertices.push_back(textureIndex);
+        }
+
+        // If this face needs an overlay, add another set of vertices
+        if (block.hasOverlay(face)) {
+            // Add overlay vertices with overlay texture index (7)
+            for (size_t i = 0; i < faceVertices.size(); i += 9) {
+                vertices.insert(vertices.end(), faceVertices.begin() + i, faceVertices.begin() + i + 9);
+                vertices.push_back(7.0f); // Overlay texture index
+            }
         }
     }
 
