@@ -1,5 +1,5 @@
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include <stb_image.h>
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
@@ -13,6 +13,13 @@
 #include <vector>
 
 #include "blocks/BlockModel.h"
+#include "blocks/BlockType.h"
+
+std::vector<std::vector<std::vector<Block>>> blocks(16,
+    std::vector<std::vector<Block>>(16,
+        std::vector<Block>(16, Block())
+    )
+);
 
 // Camera movement enum
 enum Camera_Movement {
@@ -21,13 +28,6 @@ enum Camera_Movement {
     LEFT,
     RIGHT
 };
-
-struct Block {
-    bool exists;
-    glm::vec3 color;
-};
-
-std::vector<std::vector<std::vector<Block>>> blocks(16, std::vector<std::vector<Block>>(16, std::vector<Block>(16, {true, glm::vec3(1.0f, 1.0f, 1.0f)})));
 
 struct AABB {
     glm::vec3 min;
@@ -177,7 +177,7 @@ public:
         return glm::lookAt(position, position + front, up);
     }
 
-        void update(const glm::vec3& moveDir, float deltaTime) {
+    void update(const glm::vec3 &moveDir, float deltaTime) {
         // Convert real time to minecraft ticks
         float ticks = deltaTime * TICK_RATE;
 
@@ -574,6 +574,24 @@ std::string loadFileContent(const std::string& path) {
     return buffer.str();
 }
 
+class BlockModelManager {
+public:
+    static BlockModel& getModel(const std::string& path) {
+        static std::map<std::string, BlockModel> modelCache;
+        static std::map<std::string, BlockModel> loadedModels;
+
+        auto it = modelCache.find(path);
+        if (it != modelCache.end()) {
+            return it->second;
+        }
+
+        std::string fullPath = "assets/minecraft/models/" + path + ".json";
+        std::string jsonContent = loadFileContent(fullPath);
+        BlockModel model = BlockModel::loadFromJson(jsonContent, loadedModels);
+        return modelCache.emplace(path, std::move(model)).first->second;
+    }
+};
+
 int main() {
     // Initialize GLFW
     glfwInit();
@@ -607,13 +625,7 @@ int main() {
     // Create and compile shaders
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
-    // Load a block model
-    std::map<std::string, BlockModel> loadedModels;
-    std::string jsonContent = loadFileContent("assets/minecraft/models/block/stone_stairs.json");
-    BlockModel model = BlockModel::loadFromJson(jsonContent, loadedModels);
-
     // Generate vertex data
-    std::vector<float> vertices = model.generateVertexData();
 
     // Create buffers/arrays
     unsigned int VBO, VAO;
@@ -622,7 +634,6 @@ int main() {
 
     glBindVertexArray(VAO);
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)0);                   // position
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 9 * sizeof(float), (void*)(3 * sizeof(float))); // color
@@ -641,6 +652,32 @@ int main() {
     shader.use();
     shader.setInt("blockTexture", 0);
     shader.setBool("useTexture", true);
+
+    // Place various blocks
+    blocks[6][5][8] = Block(BlockType::GRASS_BLOCK);
+    blocks[7][5][8] = Block(BlockType::DIRT);
+    blocks[8][5][8] = Block(BlockType::STONE);
+    blocks[9][5][8] = Block(BlockType::OAK_PLANKS);
+    blocks[10][5][8] = Block(BlockType::OAK_SLAB);
+    blocks[11][5][8] = createOakStairs(BlockFacing::NORTH, StairHalf::BOTTOM);
+    blocks[12][5][8] = createOakLog(Axis::Y);
+
+    for (int y = 0; y <= 2; y++) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                blocks[x][y][z] = Block(BlockType::STONE);
+            }
+        }
+    }
+
+    for (int y = 0; y <= 2; y++) {
+        for (int x = 0; x < 16; x++) {
+            for (int z = 0; z < 16; z++) {
+                blocks[x][3][z] = Block(BlockType::DIRT);
+                blocks[x][4][z] = Block(BlockType::GRASS_BLOCK);
+            }
+        }
+    }
 
     // Render loop
     while (!glfwWindowShouldClose(window)) {
@@ -678,15 +715,22 @@ int main() {
             for(int y = 0; y < 16; y++) {
                 for(int z = 0; z < 16; z++) {
                     if (blocks[x][y][z].exists) {
-                        glm::mat4 model = glm::mat4(1.0f);
-                        model = glm::translate(model, glm::vec3(x, y, z));
+                        glm::mat4 model = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
+                        model = model * blocks[x][y][z].getTransform(); // Apply block-specific transform
+
+                        glActiveTexture(GL_TEXTURE0);
+                        glBindTexture(GL_TEXTURE_2D, blocks[x][y][z].getTexture());
+
                         shader.setMat4("model", model);
                         shader.setVec3("blockColor", blocks[x][y][z].color);
 
-                        bool isHighlighted = lookingAtBlock &&
-                            (highlightedBlock.x == x &&
-                             highlightedBlock.y == y &&
-                             highlightedBlock.z == z);
+                        std::string modelPath = blocks[x][y][z].getModelPath();
+                        BlockModel& blockModel = BlockModelManager::getModel(modelPath);
+
+                        auto vertices = blockModel.generateVertexData();
+                        glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+                        bool isHighlighted = lookingAtBlock && (highlightedBlock == glm::ivec3(x, y, z));
                         shader.setBool("isHighlighted", isHighlighted);
 
                         glDrawArrays(GL_TRIANGLES, 0, vertices.size() / 9);

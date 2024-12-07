@@ -21,6 +21,8 @@ target_include_directories(glad PUBLIC "C:/Users/HTRMC/Dev/Libraries/glad/includ
 file(GLOB_RECURSE SOURCES
         "src/*.cpp"
         "src/blocks/*.cpp"
+        "src/*.h"
+        "src/blocks/*.h"
 )
 
 # Create executable

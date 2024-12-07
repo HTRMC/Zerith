@@ -1,0 +1,129 @@
+// BlockType.h
+#pragma once
+#include "TextureManager.h"
+#include <string>
+#include <map>
+#include <variant>
+#include <glm/glm.hpp>
+
+enum class Axis { X, Y, Z };
+enum class SlabType { BOTTOM, TOP, DOUBLE };
+enum class StairShape { STRAIGHT, INNER_LEFT, INNER_RIGHT, OUTER_LEFT, OUTER_RIGHT };
+enum class BlockFacing { NORTH, SOUTH, EAST, WEST };
+enum class StairHalf { TOP, BOTTOM };
+
+struct BlockProperties {
+    std::map<std::string, std::variant<Axis, SlabType, StairShape, BlockFacing, StairHalf>> properties;
+};
+
+enum class BlockType {
+    AIR,
+    GRASS_BLOCK,
+    DIRT,
+    STONE,
+    OAK_PLANKS,
+    OAK_SLAB,
+    OAK_STAIRS,
+    OAK_LOG
+};
+
+struct Block {
+    BlockType type;
+    BlockProperties properties;
+    glm::vec3 color;
+    bool exists;
+
+    Block() : type(BlockType::AIR), color(1.0f), exists(false) {}
+
+    Block(BlockType t) : type(t), color(1.0f), exists(true) {
+        switch(t) {
+            case BlockType::GRASS_BLOCK:
+                break;
+            case BlockType::DIRT:
+                break;
+            case BlockType::STONE:
+                break;
+            case BlockType::OAK_PLANKS:
+            case BlockType::OAK_LOG:
+            case BlockType::OAK_SLAB:
+            case BlockType::OAK_STAIRS:
+                break;
+            default:
+                break;
+        }
+    }
+
+    std::string getModelPath() const {
+        switch(type) {
+            case BlockType::GRASS_BLOCK: return "block/grass_block";
+            case BlockType::DIRT: return "block/dirt";
+            case BlockType::STONE: return "block/stone";
+            case BlockType::OAK_PLANKS: return "block/oak_planks";
+            case BlockType::OAK_LOG: return "block/oak_log";
+            case BlockType::OAK_SLAB: return "block/oak_slab";
+            case BlockType::OAK_STAIRS: return "block/oak_stairs";
+            default: return "block/stone";
+        }
+    }
+
+    unsigned int getTexture() const {
+        switch(type) {
+            case BlockType::GRASS_BLOCK: return TextureManager::getTexture("block/grass_block_side");
+            case BlockType::DIRT: return TextureManager::getTexture("block/dirt");
+            case BlockType::STONE: return TextureManager::getTexture("block/stone");
+            case BlockType::OAK_PLANKS: return TextureManager::getTexture("block/oak_planks");
+            case BlockType::OAK_LOG: return TextureManager::getTexture("block/oak_log");
+            case BlockType::OAK_SLAB: return TextureManager::getTexture("block/oak_planks");
+            case BlockType::OAK_STAIRS: return TextureManager::getTexture("block/oak_planks");
+            default: return TextureManager::getTexture("block/stone");
+        }
+    }
+
+    glm::mat4 getTransform() const {
+        glm::mat4 transform(1.0f);
+
+        if(type == BlockType::OAK_LOG) {
+            Axis axis = std::get<Axis>(properties.properties.at("axis"));
+            if(axis == Axis::X) {
+                transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(0, 0, 1));
+            } else if(axis == Axis::Z) {
+                transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(1, 0, 0));
+            }
+        }
+        else if(type == BlockType::OAK_STAIRS) {
+            BlockFacing facing = std::get<BlockFacing>(properties.properties.at("facing"));
+            StairHalf half = std::get<StairHalf>(properties.properties.at("half"));
+
+            float rotation = 0.0f;
+            switch(facing) {
+                case BlockFacing::EAST: rotation = 90.0f; break;
+                case BlockFacing::SOUTH: rotation = 180.0f; break;
+                case BlockFacing::WEST: rotation = 270.0f; break;
+                default: break;
+            }
+
+            transform = glm::rotate(transform, glm::radians(rotation), glm::vec3(0, 1, 0));
+
+            if(half == StairHalf::TOP) {
+                transform = glm::rotate(transform, glm::radians(180.0f), glm::vec3(1, 0, 0));
+                transform = glm::translate(transform, glm::vec3(0, -1, 0));
+            }
+        }
+
+        return transform;
+    }
+};
+
+// Helper functions to create blocks with properties
+Block createOakLog(Axis axis) {
+    Block block(BlockType::OAK_LOG);
+    block.properties.properties["axis"] = axis;
+    return block;
+}
+
+Block createOakStairs(BlockFacing facing, StairHalf half) {
+    Block block(BlockType::OAK_STAIRS);
+    block.properties.properties["facing"] = facing;
+    block.properties.properties["half"] = half;
+    return block;
+}
