@@ -60,7 +60,17 @@ struct Block {
             case BlockType::STONE: return "block/stone";
             case BlockType::OAK_PLANKS: return "block/oak_planks";
             case BlockType::OAK_LOG: return "block/oak_log";
-            case BlockType::OAK_SLAB: return "block/oak_slab";
+            case BlockType::OAK_SLAB: {
+                if (properties.properties.count("type")) {
+                    SlabType slabType = std::get<SlabType>(properties.properties.at("type"));
+                    switch (slabType) {
+                        case SlabType::BOTTOM: return "block/oak_slab";
+                        case SlabType::TOP: return "block/oak_slab_top";
+                        case SlabType::DOUBLE: return "block/oak_planks";
+                    }
+                }
+                return "block/oak_slab"; // Default to bottom slab
+            }
             case BlockType::OAK_STAIRS: return "block/oak_stairs";
             default: return "block/stone";
         }
@@ -203,6 +213,11 @@ struct Block {
     }
 };
 
+SlabType determineSlabType(const glm::vec3& hitPos, const glm::ivec3& blockPos) {
+    float hitY = hitPos.y - blockPos.y;
+    return (hitY > 0.5f) ? SlabType::TOP : SlabType::BOTTOM;
+}
+
 // Helper functions to create blocks with properties
 Block createOakLog(Axis axis) {
     Block block(BlockType::OAK_LOG);
@@ -214,5 +229,11 @@ Block createOakStairs(BlockFacing facing, StairHalf half) {
     Block block(BlockType::OAK_STAIRS);
     block.properties.properties["facing"] = facing;
     block.properties.properties["half"] = half;
+    return block;
+}
+
+Block createOakSlab(SlabType type) {
+    Block block(BlockType::OAK_SLAB);
+    block.properties.properties["type"] = type;
     return block;
 }

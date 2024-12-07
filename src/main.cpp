@@ -556,6 +556,47 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 
                             StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
                             *newBlock = createOakStairs(facing, half);
+                        } else if (selectedBlockType == BlockType::OAK_SLAB) {
+                            Block* existingBlock = world.getBlock(newX, newY, newZ);
+
+                            // Check if we're clicking on an existing slab
+                            Block* targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                            if (targetBlock && targetBlock->exists && targetBlock->type == BlockType::OAK_SLAB) {
+                                // If clicking on a slab, check if we can form a double slab
+                                SlabType existingType = std::get<SlabType>(targetBlock->properties.properties.at("type"));
+                                SlabType newType = determineSlabType(hitPos, glm::ivec3(blockPos));
+
+                                if ((existingType == SlabType::BOTTOM && newType == SlabType::TOP) ||
+                                    (existingType == SlabType::TOP && newType == SlabType::BOTTOM)) {
+                                    // Create a double slab
+                                    *targetBlock = createOakSlab(SlabType::DOUBLE);
+                                    targetBlock->exists = true;
+
+                                    // Mark chunk for remesh
+                                    int chunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
+                                    int chunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
+                                    auto it = world.chunks.find(glm::ivec2(chunkX, chunkZ));
+                                    if (it != world.chunks.end()) {
+                                        it->second.needsRemesh = true;
+                                    }
+                                    return;
+                                    }
+                            }
+
+                            // Place new slab
+                            if (!existingBlock->exists) {
+                                SlabType type = determineSlabType(hitPos, glm::ivec3(newX, newY, newZ));
+                                *existingBlock = createOakSlab(type);
+                                existingBlock->exists = true;
+
+                                // Mark chunk for remesh (existing chunk update code)
+                                int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
+                                int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
+                                auto it = world.chunks.find(glm::ivec2(chunkX, chunkZ));
+                                if (it != world.chunks.end()) {
+                                    it->second.needsRemesh = true;
+                                }
+                            }
                         } else {
                             *newBlock = Block(selectedBlockType);
                         }

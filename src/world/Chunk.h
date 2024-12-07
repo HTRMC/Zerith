@@ -5,7 +5,7 @@
 #include "blocks/BlockModel.h"
 #include <glm/glm.hpp>
 
-std::string loadFileContent(const std::string& path) {
+std::string loadFileContent(const std::string &path) {
     std::ifstream file(path);
     if (!file.is_open()) {
         std::cerr << "Failed to open file: " << path << std::endl;
@@ -18,7 +18,7 @@ std::string loadFileContent(const std::string& path) {
 
 class BlockModelManager {
 public:
-    static BlockModel& getModel(const std::string& path) {
+    static BlockModel &getModel(const std::string &path) {
         static std::map<std::string, BlockModel> modelCache;
         static std::map<std::string, BlockModel> loadedModels;
 
@@ -37,7 +37,7 @@ public:
 class Chunk {
 public:
     static const int CHUNK_SIZE = 16;
-    std::vector<std::vector<std::vector<Block>>> blocks;
+    std::vector<std::vector<std::vector<Block> > > blocks;
     glm::ivec2 position; // Chunk position in world coordinates (x, z)
     unsigned int VAO = 0;
     unsigned int VBO = 0;
@@ -61,9 +61,9 @@ public:
 
     void initialize() {
         blocks.resize(CHUNK_SIZE,
-            std::vector<std::vector<Block>>(CHUNK_SIZE,
-                std::vector<Block>(CHUNK_SIZE, Block())
-            )
+                      std::vector<std::vector<Block> >(CHUNK_SIZE,
+                                                       std::vector<Block>(CHUNK_SIZE, Block())
+                      )
         );
     }
 
@@ -89,22 +89,180 @@ public:
         needsRemesh = true;
     }
 
-    bool isBlockFaceVisible(int x, int y, int z, const std::string& face) {
-        // Check if the adjacent block in the given direction exists
-        if (face == "west")  return x == 0 || !blocks[x-1][y][z].exists;
-        if (face == "east")  return x == CHUNK_SIZE-1 || !blocks[x+1][y][z].exists;
-        if (face == "down")  return y == 0 || !blocks[x][y-1][z].exists;
-        if (face == "up")    return y == CHUNK_SIZE-1 || !blocks[x][y+1][z].exists;
-        if (face == "north") return z == 0 || !blocks[x][y][z-1].exists;
-        if (face == "south") return z == CHUNK_SIZE-1 || !blocks[x][y][z+1].exists;
-        return false;
+bool isBlockFaceVisible(int x, int y, int z, const std::string& face) {
+    // First check if we're at chunk borders
+    if (face == "west" && x == 0) return true;
+    if (face == "east" && x == CHUNK_SIZE-1) return true;
+    if (face == "down" && y == 0) return true;
+    if (face == "up" && y == CHUNK_SIZE-1) return true;
+    if (face == "north" && z == 0) return true;
+    if (face == "south" && z == CHUNK_SIZE-1) return true;
+
+    // Get coordinates of the neighbor block based on face
+    int nx = x, ny = y, nz = z;
+    if (face == "west") nx--;
+    if (face == "east") nx++;
+    if (face == "down") ny--;
+    if (face == "up") ny++;
+    if (face == "north") nz--;
+    if (face == "south") nz++;
+
+    // Check if neighbor coordinates are valid
+    if (nx < 0 || nx >= CHUNK_SIZE ||
+        ny < 0 || ny >= CHUNK_SIZE ||
+        nz < 0 || nz >= CHUNK_SIZE) {
+        return true;
     }
 
-    void addFaceVertices(std::vector<float>& vertices, int x, int y, int z, const std::string& face) {
-        const Block& block = blocks[x][y][z];
-        BlockModel& model = BlockModelManager::getModel(block.getModelPath());
+    Block& currentBlock = blocks[x][y][z];
+    Block& neighborBlock = blocks[nx][ny][nz];
 
-        float textureIndex = block.getTextureIndexForFace(face);  // This is correct
+    // If there's no neighbor block or it doesn't exist, the face is visible
+    if (!neighborBlock.exists) return true;
+
+    // Handle stairs
+    if (currentBlock.type == BlockType::OAK_STAIRS) {
+        BlockFacing facing = std::get<BlockFacing>(currentBlock.properties.properties.at("facing"));
+        StairHalf half = std::get<StairHalf>(currentBlock.properties.properties.at("half"));
+
+        // When next to another stair
+        if (neighborBlock.type == BlockType::OAK_STAIRS) {
+            BlockFacing neighborFacing = std::get<BlockFacing>(neighborBlock.properties.properties.at("facing"));
+            StairHalf neighborHalf = std::get<StairHalf>(neighborBlock.properties.properties.at("half"));
+
+            // If the stairs are at the same height (both top or both bottom)
+            if (half == neighborHalf) {
+                // For vertical faces
+                if (face == "north" || face == "south" || face == "east" || face == "west") {
+                    // If stairs are facing the same direction or opposite directions
+                    if (facing == neighborFacing ||
+                        (facing == BlockFacing::NORTH && neighborFacing == BlockFacing::SOUTH) ||
+                        (facing == BlockFacing::SOUTH && neighborFacing == BlockFacing::NORTH) ||
+                        (facing == BlockFacing::EAST && neighborFacing == BlockFacing::WEST) ||
+                        (facing == BlockFacing::WEST && neighborFacing == BlockFacing::EAST)) {
+                        return false;
+                    }
+                }
+
+                // For top/bottom faces
+                if (face == "up" && half == StairHalf::TOP) return false;
+                if (face == "down" && half == StairHalf::BOTTOM) return false;
+            }
+
+            return true;
+        }
+
+        // When next to a slab
+        if (neighborBlock.type == BlockType::OAK_SLAB) {
+            SlabType neighborType = std::get<SlabType>(neighborBlock.properties.properties.at("type"));
+
+            if (neighborType == SlabType::BOTTOM && half == StairHalf::BOTTOM && face == "down") return false;
+            if (neighborType == SlabType::TOP && half == StairHalf::TOP && face == "up") return false;
+
+            return true;
+        }
+
+        // When next to a full block
+        if (neighborBlock.type != BlockType::OAK_SLAB &&
+            neighborBlock.type != BlockType::OAK_STAIRS) {
+            if (face == "north" && facing == BlockFacing::NORTH) return false;
+            if (face == "south" && facing == BlockFacing::SOUTH) return false;
+            if (face == "east" && facing == BlockFacing::EAST) return false;
+            if (face == "west" && facing == BlockFacing::WEST) return false;
+
+            if (face == "down" && half == StairHalf::BOTTOM) return false;
+            if (face == "up" && half == StairHalf::TOP) return false;
+
+            return true;
+        }
+    }
+
+        // Handle slabs
+        if (currentBlock.type == BlockType::OAK_SLAB) {
+            SlabType currentType = std::get<SlabType>(currentBlock.properties.properties.at("type"));
+
+            // When next to stairs
+            if (neighborBlock.type == BlockType::OAK_STAIRS) {
+                BlockFacing neighborFacing = std::get<BlockFacing>(neighborBlock.properties.properties.at("facing"));
+                StairHalf neighborHalf = std::get<StairHalf>(neighborBlock.properties.properties.at("half"));
+
+                // Cull faces that are completely covered by the stair
+                if (currentType == SlabType::BOTTOM && neighborHalf == StairHalf::BOTTOM) {
+                    if (face == "north" && neighborFacing == BlockFacing::SOUTH) return false;
+                    if (face == "south" && neighborFacing == BlockFacing::NORTH) return false;
+                    if (face == "east" && neighborFacing == BlockFacing::WEST) return false;
+                    if (face == "west" && neighborFacing == BlockFacing::EAST) return false;
+                } else if (currentType == SlabType::TOP && neighborHalf == StairHalf::TOP) {
+                    if (face == "north" && neighborFacing == BlockFacing::SOUTH) return false;
+                    if (face == "south" && neighborFacing == BlockFacing::NORTH) return false;
+                    if (face == "east" && neighborFacing == BlockFacing::WEST) return false;
+                    if (face == "west" && neighborFacing == BlockFacing::EAST) return false;
+                }
+
+                return true;
+            }
+
+            // Handle double slabs
+            if (currentType == SlabType::DOUBLE) {
+                if (neighborBlock.type == BlockType::OAK_SLAB ||
+                    neighborBlock.type == BlockType::OAK_STAIRS) {
+                    return true;
+                }
+            }
+
+            // Handle single slab faces
+            if ((currentType == SlabType::BOTTOM && face == "up") ||
+                (currentType == SlabType::TOP && face == "down")) {
+                return true;
+            }
+
+            // Handle slab next to slab
+            if (neighborBlock.type == BlockType::OAK_SLAB) {
+                SlabType neighborType = std::get<SlabType>(neighborBlock.properties.properties.at("type"));
+
+                // Cull faces when slabs align
+                if (currentType == neighborType) {
+                    if (face == "north" || face == "south" || face == "east" || face == "west") {
+                        return false;
+                    }
+                }
+            }
+
+            if (face == "north" || face == "south" || face == "east" || face == "west") {
+                if (neighborBlock.type != BlockType::OAK_SLAB &&
+                    neighborBlock.type != BlockType::OAK_STAIRS) {
+                    return !neighborBlock.exists;
+                }
+                return true;
+            }
+        }
+
+        // Handle blocks next to slabs
+        if (neighborBlock.type == BlockType::OAK_SLAB) {
+            SlabType neighborType = std::get<SlabType>(neighborBlock.properties.properties.at("type"));
+
+            if (neighborType == SlabType::TOP) {
+                if (face == "up") return true;
+                if (face == "down") return false;
+                return true;
+            } else if (neighborType == SlabType::BOTTOM) {
+                if (face == "up") return false;
+                if (face == "down") return true;
+                return true;
+            } else if (neighborType == SlabType::DOUBLE) {
+                return false;
+            }
+        }
+
+        // Default case for regular blocks
+        return !neighborBlock.exists;
+    }
+
+    void addFaceVertices(std::vector<float> &vertices, int x, int y, int z, const std::string &face) {
+        const Block &block = blocks[x][y][z];
+        BlockModel &model = BlockModelManager::getModel(block.getModelPath());
+
+        float textureIndex = block.getTextureIndexForFace(face); // This is correct
 
         glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, z));
         transform = transform * block.getTransform();
@@ -137,10 +295,10 @@ public:
                 for (int z = 0; z < CHUNK_SIZE; z++) {
                     if (!blocks[x][y][z].exists) continue;
 
-                    if (isBlockFaceVisible(x, y, z, "west"))  addFaceVertices(vertices, x, y, z, "west");
-                    if (isBlockFaceVisible(x, y, z, "east"))  addFaceVertices(vertices, x, y, z, "east");
-                    if (isBlockFaceVisible(x, y, z, "down"))  addFaceVertices(vertices, x, y, z, "down");
-                    if (isBlockFaceVisible(x, y, z, "up"))    addFaceVertices(vertices, x, y, z, "up");
+                    if (isBlockFaceVisible(x, y, z, "west")) addFaceVertices(vertices, x, y, z, "west");
+                    if (isBlockFaceVisible(x, y, z, "east")) addFaceVertices(vertices, x, y, z, "east");
+                    if (isBlockFaceVisible(x, y, z, "down")) addFaceVertices(vertices, x, y, z, "down");
+                    if (isBlockFaceVisible(x, y, z, "up")) addFaceVertices(vertices, x, y, z, "up");
                     if (isBlockFaceVisible(x, y, z, "north")) addFaceVertices(vertices, x, y, z, "north");
                     if (isBlockFaceVisible(x, y, z, "south")) addFaceVertices(vertices, x, y, z, "south");
                 }
@@ -161,7 +319,8 @@ public:
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void *) (3 * sizeof(float))); // color
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void *) (6 * sizeof(float))); // texcoord
         glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void *) (8 * sizeof(float))); // face index
-        glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void *) (9 * sizeof(float))); // texture index
+        glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void *) (9 * sizeof(float)));
+        // texture index
 
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
