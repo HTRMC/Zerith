@@ -793,6 +793,9 @@ int main() {
 
     // Configure global OpenGL state
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glFrontFace(GL_CCW);
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
