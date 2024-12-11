@@ -12,6 +12,7 @@ uniform sampler2D blockTextures[16];
 uniform bool isHighlighted;
 uniform bool useTexture;
 uniform vec3 highlightedBlockPos;
+uniform bool isTransparent;
 
 void main()
 {
@@ -29,15 +30,30 @@ void main()
         int texIndex = int(textureIndex);
         texColor = texture(blockTextures[texIndex], TexCoord);
 
-        vec3 grassTint = vec3(0.7, 0.9, 0.5);
+        // Handle glass block (texture index 8)
+        if (texIndex == 8) {
+            // Get the original alpha from the texture
+            float originalAlpha = texColor.a;
 
-        // Handle grass block top
-        if (texIndex == 3) { // grass_block_top
+            // Add slight blue tint to glass
+            vec3 glassTint = vec3(0.9, 0.95, 1.0);
+            texColor.rgb *= glassTint;
+
+            // Keep solid parts solid, make transparent parts semi-transparent
+            if (originalAlpha < 0.1) { // If it was transparent in the texture
+                texColor.a = 0.5;      // Make it semi-transparent
+            } else {
+                texColor.a = 1.0;      // Keep solid parts solid
+            }
+        }
+        // Handle grass block effects
+        else if (texIndex == 3) { // grass_block_top
+            vec3 grassTint = vec3(0.7, 0.9, 0.5);
             texColor.rgb *= grassTint;
         }
-        // Handle grass block side overlay
         else if (texIndex == 2) { // grass_block_side
             vec4 overlayColor = texture(blockTextures[7], TexCoord);
+            vec3 grassTint = vec3(0.7, 0.9, 0.5);
             overlayColor.rgb *= grassTint;
             texColor.rgb = mix(texColor.rgb, overlayColor.rgb, overlayColor.a);
         }

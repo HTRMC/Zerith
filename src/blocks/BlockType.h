@@ -24,7 +24,8 @@ enum class BlockType {
     OAK_PLANKS,
     OAK_SLAB,
     OAK_STAIRS,
-    OAK_LOG
+    OAK_LOG,
+    GLASS
 };
 
 struct Block {
@@ -72,6 +73,8 @@ struct Block {
                 return "block/oak_slab"; // Default to bottom slab
             }
             case BlockType::OAK_STAIRS: return "block/oak_stairs";
+            case BlockType::GLASS: return "block/glass";
+
             default: return "block/stone";
         }
     }
@@ -95,6 +98,9 @@ struct Block {
                 return TextureManager::getTexture("block/oak_planks");
             case BlockType::OAK_STAIRS:
                 return TextureManager::getTexture("block/oak_planks");
+            case BlockType::GLASS:
+                return TextureManager::getTexture("block/glass");
+
             default:
                 return TextureManager::getTexture("block/stone");
         }
@@ -176,7 +182,19 @@ struct Block {
             case BlockType::OAK_LOG: return 5;      // add new index
             case BlockType::OAK_SLAB: return 4;     // uses planks texture
             case BlockType::OAK_STAIRS: return 4;   // uses planks texture
+            case BlockType::GLASS: return 8;
+
             default: return 0;
+        }
+    }
+
+    bool isTransparent() const {
+        switch (type) {
+            case BlockType::AIR:
+            case BlockType::GLASS:
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -202,6 +220,9 @@ struct Block {
             case BlockType::OAK_SLAB:
             case BlockType::OAK_STAIRS:
                 return 4;        // oak_planks texture
+
+            case BlockType::GLASS:
+                return 8;        // glass texture
 
             default:
                 return 0;        // fallback to dirt texture

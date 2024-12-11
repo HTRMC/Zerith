@@ -275,6 +275,10 @@ public:
         glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
     }
 
+    void setIsTransparent(bool value) {
+        glUniform1i(glGetUniformLocation(ID, "isTransparent"), (int)value);
+    }
+
     Shader(const char *vertexPath, const char *fragmentPath) {
         std::string vertexCode;
         std::string fragmentCode;
@@ -394,7 +398,8 @@ void processCommand(const std::string& command) {
         {"oak_planks", BlockType::OAK_PLANKS},
         {"oak_slab", BlockType::OAK_SLAB},
         {"oak_stairs", BlockType::OAK_STAIRS},
-        {"oak_log", BlockType::OAK_LOG}
+        {"oak_log", BlockType::OAK_LOG},
+        {"glass", BlockType::GLASS}
     };
 
     auto it = blockTypes.find(blockName);
@@ -797,6 +802,8 @@ int main() {
     }
 
     // Configure global OpenGL state
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
@@ -821,6 +828,7 @@ int main() {
     textureArray.push_back(TextureManager::getTexture("block/oak_log")); // 5
     textureArray.push_back(TextureManager::getTexture("block/oak_log_top")); // 6
     textureArray.push_back(TextureManager::getTexture("block/grass_block_side_overlay")); // 7
+    textureArray.push_back(TextureManager::getTexture("block/glass")); // 8
 
     // Bind all textures to different texture units
     shader.use(); // Make sure shader is active when setting uniforms
@@ -866,42 +874,36 @@ int main() {
         shader.use();
 
         // Create transformations
-        glm::mat4 view = glm::mat4(1.0f);
-        glm::mat4 projection = glm::mat4(1.0f);
-
-        view = camera.getViewMatrix();
-        projection = glm::perspective(glm::radians(90.0f),
-                                      static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT), 0.1f,
-                                      1000.0f);
+        glm::mat4 view = camera.getViewMatrix();
+        glm::mat4 projection = glm::perspective(glm::radians(90.0f),
+                                              static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT),
+                                              0.1f, 1000.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
 
-        // Add this before your cube drawing loop
+        // Ray casting for block highlighting
         glm::ivec3 blockPos;
         glm::vec3 hitPos;
-
         glm::vec3 rayDirection = glm::normalize(camera.front);
         bool lookingAtBlock = raycastBlock(camera.position, rayDirection, 5.0f, blockPos, hitPos);
-
         highlightedBlock = lookingAtBlock ? blockPos : glm::ivec3(-1);
 
-        shader.use();
-        shader.setInt("blockTexture", 0); // Set texture unit 0
-        shader.setBool("useTexture", true);
+        // First pass: Render opaque blocks
+        glDepthMask(GL_TRUE);
+        glDisable(GL_BLEND);
 
-        // Then in your cube drawing loop, update it to:
-        for (auto &[chunkPos, chunk]: world.chunks) {
+        for (auto& [chunkPos, chunk] : world.chunks) {
             if (chunk.needsRemesh) {
                 chunk.generateMesh();
             }
 
             glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                                             glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
-                                                       chunkPos.y * Chunk::CHUNK_SIZE));
+                                           glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
+                                           chunkPos.y * Chunk::CHUNK_SIZE));
             shader.setMat4("model", model);
-
             shader.setBool("useTexture", true);
+            shader.setBool("isTransparent", false);
 
             // Check if highlighted block is in this chunk
             bool hasHighlight = false;
@@ -910,36 +912,95 @@ int main() {
                 highlightedBlock.z >= chunkPos.y * Chunk::CHUNK_SIZE &&
                 highlightedBlock.z < (chunkPos.y + 1) * Chunk::CHUNK_SIZE) {
                 hasHighlight = true;
-            }
+                }
 
             shader.setBool("isHighlighted", hasHighlight);
             if (hasHighlight) {
                 shader.setVec3("highlightedBlockPos", glm::vec3(
-                                   highlightedBlock.x,
-                                   highlightedBlock.y,
-                                   highlightedBlock.z
-                               ));
+                    highlightedBlock.x,
+                    highlightedBlock.y,
+                    highlightedBlock.z
+                ));
             }
 
-            glBindVertexArray(chunk.VAO);
-            glDrawArrays(GL_TRIANGLES, 0, chunk.vertexCount);
+            glBindVertexArray(chunk.opaqueVAO);
+            glDrawArrays(GL_TRIANGLES, 0, chunk.opaqueVertexCount);
         }
 
+        // Second pass: Render transparent blocks
+        glDepthMask(GL_FALSE);
+        glEnable(GL_BLEND);
+
+        // Sort chunks by distance from camera (back to front)
+        std::vector<std::pair<glm::ivec2, Chunk*>> sortedChunks;
+        glm::vec3 cameraPos = camera.position;
+        for (auto& [chunkPos, chunk] : world.chunks) {
+            glm::vec3 chunkCenter(
+                chunkPos.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f,
+                Chunk::CHUNK_SIZE/2.0f,
+                chunkPos.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f
+            );
+            float dist = glm::length(camera.position - chunkCenter);
+            sortedChunks.push_back({chunkPos, &chunk});
+        }
+
+        // Sort using a lambda that compares distances
+        std::sort(sortedChunks.begin(), sortedChunks.end(),
+            [cameraPos](const auto& a, const auto& b) {
+                glm::vec3 centerA(
+                    a.first.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f,
+                    Chunk::CHUNK_SIZE/2.0f,
+                    a.first.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f
+                );
+                glm::vec3 centerB(
+                    b.first.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f,
+                    Chunk::CHUNK_SIZE/2.0f,
+                    b.first.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f
+                );
+                float distA = glm::length(camera.position - centerA);
+                float distB = glm::length(camera.position - centerB);
+                return distA > distB;  // Sort from back to front
+            });
+
+        // Render transparent blocks from back to front
+        for (const auto& [chunkPos, chunk] : sortedChunks) {
+            glm::mat4 model = glm::translate(glm::mat4(1.0f),
+                                           glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
+                                           chunkPos.y * Chunk::CHUNK_SIZE));
+            shader.setMat4("model", model);
+            shader.setBool("useTexture", true);
+            shader.setBool("isTransparent", true);
+
+            // Check highlighting for transparent blocks too
+            bool hasHighlight = false;
+            if (highlightedBlock.x >= chunkPos.x * Chunk::CHUNK_SIZE &&
+                highlightedBlock.x < (chunkPos.x + 1) * Chunk::CHUNK_SIZE &&
+                highlightedBlock.z >= chunkPos.y * Chunk::CHUNK_SIZE &&
+                highlightedBlock.z < (chunkPos.y + 1) * Chunk::CHUNK_SIZE) {
+                hasHighlight = true;
+                }
+
+            shader.setBool("isHighlighted", hasHighlight);
+            if (hasHighlight) {
+                shader.setVec3("highlightedBlockPos", glm::vec3(
+                    highlightedBlock.x,
+                    highlightedBlock.y,
+                    highlightedBlock.z
+                ));
+            }
+
+            glBindVertexArray(chunk->transparentVAO);
+            glDrawArrays(GL_TRIANGLES, 0, chunk->transparentVertexCount);
+        }
+
+        // Reset depth mask
+        glDepthMask(GL_TRUE);
+
         if (isChatOpen) {
-            // Render chat input
-            // Note: You'll need to implement actual text rendering
-            // For now, we'll just print to console
             std::cout << "\rChat: " << chatInput << std::endl << std::flush;
         }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
-
-    // Clean up
-    glDeleteVertexArrays(1, &VAO);
-    glDeleteBuffers(1, &VBO);
-
-    glfwTerminate();
-    return 0;
 }
