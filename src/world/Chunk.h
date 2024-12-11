@@ -37,12 +37,51 @@ public:
 class Chunk {
 public:
     static const int CHUNK_SIZE = 16;
-    std::vector<std::vector<std::vector<Block> > > blocks;
+    std::vector<uint8_t> blocks; // 1D array to store block data
+    std::unordered_map<size_t, BlockProperties> blockProperties; // Store properties for special blocks
     glm::ivec2 position; // Chunk position in world coordinates (x, z)
     unsigned int VAO = 0;
     unsigned int VBO = 0;
     int vertexCount = 0;
     bool needsRemesh = true;
+
+    // Helper function to convert 3D coordinates to 1D index
+    static inline size_t getIndex(int x, int y, int z) {
+        return (x * CHUNK_SIZE * CHUNK_SIZE) + (y * CHUNK_SIZE) + z;
+    }
+
+    // Helper function to get block at position
+    Block getBlock(int x, int y, int z) const {
+        size_t index = getIndex(x, y, z);
+        uint8_t blockData = blocks[index];
+        Block block(static_cast<BlockType>(blockData & 0x7F)); // Use 7 bits for block type
+        block.exists = (blockData & 0x80) != 0; // Use highest bit for exists flag
+
+        // Get properties if they exist
+        auto propIt = blockProperties.find(index);
+        if (propIt != blockProperties.end()) {
+            block.properties = propIt->second;
+        }
+
+        return block;
+    }
+
+    // Helper function to set block at position
+    void setBlock(int x, int y, int z, const Block& block) {
+        size_t index = getIndex(x, y, z);
+        uint8_t blockData = static_cast<uint8_t>(static_cast<int>(block.type) & 0x7F);
+        if (block.exists) {
+            blockData |= 0x80; // Set exists flag in highest bit
+        }
+        blocks[index] = blockData;
+
+        // Handle properties
+        if (!block.properties.properties.empty()) {
+            blockProperties[index] = block.properties;
+        } else {
+            blockProperties.erase(index);
+        }
+    }
 
     Chunk() : position(0, 0) {
         initialize();
@@ -60,11 +99,7 @@ public:
     }
 
     void initialize() {
-        blocks.resize(CHUNK_SIZE,
-                      std::vector<std::vector<Block> >(CHUNK_SIZE,
-                                                       std::vector<Block>(CHUNK_SIZE, Block())
-                      )
-        );
+        blocks.resize(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE, 0);
     }
 
     void generateTerrain() {
@@ -72,113 +107,117 @@ public:
         for (int y = 0; y <= 2; y++) {
             for (int x = 0; x < CHUNK_SIZE; x++) {
                 for (int z = 0; z < CHUNK_SIZE; z++) {
-                    blocks[x][y][z] = Block(BlockType::STONE);
-                    blocks[x][y][z].exists = true;
+                    Block block(BlockType::STONE);
+                    block.exists = true;
+                    setBlock(x, y, z, block);
                 }
             }
         }
 
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int z = 0; z < CHUNK_SIZE; z++) {
-                blocks[x][3][z] = Block(BlockType::DIRT);
-                blocks[x][3][z].exists = true;
-                blocks[x][4][z] = Block(BlockType::GRASS_BLOCK);
-                blocks[x][4][z].exists = true;
+                Block dirtBlock(BlockType::DIRT);
+                dirtBlock.exists = true;
+                setBlock(x, 3, z, dirtBlock);
+
+                Block grassBlock(BlockType::GRASS_BLOCK);
+                grassBlock.exists = true;
+                setBlock(x, 4, z, grassBlock);
             }
         }
         needsRemesh = true;
     }
 
-bool isBlockFaceVisible(int x, int y, int z, const std::string& face) {
-    // First check if we're at chunk borders
-    if (face == "west" && x == 0) return true;
-    if (face == "east" && x == CHUNK_SIZE-1) return true;
-    if (face == "down" && y == 0) return true;
-    if (face == "up" && y == CHUNK_SIZE-1) return true;
-    if (face == "north" && z == 0) return true;
-    if (face == "south" && z == CHUNK_SIZE-1) return true;
+    bool isBlockFaceVisible(int x, int y, int z, const std::string &face) {
+        // First check if we're at chunk borders
+        if (face == "west" && x == 0) return true;
+        if (face == "east" && x == CHUNK_SIZE - 1) return true;
+        if (face == "down" && y == 0) return true;
+        if (face == "up" && y == CHUNK_SIZE - 1) return true;
+        if (face == "north" && z == 0) return true;
+        if (face == "south" && z == CHUNK_SIZE - 1) return true;
 
-    // Get coordinates of the neighbor block based on face
-    int nx = x, ny = y, nz = z;
-    if (face == "west") nx--;
-    if (face == "east") nx++;
-    if (face == "down") ny--;
-    if (face == "up") ny++;
-    if (face == "north") nz--;
-    if (face == "south") nz++;
+        // Get coordinates of the neighbor block based on face
+        int nx = x, ny = y, nz = z;
+        if (face == "west") nx--;
+        if (face == "east") nx++;
+        if (face == "down") ny--;
+        if (face == "up") ny++;
+        if (face == "north") nz--;
+        if (face == "south") nz++;
 
-    // Check if neighbor coordinates are valid
-    if (nx < 0 || nx >= CHUNK_SIZE ||
-        ny < 0 || ny >= CHUNK_SIZE ||
-        nz < 0 || nz >= CHUNK_SIZE) {
-        return true;
-    }
+        // Check if neighbor coordinates are valid
+        if (nx < 0 || nx >= CHUNK_SIZE ||
+            ny < 0 || ny >= CHUNK_SIZE ||
+            nz < 0 || nz >= CHUNK_SIZE) {
+            return true;
+        }
 
-    Block& currentBlock = blocks[x][y][z];
-    Block& neighborBlock = blocks[nx][ny][nz];
+        Block currentBlock = getBlock(x, y, z);
+        Block neighborBlock = getBlock(nx, ny, nz);
 
-    // If there's no neighbor block or it doesn't exist, the face is visible
-    if (!neighborBlock.exists) return true;
+        // If there's no neighbor block or it doesn't exist, the face is visible
+        if (!neighborBlock.exists) return true;
 
-    // Handle stairs
-    if (currentBlock.type == BlockType::OAK_STAIRS) {
-        BlockFacing facing = std::get<BlockFacing>(currentBlock.properties.properties.at("facing"));
-        StairHalf half = std::get<StairHalf>(currentBlock.properties.properties.at("half"));
+        // Handle stairs
+        if (currentBlock.type == BlockType::OAK_STAIRS && currentBlock.properties.properties.count("facing")) {
+            BlockFacing facing = std::get<BlockFacing>(currentBlock.properties.properties.at("facing"));
+            StairHalf half = std::get<StairHalf>(currentBlock.properties.properties.at("half"));
 
-        // When next to another stair
-        if (neighborBlock.type == BlockType::OAK_STAIRS) {
-            BlockFacing neighborFacing = std::get<BlockFacing>(neighborBlock.properties.properties.at("facing"));
-            StairHalf neighborHalf = std::get<StairHalf>(neighborBlock.properties.properties.at("half"));
+            // When next to another stair
+            if (neighborBlock.type == BlockType::OAK_STAIRS) {
+                BlockFacing neighborFacing = std::get<BlockFacing>(neighborBlock.properties.properties.at("facing"));
+                StairHalf neighborHalf = std::get<StairHalf>(neighborBlock.properties.properties.at("half"));
 
-            // If the stairs are at the same height (both top or both bottom)
-            if (half == neighborHalf) {
-                // For vertical faces
-                if (face == "north" || face == "south" || face == "east" || face == "west") {
-                    // If stairs are facing the same direction or opposite directions
-                    if (facing == neighborFacing ||
-                        (facing == BlockFacing::NORTH && neighborFacing == BlockFacing::SOUTH) ||
-                        (facing == BlockFacing::SOUTH && neighborFacing == BlockFacing::NORTH) ||
-                        (facing == BlockFacing::EAST && neighborFacing == BlockFacing::WEST) ||
-                        (facing == BlockFacing::WEST && neighborFacing == BlockFacing::EAST)) {
-                        return false;
+                // If the stairs are at the same height (both top or both bottom)
+                if (half == neighborHalf) {
+                    // For vertical faces
+                    if (face == "north" || face == "south" || face == "east" || face == "west") {
+                        // If stairs are facing the same direction or opposite directions
+                        if (facing == neighborFacing ||
+                            (facing == BlockFacing::NORTH && neighborFacing == BlockFacing::SOUTH) ||
+                            (facing == BlockFacing::SOUTH && neighborFacing == BlockFacing::NORTH) ||
+                            (facing == BlockFacing::EAST && neighborFacing == BlockFacing::WEST) ||
+                            (facing == BlockFacing::WEST && neighborFacing == BlockFacing::EAST)) {
+                            return false;
+                        }
                     }
+
+                    // For top/bottom faces
+                    if (face == "up" && half == StairHalf::TOP) return false;
+                    if (face == "down" && half == StairHalf::BOTTOM) return false;
                 }
 
-                // For top/bottom faces
-                if (face == "up" && half == StairHalf::TOP) return false;
-                if (face == "down" && half == StairHalf::BOTTOM) return false;
+                return true;
             }
 
-            return true;
+            // When next to a slab
+            if (neighborBlock.type == BlockType::OAK_SLAB) {
+                SlabType neighborType = std::get<SlabType>(neighborBlock.properties.properties.at("type"));
+
+                if (neighborType == SlabType::BOTTOM && half == StairHalf::BOTTOM && face == "down") return false;
+                if (neighborType == SlabType::TOP && half == StairHalf::TOP && face == "up") return false;
+
+                return true;
+            }
+
+            // When next to a full block
+            if (neighborBlock.type != BlockType::OAK_SLAB &&
+                neighborBlock.type != BlockType::OAK_STAIRS) {
+                if (face == "north" && facing == BlockFacing::NORTH) return false;
+                if (face == "south" && facing == BlockFacing::SOUTH) return false;
+                if (face == "east" && facing == BlockFacing::EAST) return false;
+                if (face == "west" && facing == BlockFacing::WEST) return false;
+
+                if (face == "down" && half == StairHalf::BOTTOM) return false;
+                if (face == "up" && half == StairHalf::TOP) return false;
+
+                return true;
+            }
         }
-
-        // When next to a slab
-        if (neighborBlock.type == BlockType::OAK_SLAB) {
-            SlabType neighborType = std::get<SlabType>(neighborBlock.properties.properties.at("type"));
-
-            if (neighborType == SlabType::BOTTOM && half == StairHalf::BOTTOM && face == "down") return false;
-            if (neighborType == SlabType::TOP && half == StairHalf::TOP && face == "up") return false;
-
-            return true;
-        }
-
-        // When next to a full block
-        if (neighborBlock.type != BlockType::OAK_SLAB &&
-            neighborBlock.type != BlockType::OAK_STAIRS) {
-            if (face == "north" && facing == BlockFacing::NORTH) return false;
-            if (face == "south" && facing == BlockFacing::SOUTH) return false;
-            if (face == "east" && facing == BlockFacing::EAST) return false;
-            if (face == "west" && facing == BlockFacing::WEST) return false;
-
-            if (face == "down" && half == StairHalf::BOTTOM) return false;
-            if (face == "up" && half == StairHalf::TOP) return false;
-
-            return true;
-        }
-    }
 
         // Handle slabs
-        if (currentBlock.type == BlockType::OAK_SLAB) {
+        if (currentBlock.type == BlockType::OAK_SLAB && currentBlock.properties.properties.count("type")) {
             SlabType currentType = std::get<SlabType>(currentBlock.properties.properties.at("type"));
 
             // When next to stairs
@@ -259,7 +298,7 @@ bool isBlockFaceVisible(int x, int y, int z, const std::string& face) {
     }
 
     void addFaceVertices(std::vector<float> &vertices, int x, int y, int z, const std::string &face) {
-        const Block &block = blocks[x][y][z];
+        Block block = getBlock(x, y, z);
         BlockModel &model = BlockModelManager::getModel(block.getModelPath());
 
         float textureIndex = block.getTextureIndexForFace(face); // This is correct
@@ -293,7 +332,8 @@ bool isBlockFaceVisible(int x, int y, int z, const std::string& face) {
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
                 for (int z = 0; z < CHUNK_SIZE; z++) {
-                    if (!blocks[x][y][z].exists) continue;
+                    Block block = getBlock(x, y, z);
+                    if (!block.exists) continue;
 
                     if (isBlockFaceVisible(x, y, z, "west")) addFaceVertices(vertices, x, y, z, "west");
                     if (isBlockFaceVisible(x, y, z, "east")) addFaceVertices(vertices, x, y, z, "east");

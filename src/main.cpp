@@ -371,34 +371,35 @@ void character_callback(GLFWwindow *window, unsigned int codepoint) {
 }
 
 // Add this function to process chat commands
-void processCommand(const std::string &command) {
+void processCommand(const std::string& command) {
     // Remove the leading '/' if present
     if (command.empty() || command[0] != '/') return;
 
-    std::string cmd = command.substr(1); // Remove the '/'
+    // Find the space between command and block name
+    size_t spacePos = command.find(' ', 1);
+    if (spacePos == std::string::npos) return;
 
-    // Convert to lowercase for case-insensitive comparison
-    std::transform(cmd.begin(), cmd.end(), cmd.begin(), ::tolower);
+    // Get command type (should be "give")
+    std::string action = command.substr(1, spacePos - 1);
+    if (action != "give") return;  // Simple equality check, no transform needed
 
-    if (cmd.substr(0, 4) == "give") {
-        std::string blockName = cmd.substr(5); // Get the block name after "give "
+    // Get block name directly - no need for lowercase transform
+    std::string blockName = command.substr(spacePos + 1);
 
-        // Map block names to BlockType
-        if (blockName == "stone") {
-            selectedBlockType = BlockType::STONE;
-        } else if (blockName == "dirt") {
-            selectedBlockType = BlockType::DIRT;
-        } else if (blockName == "grass_block") {
-            selectedBlockType = BlockType::GRASS_BLOCK;
-        } else if (blockName == "oak_planks") {
-            selectedBlockType = BlockType::OAK_PLANKS;
-        } else if (blockName == "oak_slab") {
-            selectedBlockType = BlockType::OAK_SLAB;
-        } else if (blockName == "oak_stairs") {
-            selectedBlockType = BlockType::OAK_STAIRS;
-        } else if (blockName == "oak_log") {
-            selectedBlockType = BlockType::OAK_LOG;
-        }
+    // Use unordered_map for O(1) lookup
+    static const std::unordered_map<std::string, BlockType> blockTypes = {
+        {"stone", BlockType::STONE},
+        {"dirt", BlockType::DIRT},
+        {"grass_block", BlockType::GRASS_BLOCK},
+        {"oak_planks", BlockType::OAK_PLANKS},
+        {"oak_slab", BlockType::OAK_SLAB},
+        {"oak_stairs", BlockType::OAK_STAIRS},
+        {"oak_log", BlockType::OAK_LOG}
+    };
+
+    auto it = blockTypes.find(blockName);
+    if (it != blockTypes.end()) {
+        selectedBlockType = it->second;
         std::cout << "Selected block type: " << blockName << std::endl;
     }
 }
@@ -430,8 +431,8 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 }
 
 // Ray casting function to detect block intersection
-bool raycastBlock(const glm::vec3 &start, const glm::vec3 &direction, float maxDistance,
-                  glm::ivec3 &outBlockPos, glm::vec3 &outHitPos) {
+bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
+                 glm::ivec3& outBlockPos, glm::vec3& outHitPos) {
     glm::vec3 rayDir = glm::normalize(direction);
     glm::vec3 rayPos = start;
     const float STEP_SIZE = 0.05f;
@@ -446,11 +447,26 @@ bool raycastBlock(const glm::vec3 &start, const glm::vec3 &direction, float maxD
         int gridY = static_cast<int>(floor(rayPos.y));
         int gridZ = static_cast<int>(floor(rayPos.z));
 
-        Block *block = world.getBlock(gridX, gridY, gridZ);
-        if (block && block->exists) {
-            outBlockPos = glm::ivec3(gridX, gridY, gridZ);
-            outHitPos = rayPos;
-            return true;
+        // Convert to chunk coordinates
+        int chunkX = floor(float(gridX) / Chunk::CHUNK_SIZE);
+        int chunkZ = floor(float(gridZ) / Chunk::CHUNK_SIZE);
+        int localX = gridX - (chunkX * Chunk::CHUNK_SIZE);
+        int localY = gridY;
+        int localZ = gridZ - (chunkZ * Chunk::CHUNK_SIZE);
+
+        // Check if the chunk exists
+        auto it = world.chunks.find(glm::ivec2(chunkX, chunkZ));
+        if (it != world.chunks.end() && localY >= 0 && localY < Chunk::CHUNK_SIZE) {
+            // Check block existence directly from chunk data
+            size_t index = it->second.getIndex(localX, localY, localZ);
+            uint8_t blockData = it->second.blocks[index];
+            bool exists = (blockData & 0x80) != 0;
+
+            if (exists) {
+                outBlockPos = glm::ivec3(gridX, gridY, gridZ);
+                outHitPos = rayPos;
+                return true;
+            }
         }
     }
 
@@ -485,51 +501,48 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
         glm::vec3 hitPos;
 
         if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
-            Block *block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+            Block* block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
             if (block) {
                 if (button == GLFW_MOUSE_BUTTON_LEFT) {
                     // Break block
-                    *block = Block();
-                    block->exists = false;
+                    Block emptyBlock;
+                    emptyBlock.exists = false;
 
-                    // Add this: Get the chunk coordinates and mark chunk for remesh
+                    // Convert to chunk coordinates
                     int chunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
                     int chunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
+                    int localX = blockPos.x - (chunkX * Chunk::CHUNK_SIZE);
+                    int localY = blockPos.y;
+                    int localZ = blockPos.z - (chunkZ * Chunk::CHUNK_SIZE);
                     glm::ivec2 chunkPos(chunkX, chunkZ);
 
-                    // Mark chunk for remesh
+                    // Set the block in the chunk
                     auto it = world.chunks.find(chunkPos);
                     if (it != world.chunks.end()) {
+                        it->second.setBlock(localX, localY, localZ, emptyBlock);
                         it->second.needsRemesh = true;
-                    }
 
-                    // Also mark neighboring chunks for remesh if block is on chunk border
-                    int localX = blockPos.x - (chunkX * Chunk::CHUNK_SIZE);
-                    int localZ = blockPos.z - (chunkZ * Chunk::CHUNK_SIZE);
-
-                    if (localX == 0) {
-                        // On west border
-                        auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
-                        if (westChunk != world.chunks.end())
-                            westChunk->second.needsRemesh = true;
-                    }
-                    if (localX == Chunk::CHUNK_SIZE - 1) {
-                        // On east border
-                        auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
-                        if (eastChunk != world.chunks.end())
-                            eastChunk->second.needsRemesh = true;
-                    }
-                    if (localZ == 0) {
-                        // On north border
-                        auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
-                        if (northChunk != world.chunks.end())
-                            northChunk->second.needsRemesh = true;
-                    }
-                    if (localZ == Chunk::CHUNK_SIZE - 1) {
-                        // On south border
-                        auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
-                        if (southChunk != world.chunks.end())
-                            southChunk->second.needsRemesh = true;
+                        // Check neighboring chunks
+                        if (localX == 0) {
+                            auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
+                            if (westChunk != world.chunks.end())
+                                westChunk->second.needsRemesh = true;
+                        }
+                        if (localX == Chunk::CHUNK_SIZE - 1) {
+                            auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
+                            if (eastChunk != world.chunks.end())
+                                eastChunk->second.needsRemesh = true;
+                        }
+                        if (localZ == 0) {
+                            auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
+                            if (northChunk != world.chunks.end())
+                                northChunk->second.needsRemesh = true;
+                        }
+                        if (localZ == Chunk::CHUNK_SIZE - 1) {
+                            auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
+                            if (southChunk != world.chunks.end())
+                                southChunk->second.needsRemesh = true;
+                        }
                     }
                 } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
                     // Calculate adjacent block position based on hit normal
@@ -540,19 +553,22 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                     int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
                     int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
 
-                    Block *newBlock = world.getBlock(newX, newY, newZ);
+                    Block* newBlock = world.getBlock(newX, newY, newZ);
                     if (newBlock && !newBlock->exists) {
+                        Block placedBlock;
+
+                        // Handle special block types
                         if (selectedBlockType == BlockType::OAK_LOG) {
                             // Determine log axis based on the face we're placing against
                             Axis axis;
                             if (abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z)) {
-                                axis = Axis::X; // Placing against east/west face
+                                axis = Axis::X;
                             } else if (abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z)) {
-                                axis = Axis::Y; // Placing against top/bottom face
+                                axis = Axis::Y;
                             } else {
-                                axis = Axis::Z; // Placing against north/south face
+                                axis = Axis::Z;
                             }
-                            *newBlock = createOakLog(axis);
+                            placedBlock = createOakLog(axis);
                         } else if (selectedBlockType == BlockType::OAK_STAIRS) {
                             float yaw = camera.yaw;
                             BlockFacing facing;
@@ -570,14 +586,17 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                             }
 
                             StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
-                            *newBlock = createOakStairs(facing, half);
+                            placedBlock = createOakStairs(facing, half);
                         } else if (selectedBlockType == BlockType::OAK_SLAB) {
-                            Block *existingBlock = world.getBlock(newX, newY, newZ);
+                            // Convert to chunk coordinates for new block
+                            int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
+                            int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
+                            glm::ivec2 chunkPos(chunkX, chunkZ);
+                            auto it = world.chunks.find(chunkPos);
 
                             // Check if we're clicking on an existing slab
-                            Block *targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                            Block* targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
                             if (targetBlock && targetBlock->exists && targetBlock->type == BlockType::OAK_SLAB) {
-                                // If clicking on a slab, check if we can form a double slab
                                 SlabType existingType = std::get<SlabType>(
                                     targetBlock->properties.properties.at("type"));
                                 SlabType newType = determineSlabType(hitPos, glm::ivec3(blockPos));
@@ -585,80 +604,66 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                                 if ((existingType == SlabType::BOTTOM && newType == SlabType::TOP) ||
                                     (existingType == SlabType::TOP && newType == SlabType::BOTTOM)) {
                                     // Create a double slab
-                                    *targetBlock = createOakSlab(SlabType::DOUBLE);
-                                    targetBlock->exists = true;
+                                    placedBlock = createOakSlab(SlabType::DOUBLE);
 
-                                    // Mark chunk for remesh
-                                    int chunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
-                                    int chunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
-                                    auto it = world.chunks.find(glm::ivec2(chunkX, chunkZ));
-                                    if (it != world.chunks.end()) {
-                                        it->second.needsRemesh = true;
+                                    // Place in target position instead of new position
+                                    int targetChunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
+                                    int targetChunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
+                                    int localX = blockPos.x - (targetChunkX * Chunk::CHUNK_SIZE);
+                                    int localY = blockPos.y;
+                                    int localZ = blockPos.z - (targetChunkZ * Chunk::CHUNK_SIZE);
+
+                                    auto targetChunk = world.chunks.find(glm::ivec2(targetChunkX, targetChunkZ));
+                                    if (targetChunk != world.chunks.end()) {
+                                        targetChunk->second.setBlock(localX, localY, localZ, placedBlock);
+                                        targetChunk->second.needsRemesh = true;
                                     }
                                     return;
                                 }
                             }
 
-                            // Place new slab
-                            if (!existingBlock->exists) {
-                                SlabType type = determineSlabType(hitPos, glm::ivec3(newX, newY, newZ));
-                                *existingBlock = createOakSlab(type);
-                                existingBlock->exists = true;
-
-                                // Mark chunk for remesh (existing chunk update code)
-                                int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
-                                int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
-                                auto it = world.chunks.find(glm::ivec2(chunkX, chunkZ));
-                                if (it != world.chunks.end()) {
-                                    it->second.needsRemesh = true;
-                                }
-                            } else {
-                                *newBlock = Block(selectedBlockType);
-                            }
-                            newBlock->exists = true;
+                            SlabType type = determineSlabType(hitPos, glm::ivec3(newX, newY, newZ));
+                            placedBlock = createOakSlab(type);
                         } else {
-                            *newBlock = Block(selectedBlockType);
+                            placedBlock = Block(selectedBlockType);
                         }
-                        newBlock->exists = true;
 
-                        // Mark chunks for remesh after placing block
+                        // Convert to chunk coordinates
                         int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
                         int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
+                        int localX = newX - (chunkX * Chunk::CHUNK_SIZE);
+                        int localY = newY;
+                        int localZ = newZ - (chunkZ * Chunk::CHUNK_SIZE);
                         glm::ivec2 chunkPos(chunkX, chunkZ);
 
-                        // Mark chunk for remesh
+                        // Set the block in the chunk
                         auto it = world.chunks.find(chunkPos);
                         if (it != world.chunks.end()) {
+                            placedBlock.exists = true;
+                            it->second.setBlock(localX, localY, localZ, placedBlock);
                             it->second.needsRemesh = true;
-                        }
 
-                        // Check neighboring chunks
-                        int localX = newX - (chunkX * Chunk::CHUNK_SIZE);
-                        int localZ = newZ - (chunkZ * Chunk::CHUNK_SIZE);
-
-                        if (localX == 0) {
-                            // On west border
-                            auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
-                            if (westChunk != world.chunks.end())
-                                westChunk->second.needsRemesh = true;
-                        }
-                        if (localX == Chunk::CHUNK_SIZE - 1) {
-                            // On east border
-                            auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
-                            if (eastChunk != world.chunks.end())
-                                eastChunk->second.needsRemesh = true;
-                        }
-                        if (localZ == 0) {
-                            // On north border
-                            auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
-                            if (northChunk != world.chunks.end())
-                                northChunk->second.needsRemesh = true;
-                        }
-                        if (localZ == Chunk::CHUNK_SIZE - 1) {
-                            // On south border
-                            auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
-                            if (southChunk != world.chunks.end())
-                                southChunk->second.needsRemesh = true;
+                            // Check neighboring chunks
+                            if (localX == 0) {
+                                auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
+                                if (westChunk != world.chunks.end())
+                                    westChunk->second.needsRemesh = true;
+                            }
+                            if (localX == Chunk::CHUNK_SIZE - 1) {
+                                auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
+                                if (eastChunk != world.chunks.end())
+                                    eastChunk->second.needsRemesh = true;
+                            }
+                            if (localZ == 0) {
+                                auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
+                                if (northChunk != world.chunks.end())
+                                    northChunk->second.needsRemesh = true;
+                            }
+                            if (localZ == Chunk::CHUNK_SIZE - 1) {
+                                auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
+                                if (southChunk != world.chunks.end())
+                                    southChunk->second.needsRemesh = true;
+                            }
                         }
                     }
                 }

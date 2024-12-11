@@ -128,8 +128,10 @@ struct Block {
             Axis axis = std::get<Axis>(properties.properties.at("axis"));
             if(axis == Axis::X) {
                 transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(0, 0, 1));
+                transform = glm::translate(transform, glm::vec3(0, -1, 0));
             } else if(axis == Axis::Z) {
                 transform = glm::rotate(transform, glm::radians(90.0f), glm::vec3(1, 0, 0));
+                transform = glm::translate(transform, glm::vec3(0, 0, -1));
             }
         }
         else if(type == BlockType::OAK_STAIRS) {

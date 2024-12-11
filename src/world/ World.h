@@ -9,9 +9,10 @@ struct AABB {
     glm::vec3 min;
     glm::vec3 max;
 
-    AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
+    AABB(const glm::vec3 &min, const glm::vec3 &max) : min(min), max(max) {
+    }
 
-    bool intersects(const AABB& other) const {
+    bool intersects(const AABB &other) const {
         return (min.x <= other.max.x && max.x >= other.min.x) &&
                (min.y <= other.max.y && max.y >= other.min.y) &&
                (min.z <= other.max.z && max.z >= other.min.z);
@@ -19,7 +20,7 @@ struct AABB {
 };
 
 struct ChunkCoordHash {
-    std::size_t operator()(const glm::ivec2& k) const {
+    std::size_t operator()(const glm::ivec2 &k) const {
         return std::hash<int>()(k.x) ^ (std::hash<int>()(k.y) << 1);
     }
 };
@@ -44,7 +45,7 @@ public:
         }
     }
 
-    Block* getBlock(int x, int y, int z) {
+    Block *getBlock(int x, int y, int z) {
         // Convert world coordinates to chunk coordinates
         int chunkX = floor(float(x) / Chunk::CHUNK_SIZE);
         int chunkZ = floor(float(z) / Chunk::CHUNK_SIZE);
@@ -57,12 +58,15 @@ public:
         glm::ivec2 chunkPos(chunkX, chunkZ);
         auto it = chunks.find(chunkPos);
         if (it != chunks.end() && y >= 0 && y < Chunk::CHUNK_SIZE) {
-            return &it->second.blocks[localX][y][localZ];
+            // Create a static Block to return
+            static Block returnBlock;
+            returnBlock = it->second.getBlock(localX, y, localZ);
+            return &returnBlock;
         }
         return nullptr;
     }
 
-    bool checkCollision(const AABB& playerBox) {
+    bool checkCollision(const AABB &playerBox) {
         // Convert AABB to chunk coordinates and check relevant chunks
         int minChunkX = floor(playerBox.min.x / Chunk::CHUNK_SIZE);
         int maxChunkX = floor(playerBox.max.x / Chunk::CHUNK_SIZE);
@@ -75,14 +79,15 @@ public:
                 auto it = chunks.find(chunkPos);
                 if (it != chunks.end()) {
                     // Check blocks in the chunk
-                    const Chunk& chunk = it->second;
+                    const Chunk &chunk = it->second;
                     int startX = (chunkX * Chunk::CHUNK_SIZE);
                     int startZ = (chunkZ * Chunk::CHUNK_SIZE);
 
                     for (int x = 0; x < Chunk::CHUNK_SIZE; x++) {
                         for (int y = 0; y < Chunk::CHUNK_SIZE; y++) {
                             for (int z = 0; z < Chunk::CHUNK_SIZE; z++) {
-                                if (chunk.blocks[x][y][z].exists) {
+                                Block block = chunk.getBlock(x, y, z);
+                                if (block.exists) {
                                     AABB blockBox(
                                         glm::vec3(startX + x, y, startZ + z),
                                         glm::vec3(startX + x + 1.0f, y + 1.0f, startZ + z + 1.0f)
