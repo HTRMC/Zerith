@@ -35,13 +35,9 @@ void main()
             // Get the original alpha from the texture
             float originalAlpha = texColor.a;
 
-            // Add slight blue tint to glass
-            vec3 glassTint = vec3(0.9, 0.95, 1.0);
-            texColor.rgb *= glassTint;
-
             // Keep solid parts solid, make transparent parts semi-transparent
-            if (originalAlpha < 0.1) { // If it was transparent in the texture
-                texColor.a = 0.5;      // Make it semi-transparent
+            if (originalAlpha = 0.0) { // If it was transparent in the texture
+                discard;
             } else {
                 texColor.a = 1.0;      // Keep solid parts solid
             }
