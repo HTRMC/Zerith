@@ -37,7 +37,6 @@ add_custom_command(
 
 # Link all libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
-        glad
         glfw
         glm::glm
         OpenGL::GL
