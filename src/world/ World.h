@@ -3,6 +3,7 @@
 #include "Chunk.h"
 #include <unordered_map>
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 // AABB struct needs to be accessible to World class
 struct AABB {

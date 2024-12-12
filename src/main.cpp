@@ -276,7 +276,7 @@ public:
     }
 
     void setIsTransparent(bool value) {
-        glUniform1i(glGetUniformLocation(ID, "isTransparent"), (int)value);
+        glUniform1i(glGetUniformLocation(ID, "isTransparent"), (int) value);
     }
 
     Shader(const char *vertexPath, const char *fragmentPath) {
@@ -375,7 +375,7 @@ void character_callback(GLFWwindow *window, unsigned int codepoint) {
 }
 
 // Add this function to process chat commands
-void processCommand(const std::string& command) {
+void processCommand(const std::string &command) {
     // Remove the leading '/' if present
     if (command.empty() || command[0] != '/') return;
 
@@ -385,7 +385,7 @@ void processCommand(const std::string& command) {
 
     // Get command type (should be "give")
     std::string action = command.substr(1, spacePos - 1);
-    if (action != "give") return;  // Simple equality check, no transform needed
+    if (action != "give") return; // Simple equality check, no transform needed
 
     // Get block name directly - no need for lowercase transform
     std::string blockName = command.substr(spacePos + 1);
@@ -436,8 +436,8 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 }
 
 // Ray casting function to detect block intersection
-bool raycastBlock(const glm::vec3& start, const glm::vec3& direction, float maxDistance,
-                 glm::ivec3& outBlockPos, glm::vec3& outHitPos) {
+bool raycastBlock(const glm::vec3 &start, const glm::vec3 &direction, float maxDistance,
+                  glm::ivec3 &outBlockPos, glm::vec3 &outHitPos) {
     glm::vec3 rayDir = glm::normalize(direction);
     glm::vec3 rayPos = start;
     const float STEP_SIZE = 0.05f;
@@ -506,7 +506,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
         glm::vec3 hitPos;
 
         if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
-            Block* block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+            Block *block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
             if (block) {
                 if (button == GLFW_MOUSE_BUTTON_LEFT) {
                     // Break block
@@ -558,7 +558,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                     int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
                     int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
 
-                    Block* newBlock = world.getBlock(newX, newY, newZ);
+                    Block *newBlock = world.getBlock(newX, newY, newZ);
                     if (newBlock && !newBlock->exists) {
                         Block placedBlock;
 
@@ -600,7 +600,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                             auto it = world.chunks.find(chunkPos);
 
                             // Check if we're clicking on an existing slab
-                            Block* targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                            Block *targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
                             if (targetBlock && targetBlock->exists && targetBlock->type == BlockType::OAK_SLAB) {
                                 SlabType existingType = std::get<SlabType>(
                                     targetBlock->properties.properties.at("type"));
@@ -876,8 +876,8 @@ int main() {
         // Create transformations
         glm::mat4 view = camera.getViewMatrix();
         glm::mat4 projection = glm::perspective(glm::radians(90.0f),
-                                              static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT),
-                                              0.1f, 1000.0f);
+                                                static_cast<float>(SCREEN_WIDTH) / static_cast<float>(SCREEN_HEIGHT),
+                                                0.1f, 1000.0f);
 
         shader.setMat4("view", view);
         shader.setMat4("projection", projection);
@@ -893,14 +893,14 @@ int main() {
         glDepthMask(GL_TRUE);
         glDisable(GL_BLEND);
 
-        for (auto& [chunkPos, chunk] : world.chunks) {
+        for (auto &[chunkPos, chunk]: world.chunks) {
             if (chunk.needsRemesh) {
                 chunk.generateMesh();
             }
 
             glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                                           glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
-                                           chunkPos.y * Chunk::CHUNK_SIZE));
+                                             glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
+                                                       chunkPos.y * Chunk::CHUNK_SIZE));
             shader.setMat4("model", model);
             shader.setBool("useTexture", true);
             shader.setBool("isTransparent", false);
@@ -912,15 +912,15 @@ int main() {
                 highlightedBlock.z >= chunkPos.y * Chunk::CHUNK_SIZE &&
                 highlightedBlock.z < (chunkPos.y + 1) * Chunk::CHUNK_SIZE) {
                 hasHighlight = true;
-                }
+            }
 
             shader.setBool("isHighlighted", hasHighlight);
             if (hasHighlight) {
                 shader.setVec3("highlightedBlockPos", glm::vec3(
-                    highlightedBlock.x,
-                    highlightedBlock.y,
-                    highlightedBlock.z
-                ));
+                                   highlightedBlock.x,
+                                   highlightedBlock.y,
+                                   highlightedBlock.z
+                               ));
             }
 
             glBindVertexArray(chunk.opaqueVAO);
@@ -932,13 +932,13 @@ int main() {
         glEnable(GL_BLEND);
 
         // Sort chunks by distance from camera (back to front)
-        std::vector<std::pair<glm::ivec2, Chunk*>> sortedChunks;
+        std::vector<std::pair<glm::ivec2, Chunk *> > sortedChunks;
         glm::vec3 cameraPos = camera.position;
-        for (auto& [chunkPos, chunk] : world.chunks) {
+        for (auto &[chunkPos, chunk]: world.chunks) {
             glm::vec3 chunkCenter(
-                chunkPos.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f,
-                Chunk::CHUNK_SIZE/2.0f,
-                chunkPos.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f
+                chunkPos.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE / 2.0f,
+                Chunk::CHUNK_SIZE / 2.0f,
+                chunkPos.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE / 2.0f
             );
             float dist = glm::length(camera.position - chunkCenter);
             sortedChunks.push_back({chunkPos, &chunk});
@@ -946,27 +946,27 @@ int main() {
 
         // Sort using a lambda that compares distances
         std::sort(sortedChunks.begin(), sortedChunks.end(),
-            [cameraPos](const auto& a, const auto& b) {
-                glm::vec3 centerA(
-                    a.first.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f,
-                    Chunk::CHUNK_SIZE/2.0f,
-                    a.first.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f
-                );
-                glm::vec3 centerB(
-                    b.first.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f,
-                    Chunk::CHUNK_SIZE/2.0f,
-                    b.first.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE/2.0f
-                );
-                float distA = glm::length(camera.position - centerA);
-                float distB = glm::length(camera.position - centerB);
-                return distA > distB;  // Sort from back to front
-            });
+                  [cameraPos](const auto &a, const auto &b) {
+                      glm::vec3 centerA(
+                          a.first.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE / 2.0f,
+                          Chunk::CHUNK_SIZE / 2.0f,
+                          a.first.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE / 2.0f
+                      );
+                      glm::vec3 centerB(
+                          b.first.x * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE / 2.0f,
+                          Chunk::CHUNK_SIZE / 2.0f,
+                          b.first.y * Chunk::CHUNK_SIZE + Chunk::CHUNK_SIZE / 2.0f
+                      );
+                      float distA = glm::length(camera.position - centerA);
+                      float distB = glm::length(camera.position - centerB);
+                      return distA > distB; // Sort from back to front
+                  });
 
         // Render transparent blocks from back to front
-        for (const auto& [chunkPos, chunk] : sortedChunks) {
+        for (const auto &[chunkPos, chunk]: sortedChunks) {
             glm::mat4 model = glm::translate(glm::mat4(1.0f),
-                                           glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
-                                           chunkPos.y * Chunk::CHUNK_SIZE));
+                                             glm::vec3(chunkPos.x * Chunk::CHUNK_SIZE, 0,
+                                                       chunkPos.y * Chunk::CHUNK_SIZE));
             shader.setMat4("model", model);
             shader.setBool("useTexture", true);
             shader.setBool("isTransparent", true);
@@ -978,15 +978,15 @@ int main() {
                 highlightedBlock.z >= chunkPos.y * Chunk::CHUNK_SIZE &&
                 highlightedBlock.z < (chunkPos.y + 1) * Chunk::CHUNK_SIZE) {
                 hasHighlight = true;
-                }
+            }
 
             shader.setBool("isHighlighted", hasHighlight);
             if (hasHighlight) {
                 shader.setVec3("highlightedBlockPos", glm::vec3(
-                    highlightedBlock.x,
-                    highlightedBlock.y,
-                    highlightedBlock.z
-                ));
+                                   highlightedBlock.x,
+                                   highlightedBlock.y,
+                                   highlightedBlock.z
+                               ));
             }
 
             glBindVertexArray(chunk->transparentVAO);

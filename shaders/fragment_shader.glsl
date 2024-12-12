@@ -1,5 +1,5 @@
 // fragment_shader.glsl
-#version 330 core
+#version 460 core
 in vec3 vertexColor;
 in vec2 TexCoord;
 in vec3 fragPos;

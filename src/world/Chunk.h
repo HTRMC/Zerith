@@ -73,7 +73,7 @@ public:
     }
 
     // Helper function to set block at position
-    void setBlock(int x, int y, int z, const Block& block) {
+    void setBlock(int x, int y, int z, const Block &block) {
         size_t index = getIndex(x, y, z);
         uint8_t blockData = static_cast<uint8_t>(static_cast<int>(block.type) & 0x7F);
         if (block.exists) {
@@ -174,7 +174,7 @@ public:
             if (currentBlock.type == BlockType::GLASS &&
                 neighborBlock.type == BlockType::GLASS) {
                 return false;
-                }
+            }
             return true;
         }
 
@@ -356,8 +356,7 @@ public:
                     if (!block.exists) continue;
 
                     // Choose which vertex array to add to based on block type
-                    std::vector<float>& vertices = block.isTransparent() ?
-                        transparentVertices : opaqueVertices;
+                    std::vector<float> &vertices = block.isTransparent() ? transparentVertices : opaqueVertices;
 
                     if (isBlockFaceVisible(x, y, z, "west"))
                         addFaceVertices(vertices, x, y, z, "west");
@@ -384,11 +383,11 @@ public:
         glBindVertexArray(opaqueVAO);
         glBindBuffer(GL_ARRAY_BUFFER, opaqueVBO);
         glBufferData(GL_ARRAY_BUFFER, opaqueVertices.size() * sizeof(float),
-                    opaqueVertices.data(), GL_STATIC_DRAW);
+                     opaqueVertices.data(), GL_STATIC_DRAW);
 
         // Set up vertex attributes for opaque mesh
         setupVertexAttributes();
-        opaqueVertexCount = opaqueVertices.size() / 10;  // 10 floats per vertex
+        opaqueVertexCount = opaqueVertices.size() / 10; // 10 floats per vertex
 
         // Generate and update transparent mesh
         if (transparentVAO == 0) {
@@ -399,7 +398,7 @@ public:
         glBindVertexArray(transparentVAO);
         glBindBuffer(GL_ARRAY_BUFFER, transparentVBO);
         glBufferData(GL_ARRAY_BUFFER, transparentVertices.size() * sizeof(float),
-                    transparentVertices.data(), GL_STATIC_DRAW);
+                     transparentVertices.data(), GL_STATIC_DRAW);
 
         // Set up vertex attributes for transparent mesh
         setupVertexAttributes();
@@ -411,27 +410,27 @@ public:
 private:
     void setupVertexAttributes() {
         // Position attribute
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void*)0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float), (void *) 0);
         glEnableVertexAttribArray(0);
 
         // Color attribute
         glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 10 * sizeof(float),
-                             (void*)(3 * sizeof(float)));
+                              (void *) (3 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
         // Texture coordinate attribute
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 10 * sizeof(float),
-                             (void*)(6 * sizeof(float)));
+                              (void *) (6 * sizeof(float)));
         glEnableVertexAttribArray(2);
 
         // Face index attribute
         glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 10 * sizeof(float),
-                             (void*)(8 * sizeof(float)));
+                              (void *) (8 * sizeof(float)));
         glEnableVertexAttribArray(3);
 
         // Texture index attribute
         glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 10 * sizeof(float),
-                             (void*)(9 * sizeof(float)));
+                              (void *) (9 * sizeof(float)));
         glEnableVertexAttribArray(4);
     }
 };

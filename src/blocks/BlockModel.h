@@ -5,6 +5,8 @@
 #include <string>
 #include <map>
 #include <nlohmann/json.hpp>
+#include <fstream>
+#include <iostream>
 
 struct BlockFace {
     std::string texture;
