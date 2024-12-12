@@ -36,7 +36,7 @@ void main()
             float originalAlpha = texColor.a;
 
             // Keep solid parts solid, make transparent parts semi-transparent
-            if (originalAlpha = 0.0) { // If it was transparent in the texture
+            if (originalAlpha == 0.0) { // If it was transparent in the texture
                 discard;
             } else {
                 texColor.a = 1.0;      // Keep solid parts solid
