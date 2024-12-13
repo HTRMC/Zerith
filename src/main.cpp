@@ -17,6 +17,11 @@
 #include "world/ World.h"
 #include "gui/GUIRenderer.h"
 
+#define GLFW_EXPOSE_NATIVE_WIN32
+#include <GLFW/glfw3native.h>
+#include <dwmapi.h>
+#include <Windows.h>
+
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
 
@@ -942,6 +947,28 @@ unsigned int loadTexture(const char *path) {
     return textureID;
 }
 
+void setWindowIcon(GLFWwindow* window) {
+    GLFWimage images[1];
+    images[0].pixels = stbi_load("Zerith.png", &images[0].width, &images[0].height, 0, 4); //RGBA channels
+
+    if (images[0].pixels) {
+        glfwSetWindowIcon(window, 1, images);
+        stbi_image_free(images[0].pixels);
+    }
+}
+
+void setTitlebarColor(GLFWwindow* window, int r, int g, int b) {
+    HWND hwnd = glfwGetWin32Window(window);
+
+    // Enable dark mode for title bar
+    BOOL value = TRUE;
+    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &value, sizeof(value));
+
+    // Set the title bar color
+    COLORREF color = RGB(r, g, b);
+    DwmSetWindowAttribute(hwnd, DWMWA_CAPTION_COLOR, &color, sizeof(color));
+}
+
 int main() {
     // Initialize GLFW
     glfwInit();
@@ -956,6 +983,9 @@ int main() {
         glfwTerminate();
         return -1;
     }
+
+    setWindowIcon(window);
+    setTitlebarColor(window, 32, 32, 32);
     glfwMakeContextCurrent(window);
 
     // Initialize GLAD

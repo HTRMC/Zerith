@@ -31,6 +31,13 @@ add_custom_command(
         ${CMAKE_BINARY_DIR}/shaders
 )
 
+add_custom_command(
+        TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_SOURCE_DIR}/Zerith.png
+        ${CMAKE_BINARY_DIR}/Zerith.png
+)
+
 # Link all libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE
         glfw
@@ -43,4 +50,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 # Add the resource file
 if(WIN32)
     target_sources(${PROJECT_NAME} PRIVATE resources.rc)
+endif()
+
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE dwmapi)
 endif()
