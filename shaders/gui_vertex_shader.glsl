@@ -6,8 +6,13 @@ layout (location = 1) in vec2 aTexCoord;
 out vec2 TexCoord;
 
 uniform mat4 model;
+uniform bool isButton;
 
 void main() {
-    gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
+    if (isButton) {
+        gl_Position = model * vec4(aPos, 1.0);
+    } else {
+        gl_Position = vec4(aPos.x, aPos.y, 0.0, 1.0);
+    }
     TexCoord = aTexCoord;
 }

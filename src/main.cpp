@@ -30,6 +30,10 @@ enum Camera_Movement {
     RIGHT
 };
 
+bool isPaused = false;
+float gameTime = 0.0f;
+float lastPauseTime = 0.0f;
+
 // Camera class
 class Camera {
 public:
@@ -76,6 +80,26 @@ public:
     const float PLAYER_HALF_WIDTH = PLAYER_WIDTH / 2.0f;
     const float PLAYER_HALF_HEIGHT = PLAYER_HEIGHT / 2.0f;
     const float JUMP_VELOCITY = 8.0f;
+
+    void onPause() {
+        // Store the current state when pausing
+        pausedVelocity = velocity;
+        pausedVerticalVelocity = verticalVelocity;
+        pausedPosition = position;
+        pausedIsGrounded = isGrounded;
+        // Reset accumulator to prevent time buildup
+        accumulator = 0.0f;
+    }
+
+    void onUnpause() {
+        // Restore the exact state from when we paused
+        velocity = pausedVelocity;
+        verticalVelocity = pausedVerticalVelocity;
+        position = pausedPosition;
+        isGrounded = pausedIsGrounded;
+        // Reset accumulator
+        accumulator = 0.0f;
+    }
 
     void applyGravity(float deltaTime) {
         if (currentMode == MovementMode::WALKING && !isGrounded) {
@@ -207,6 +231,8 @@ public:
     float accumulator = 0.0f;
 
     void updateWithFixedTimestep(const glm::vec3 &moveDir, float deltaTime) {
+        if (isPaused) return;
+
         // Accumulate the frame time
         accumulator += deltaTime;
 
@@ -236,6 +262,11 @@ public:
     }
 
 private:
+    glm::vec3 pausedVelocity{0.0f};
+    float pausedVerticalVelocity = 0.0f;
+    glm::vec3 pausedPosition{0.0f};
+    bool pausedIsGrounded = false;
+
     void updatePhysics(const glm::vec3 &moveDir, float dt) {
         // Convert real time to minecraft ticks (now using fixed timestep)
         float ticks = dt * TICK_RATE;
@@ -470,16 +501,14 @@ void processCommand(const std::string &command) {
             selectedBlockType = it->second;
             std::cout << "Selected block type: " << blockName << std::endl;
         }
-    }
-    else if (action == "gamemode") {
+    } else if (action == "gamemode") {
         std::string mode;
         iss >> mode;
 
         if (mode == "creative" || mode == "1") {
             camera.setGameMode(Camera::GameMode::CREATIVE);
             std::cout << "Game mode set to Creative" << std::endl;
-        }
-        else if (mode == "spectator" || mode == "3") {
+        } else if (mode == "spectator" || mode == "3") {
             camera.setGameMode(Camera::GameMode::SPECTATOR);
             std::cout << "Game mode set to Spectator" << std::endl;
         }
@@ -487,17 +516,32 @@ void processCommand(const std::string &command) {
 }
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_T && action == GLFW_PRESS && !isChatOpen) {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        if (!isChatOpen) {
+            isPaused = !isPaused;
+            guiRenderer->setPauseMenuOpen(isPaused);
+
+            if (isPaused) {
+                camera.onPause();
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                glfwSetCursorPos(window, SCREEN_WIDTH / 2.0, SCREEN_HEIGHT / 2.0);
+                lastPauseTime = static_cast<float>(glfwGetTime());
+            } else {
+                float currentTime = static_cast<float>(glfwGetTime());
+                float pauseDuration = currentTime - lastPauseTime;
+                lastFrame += pauseDuration;
+                lastPauseTime = 0;
+                camera.onUnpause();
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
+        }
+    } else if (key == GLFW_KEY_T && action == GLFW_PRESS && !isChatOpen && !isPaused) {
         isChatOpen = true;
         chatInput = "/"; // Initialize with '/' when opening chat
         acceptingInput = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     } else if (isChatOpen && !acceptingInput) {
         acceptingInput = true; // Enable input on any subsequent key press
-    } else if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS && isChatOpen) {
-        isChatOpen = false;
-        chatInput.clear();
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     } else if (isChatOpen) {
         if (key == GLFW_KEY_BACKSPACE && action == GLFW_PRESS) {
             if (!chatInput.empty()) {
@@ -509,6 +553,18 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             isChatOpen = false;
             glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         }
+    }
+}
+
+void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
+    if (isPaused) {
+        guiRenderer->updateButtonHover(xpos, ypos);
+    } else if (!isChatOpen) {
+        float xoffset = xpos - lastX;
+        float yoffset = lastY - ypos;
+        lastX = xpos;
+        lastY = ypos;
+        camera.processMouseMovement(xoffset, yoffset);
     }
 }
 
@@ -578,151 +634,45 @@ void mouse_callback(GLFWwindow *window, double xposIn, double yposIn) {
 }
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
-    if (action == GLFW_PRESS) {
-        glm::ivec3 blockPos;
-        glm::vec3 hitPos;
+    if (isPaused && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        double xpos, ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+        int clickedButton = guiRenderer->getClickedButton(xpos, ypos);
 
-        if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
-            Block *block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
-            if (block) {
-                if (button == GLFW_MOUSE_BUTTON_LEFT && camera.canBreakBlocks()) {
-                    // Break block
-                    Block emptyBlock;
-                    emptyBlock.exists = false;
+        if (clickedButton == 0) {
+            // Resume button
+            isPaused = false;
+            guiRenderer->setPauseMenuOpen(false);
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        } else if (clickedButton == 1) {
+            // Quit button
+            glfwSetWindowShouldClose(window, true);
+        }
+    } else if (!isPaused && !isChatOpen) {
+        if (action == GLFW_PRESS) {
+            glm::ivec3 blockPos;
+            glm::vec3 hitPos;
 
-                    // Convert to chunk coordinates
-                    int chunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
-                    int chunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
-                    int localX = blockPos.x - (chunkX * Chunk::CHUNK_SIZE);
-                    int localY = blockPos.y;
-                    int localZ = blockPos.z - (chunkZ * Chunk::CHUNK_SIZE);
-                    glm::ivec2 chunkPos(chunkX, chunkZ);
-
-                    // Set the block in the chunk
-                    auto it = world.chunks.find(chunkPos);
-                    if (it != world.chunks.end()) {
-                        it->second.setBlock(localX, localY, localZ, emptyBlock);
-                        it->second.needsRemesh = true;
-
-                        // Check neighboring chunks
-                        if (localX == 0) {
-                            auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
-                            if (westChunk != world.chunks.end())
-                                westChunk->second.needsRemesh = true;
-                        }
-                        if (localX == Chunk::CHUNK_SIZE - 1) {
-                            auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
-                            if (eastChunk != world.chunks.end())
-                                eastChunk->second.needsRemesh = true;
-                        }
-                        if (localZ == 0) {
-                            auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
-                            if (northChunk != world.chunks.end())
-                                northChunk->second.needsRemesh = true;
-                        }
-                        if (localZ == Chunk::CHUNK_SIZE - 1) {
-                            auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
-                            if (southChunk != world.chunks.end())
-                                southChunk->second.needsRemesh = true;
-                        }
-                    }
-                } else if (button == GLFW_MOUSE_BUTTON_RIGHT && camera.canPlaceBlocks()) {
-                    // Calculate adjacent block position based on hit normal
-                    glm::vec3 blockCenter = glm::vec3(blockPos) + glm::vec3(0.5f);
-                    glm::vec3 normal = glm::normalize(hitPos - blockCenter);
-
-                    int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
-                    int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
-                    int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
-
-                    Block *newBlock = world.getBlock(newX, newY, newZ);
-                    if (newBlock && !newBlock->exists) {
-                        Block placedBlock;
-
-                        // Handle special block types
-                        if (selectedBlockType == BlockType::OAK_LOG) {
-                            // Determine log axis based on the face we're placing against
-                            Axis axis;
-                            if (abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z)) {
-                                axis = Axis::X;
-                            } else if (abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z)) {
-                                axis = Axis::Y;
-                            } else {
-                                axis = Axis::Z;
-                            }
-                            placedBlock = createOakLog(axis);
-                        } else if (selectedBlockType == BlockType::OAK_STAIRS) {
-                            float yaw = camera.yaw;
-                            BlockFacing facing;
-                            while (yaw < 0) yaw += 360.0f;
-                            while (yaw >= 360.0f) yaw -= 360.0f;
-
-                            if (yaw >= 315.0f || yaw < 45.0f) {
-                                facing = BlockFacing::NORTH;
-                            } else if (yaw >= 45.0f && yaw < 135.0f) {
-                                facing = BlockFacing::WEST;
-                            } else if (yaw >= 135.0f && yaw < 225.0f) {
-                                facing = BlockFacing::SOUTH;
-                            } else {
-                                facing = BlockFacing::EAST;
-                            }
-
-                            StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
-                            placedBlock = createOakStairs(facing, half);
-                        } else if (selectedBlockType == BlockType::OAK_SLAB) {
-                            // Convert to chunk coordinates for new block
-                            int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
-                            int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
-                            glm::ivec2 chunkPos(chunkX, chunkZ);
-                            auto it = world.chunks.find(chunkPos);
-
-                            // Check if we're clicking on an existing slab
-                            Block *targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
-                            if (targetBlock && targetBlock->exists && targetBlock->type == BlockType::OAK_SLAB) {
-                                SlabType existingType = std::get<SlabType>(
-                                    targetBlock->properties.properties.at("type"));
-                                SlabType newType = determineSlabType(hitPos, glm::ivec3(blockPos));
-
-                                if ((existingType == SlabType::BOTTOM && newType == SlabType::TOP) ||
-                                    (existingType == SlabType::TOP && newType == SlabType::BOTTOM)) {
-                                    // Create a double slab
-                                    placedBlock = createOakSlab(SlabType::DOUBLE);
-
-                                    // Place in target position instead of new position
-                                    int targetChunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
-                                    int targetChunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
-                                    int localX = blockPos.x - (targetChunkX * Chunk::CHUNK_SIZE);
-                                    int localY = blockPos.y;
-                                    int localZ = blockPos.z - (targetChunkZ * Chunk::CHUNK_SIZE);
-
-                                    auto targetChunk = world.chunks.find(glm::ivec2(targetChunkX, targetChunkZ));
-                                    if (targetChunk != world.chunks.end()) {
-                                        targetChunk->second.setBlock(localX, localY, localZ, placedBlock);
-                                        targetChunk->second.needsRemesh = true;
-                                    }
-                                    return;
-                                }
-                            }
-
-                            SlabType type = determineSlabType(hitPos, glm::ivec3(newX, newY, newZ));
-                            placedBlock = createOakSlab(type);
-                        } else {
-                            placedBlock = Block(selectedBlockType);
-                        }
+            if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
+                Block *block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                if (block) {
+                    if (button == GLFW_MOUSE_BUTTON_LEFT && camera.canBreakBlocks()) {
+                        // Break block
+                        Block emptyBlock;
+                        emptyBlock.exists = false;
 
                         // Convert to chunk coordinates
-                        int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
-                        int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
-                        int localX = newX - (chunkX * Chunk::CHUNK_SIZE);
-                        int localY = newY;
-                        int localZ = newZ - (chunkZ * Chunk::CHUNK_SIZE);
+                        int chunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
+                        int chunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
+                        int localX = blockPos.x - (chunkX * Chunk::CHUNK_SIZE);
+                        int localY = blockPos.y;
+                        int localZ = blockPos.z - (chunkZ * Chunk::CHUNK_SIZE);
                         glm::ivec2 chunkPos(chunkX, chunkZ);
 
                         // Set the block in the chunk
                         auto it = world.chunks.find(chunkPos);
                         if (it != world.chunks.end()) {
-                            placedBlock.exists = true;
-                            it->second.setBlock(localX, localY, localZ, placedBlock);
+                            it->second.setBlock(localX, localY, localZ, emptyBlock);
                             it->second.needsRemesh = true;
 
                             // Check neighboring chunks
@@ -747,6 +697,128 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                                     southChunk->second.needsRemesh = true;
                             }
                         }
+                    } else if (button == GLFW_MOUSE_BUTTON_RIGHT && camera.canPlaceBlocks()) {
+                        // Calculate adjacent block position based on hit normal
+                        glm::vec3 blockCenter = glm::vec3(blockPos) + glm::vec3(0.5f);
+                        glm::vec3 normal = glm::normalize(hitPos - blockCenter);
+
+                        int newX = blockPos.x + (normal.x > 0.5f ? 1 : (normal.x < -0.5f ? -1 : 0));
+                        int newY = blockPos.y + (normal.y > 0.5f ? 1 : (normal.y < -0.5f ? -1 : 0));
+                        int newZ = blockPos.z + (normal.z > 0.5f ? 1 : (normal.z < -0.5f ? -1 : 0));
+
+                        Block *newBlock = world.getBlock(newX, newY, newZ);
+                        if (newBlock && !newBlock->exists) {
+                            Block placedBlock;
+
+                            // Handle special block types
+                            if (selectedBlockType == BlockType::OAK_LOG) {
+                                // Determine log axis based on the face we're placing against
+                                Axis axis;
+                                if (abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z)) {
+                                    axis = Axis::X;
+                                } else if (abs(normal.y) > abs(normal.x) && abs(normal.y) > abs(normal.z)) {
+                                    axis = Axis::Y;
+                                } else {
+                                    axis = Axis::Z;
+                                }
+                                placedBlock = createOakLog(axis);
+                            } else if (selectedBlockType == BlockType::OAK_STAIRS) {
+                                float yaw = camera.yaw;
+                                BlockFacing facing;
+                                while (yaw < 0) yaw += 360.0f;
+                                while (yaw >= 360.0f) yaw -= 360.0f;
+
+                                if (yaw >= 315.0f || yaw < 45.0f) {
+                                    facing = BlockFacing::NORTH;
+                                } else if (yaw >= 45.0f && yaw < 135.0f) {
+                                    facing = BlockFacing::WEST;
+                                } else if (yaw >= 135.0f && yaw < 225.0f) {
+                                    facing = BlockFacing::SOUTH;
+                                } else {
+                                    facing = BlockFacing::EAST;
+                                }
+
+                                StairHalf half = (camera.pitch > 0) ? StairHalf::TOP : StairHalf::BOTTOM;
+                                placedBlock = createOakStairs(facing, half);
+                            } else if (selectedBlockType == BlockType::OAK_SLAB) {
+                                // Convert to chunk coordinates for new block
+                                int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
+                                int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
+                                glm::ivec2 chunkPos(chunkX, chunkZ);
+                                auto it = world.chunks.find(chunkPos);
+
+                                // Check if we're clicking on an existing slab
+                                Block *targetBlock = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
+                                if (targetBlock && targetBlock->exists && targetBlock->type == BlockType::OAK_SLAB) {
+                                    SlabType existingType = std::get<SlabType>(
+                                        targetBlock->properties.properties.at("type"));
+                                    SlabType newType = determineSlabType(hitPos, glm::ivec3(blockPos));
+
+                                    if ((existingType == SlabType::BOTTOM && newType == SlabType::TOP) ||
+                                        (existingType == SlabType::TOP && newType == SlabType::BOTTOM)) {
+                                        // Create a double slab
+                                        placedBlock = createOakSlab(SlabType::DOUBLE);
+
+                                        // Place in target position instead of new position
+                                        int targetChunkX = floor(float(blockPos.x) / Chunk::CHUNK_SIZE);
+                                        int targetChunkZ = floor(float(blockPos.z) / Chunk::CHUNK_SIZE);
+                                        int localX = blockPos.x - (targetChunkX * Chunk::CHUNK_SIZE);
+                                        int localY = blockPos.y;
+                                        int localZ = blockPos.z - (targetChunkZ * Chunk::CHUNK_SIZE);
+
+                                        auto targetChunk = world.chunks.find(glm::ivec2(targetChunkX, targetChunkZ));
+                                        if (targetChunk != world.chunks.end()) {
+                                            targetChunk->second.setBlock(localX, localY, localZ, placedBlock);
+                                            targetChunk->second.needsRemesh = true;
+                                        }
+                                        return;
+                                    }
+                                }
+
+                                SlabType type = determineSlabType(hitPos, glm::ivec3(newX, newY, newZ));
+                                placedBlock = createOakSlab(type);
+                            } else {
+                                placedBlock = Block(selectedBlockType);
+                            }
+
+                            // Convert to chunk coordinates
+                            int chunkX = floor(float(newX) / Chunk::CHUNK_SIZE);
+                            int chunkZ = floor(float(newZ) / Chunk::CHUNK_SIZE);
+                            int localX = newX - (chunkX * Chunk::CHUNK_SIZE);
+                            int localY = newY;
+                            int localZ = newZ - (chunkZ * Chunk::CHUNK_SIZE);
+                            glm::ivec2 chunkPos(chunkX, chunkZ);
+
+                            // Set the block in the chunk
+                            auto it = world.chunks.find(chunkPos);
+                            if (it != world.chunks.end()) {
+                                placedBlock.exists = true;
+                                it->second.setBlock(localX, localY, localZ, placedBlock);
+                                it->second.needsRemesh = true;
+
+                                // Check neighboring chunks
+                                if (localX == 0) {
+                                    auto westChunk = world.chunks.find(glm::ivec2(chunkX - 1, chunkZ));
+                                    if (westChunk != world.chunks.end())
+                                        westChunk->second.needsRemesh = true;
+                                }
+                                if (localX == Chunk::CHUNK_SIZE - 1) {
+                                    auto eastChunk = world.chunks.find(glm::ivec2(chunkX + 1, chunkZ));
+                                    if (eastChunk != world.chunks.end())
+                                        eastChunk->second.needsRemesh = true;
+                                }
+                                if (localZ == 0) {
+                                    auto northChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ - 1));
+                                    if (northChunk != world.chunks.end())
+                                        northChunk->second.needsRemesh = true;
+                                }
+                                if (localZ == Chunk::CHUNK_SIZE - 1) {
+                                    auto southChunk = world.chunks.find(glm::ivec2(chunkX, chunkZ + 1));
+                                    if (southChunk != world.chunks.end())
+                                        southChunk->second.needsRemesh = true;
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -756,70 +828,84 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 
 // Modify your existing processInput function
 void processInput(GLFWwindow *window) {
+    float currentFrame = static_cast<float>(glfwGetTime());
+
     if (isChatOpen) {
         return; // Don't process movement when chat is open
     }
 
-    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, true);
-
-    float currentFrame = static_cast<float>(glfwGetTime());
-    deltaTime = currentFrame - lastFrame;
-    lastFrame = currentFrame;
-
-    // Track movement direction
-    glm::vec3 moveDir(0.0f);
-
-    glm::vec3 horizontalFront = glm::normalize(glm::vec3(camera.front.x, 0.0f, camera.front.z));
-    glm::vec3 horizontalRight = glm::normalize(glm::vec3(camera.right.x, 0.0f, camera.right.z));
-
-    if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        moveDir += (camera.currentMode == Camera::MovementMode::FLYING) ? camera.front : horizontalFront;
-    }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-        moveDir -= (camera.currentMode == Camera::MovementMode::FLYING) ? camera.front : horizontalFront;
-    }
-    if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        moveDir -= horizontalRight;
-    }
-    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        moveDir += horizontalRight;
-    }
-
-    // Check for space double-tap and jumping
-    static bool spaceWasPressed = false;
-    bool spaceIsPressed = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
-
-    if (spaceIsPressed && !spaceWasPressed) {
-        // Handle jumping for walking mode
-        if (camera.currentMode == Camera::MovementMode::WALKING) {
-            camera.jump(currentFrame);
+    // Only update game time and process movement if not paused
+    if (!isPaused) {
+        if (lastPauseTime > 0) {
+            // Adjust lastFrame by the pause duration to prevent time jump
+            float pauseDuration = currentFrame - lastPauseTime;
+            lastFrame += pauseDuration;
+            lastPauseTime = 0;
         }
 
-        // Detect double-tap for flying toggle
-        if (currentFrame - lastSpacePressTime < DOUBLE_TAP_THRESHOLD) {
-            if (camera.currentMode == Camera::MovementMode::FLYING) {
-                camera.currentMode = Camera::MovementMode::WALKING;
-            } else {
-                camera.currentMode = Camera::MovementMode::FLYING;
+        float actualDeltaTime = currentFrame - lastFrame;
+        lastFrame = currentFrame;
+        gameTime += actualDeltaTime;  // Only increment game time when not paused
+
+        // Track movement direction
+        glm::vec3 moveDir(0.0f);
+
+        glm::vec3 horizontalFront = glm::normalize(glm::vec3(camera.front.x, 0.0f, camera.front.z));
+        glm::vec3 horizontalRight = glm::normalize(glm::vec3(camera.right.x, 0.0f, camera.right.z));
+
+        if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
+            moveDir += (camera.currentMode == Camera::MovementMode::FLYING) ? camera.front : horizontalFront;
+        }
+        if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+            moveDir -= (camera.currentMode == Camera::MovementMode::FLYING) ? camera.front : horizontalFront;
+        }
+        if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
+            moveDir -= horizontalRight;
+        }
+        if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+            moveDir += horizontalRight;
+        }
+
+        // Check for space double-tap and jumping
+        static bool spaceWasPressed = false;
+        bool spaceIsPressed = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+
+        if (spaceIsPressed && !spaceWasPressed) {
+            // Handle jumping for walking mode
+            if (camera.currentMode == Camera::MovementMode::WALKING) {
+                camera.jump(gameTime);  // Use gameTime instead of currentFrame
+            }
+
+            // Detect double-tap for flying toggle
+            if (gameTime - lastSpacePressTime < DOUBLE_TAP_THRESHOLD) {
+                if (camera.currentMode == Camera::MovementMode::FLYING) {
+                    camera.currentMode = Camera::MovementMode::WALKING;
+                } else {
+                    camera.currentMode = Camera::MovementMode::FLYING;
+                }
+            }
+            lastSpacePressTime = gameTime;  // Use gameTime instead of currentFrame
+        }
+        spaceWasPressed = spaceIsPressed;
+
+        // Handle flying vertical movement
+        if (camera.currentMode == Camera::MovementMode::FLYING) {
+            if (spaceIsPressed) {
+                moveDir += camera.worldUp;
+            }
+            if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+                moveDir -= camera.worldUp;
             }
         }
-        lastSpacePressTime = currentFrame;
-    }
-    spaceWasPressed = spaceIsPressed;
 
-    // Handle flying vertical movement
-    if (camera.currentMode == Camera::MovementMode::FLYING) {
-        if (spaceIsPressed) {
-            moveDir += camera.worldUp;
-        }
-        if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-            moveDir -= camera.worldUp;
+        // Update camera movement with actual delta time
+        camera.updateWithFixedTimestep(moveDir, actualDeltaTime);
+    } else {
+        // Store the time when we paused if we haven't already
+        if (lastPauseTime == 0) {
+            lastPauseTime = currentFrame;
         }
     }
-
-    // Update camera movement
-    camera.updateWithFixedTimestep(moveDir, deltaTime);
 }
 
 unsigned int loadTexture(const char *path) {
@@ -888,7 +974,7 @@ int main() {
     glViewport(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-    glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetCursorPosCallback(window, cursor_position_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetKeyCallback(window, key_callback);
     glfwSetCharCallback(window, character_callback);
@@ -1085,6 +1171,12 @@ int main() {
 
         // Render GUI elements (moved to here)
         guiRenderer->renderCrosshair(guiShader->ID);
+
+        if (isPaused) {
+            guiRenderer->renderPauseMenu(guiShader->ID);
+        } else if (!isChatOpen) {
+            guiRenderer->renderCrosshair(guiShader->ID);
+        }
 
         glfwSwapBuffers(window);
         glfwPollEvents();
