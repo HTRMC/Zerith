@@ -17,11 +17,7 @@ find_package(nlohmann_json CONFIG REQUIRED)
 
 file(GLOB_RECURSE SOURCES
         "src/*.cpp"
-        "src/blocks/*.cpp"
-        "src/world/*.cpp"
         "src/*.h"
-        "src/blocks/*.h"
-        "src/world/*.h"
 )
 
 # Create executable

@@ -15,6 +15,7 @@
 #include "blocks/BlockModel.h"
 #include "blocks/BlockType.h"
 #include "world/ World.h"
+#include "gui/GUIRenderer.h"
 
 #define SCREEN_WIDTH 1920
 #define SCREEN_HEIGHT 1080
@@ -347,8 +348,14 @@ private:
     }
 };
 
+Shader* guiShader;
+GUIRenderer* guiRenderer;
+
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
+    if (guiRenderer) {
+        guiRenderer->updateScreenSize(width, height);
+    }
 }
 
 // Add these global variables at the top of your file
@@ -816,6 +823,12 @@ int main() {
     glfwSetKeyCallback(window, key_callback);
     glfwSetCharCallback(window, character_callback);
 
+    // Initialize GUI components
+    guiShader = new Shader("shaders/gui_vertex_shader.glsl", "shaders/gui_fragment_shader.glsl");
+    guiShader->use();
+    guiShader->setInt("guiTexture", 15); // Texture unit 15 for GUI textures
+    guiRenderer = new GUIRenderer(SCREEN_WIDTH, SCREEN_HEIGHT);
+
     // Create and compile shaders
     Shader shader("shaders/vertex_shader.glsl", "shaders/fragment_shader.glsl");
 
@@ -1000,7 +1013,17 @@ int main() {
             std::cout << "\rChat: " << chatInput << std::endl << std::flush;
         }
 
+        // Render GUI elements (moved to here)
+        guiRenderer->renderCrosshair(guiShader->ID);
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    // Cleanup
+    delete guiShader;
+    delete guiRenderer;
+
+    glfwTerminate();
+    return 0;
 }
