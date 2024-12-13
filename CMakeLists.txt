@@ -39,3 +39,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
         nlohmann_json::nlohmann_json
         glad::glad
 )
+
+# Add the resource file
+if(WIN32)
+    target_sources(${PROJECT_NAME} PRIVATE resources.rc)
+endif()
