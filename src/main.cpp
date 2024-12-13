@@ -51,19 +51,30 @@ public:
 
     float mouseSensitivity;
 
+    enum class GameMode {
+        CREATIVE,
+        SPECTATOR
+    };
+
     enum class MovementMode {
         WALKING,
         FLYING
     };
 
+    GameMode currentGameMode = GameMode::CREATIVE;
     MovementMode currentMode = MovementMode::WALKING;
+
     bool isGrounded = false;
     float lastJumpTime = 0.0f;
     const float DOUBLE_JUMP_TIME = 0.3f; // Time window for double jump in seconds
     const float GRAVITY = -20.0f;
     float verticalVelocity = 0.0f;
     bool canFly = true; // Set to false for survival mode
-    const float EYE_HEIGHT = 1.6f; // Eyes are slightly below total height
+    const float EYE_HEIGHT = 1.62f;
+    const float PLAYER_HEIGHT = 1.8f;
+    const float PLAYER_WIDTH = 0.6f;
+    const float PLAYER_HALF_WIDTH = PLAYER_WIDTH / 2.0f;
+    const float PLAYER_HALF_HEIGHT = PLAYER_HEIGHT / 2.0f;
     const float JUMP_VELOCITY = 8.0f;
 
     void applyGravity(float deltaTime) {
@@ -106,18 +117,62 @@ public:
         }
     }
 
-    const float PLAYER_WIDTH = 0.6f; // Minecraft player is ~0.6 blocks wide
-    const float PLAYER_HEIGHT = 1.8f; // Minecraft player is ~1.8 blocks tall
+    void setGameMode(GameMode mode) {
+        currentGameMode = mode;
+
+        switch (currentGameMode) {
+            case GameMode::SPECTATOR:
+                currentMode = MovementMode::FLYING; // Force flying in spectator
+                velocity = glm::vec3(0.0f);
+                verticalVelocity = 0.0f;
+                break;
+
+            case GameMode::CREATIVE:
+                // Keep current movement mode but reset velocities
+                velocity = glm::vec3(0.0f);
+                verticalVelocity = 0.0f;
+                break;
+        }
+    }
+
+    bool canBreakBlocks() const {
+        return currentGameMode == GameMode::CREATIVE;
+    }
+
+    bool canPlaceBlocks() const {
+        return currentGameMode == GameMode::CREATIVE;
+    }
+
 
     AABB getBoundingBox() const {
-        glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
-        return AABB(position - halfExtents, position + halfExtents);
+        if (currentGameMode == GameMode::SPECTATOR) {
+            return AABB(glm::vec3(0.0f), glm::vec3(0.0f)); // Zero-sized box
+        }
+
+        // Calculate the player's feet position (offset from eye position)
+        glm::vec3 feetPos = position - glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
+
+        // Create the bounding box centered on the player's center of mass
+        glm::vec3 center = feetPos + glm::vec3(0.0f, PLAYER_HALF_HEIGHT, 0.0f);
+        glm::vec3 halfExtents(PLAYER_HALF_WIDTH, PLAYER_HALF_HEIGHT, PLAYER_HALF_WIDTH);
+
+        return AABB(center - halfExtents, center + halfExtents);
     }
 
     bool checkCollision(const glm::vec3 &newPosition) {
-        glm::vec3 playerPos = newPosition - glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
-        glm::vec3 halfExtents(PLAYER_WIDTH / 2.0f, PLAYER_HEIGHT / 2.0f, PLAYER_WIDTH / 2.0f);
-        AABB playerBox(playerPos - halfExtents, playerPos + halfExtents);
+        // Skip collision check in spectator mode
+        if (currentGameMode == GameMode::SPECTATOR) {
+            return false;
+        }
+
+        // Convert eye position to feet position for collision check
+        glm::vec3 feetPos = newPosition - glm::vec3(0.0f, EYE_HEIGHT, 0.0f);
+
+        // Create AABB for proposed position
+        glm::vec3 center = feetPos + glm::vec3(0.0f, PLAYER_HALF_HEIGHT, 0.0f);
+        glm::vec3 halfExtents(PLAYER_HALF_WIDTH, PLAYER_HALF_HEIGHT, PLAYER_HALF_WIDTH);
+        AABB playerBox(center - halfExtents, center + halfExtents);
+
         return world.checkCollision(playerBox);
     }
 
@@ -197,6 +252,12 @@ private:
 
         // Calculate new position but don't apply it yet
         glm::vec3 newPosition = position + velocity;
+
+        if (currentGameMode == GameMode::SPECTATOR) {
+            // In spectator mode, just update position directly
+            position = newPosition;
+            return;
+        }
 
         // Apply movement mode specific behavior
         if (currentMode == MovementMode::WALKING) {
@@ -348,8 +409,8 @@ private:
     }
 };
 
-Shader* guiShader;
-GUIRenderer* guiRenderer;
+Shader *guiShader;
+GUIRenderer *guiRenderer;
 
 void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
     glViewport(0, 0, width, height);
@@ -383,36 +444,45 @@ void character_callback(GLFWwindow *window, unsigned int codepoint) {
 
 // Add this function to process chat commands
 void processCommand(const std::string &command) {
-    // Remove the leading '/' if present
     if (command.empty() || command[0] != '/') return;
 
-    // Find the space between command and block name
-    size_t spacePos = command.find(' ', 1);
-    if (spacePos == std::string::npos) return;
+    std::istringstream iss(command.substr(1)); // Remove the leading '/'
+    std::string action;
+    iss >> action;
 
-    // Get command type (should be "give")
-    std::string action = command.substr(1, spacePos - 1);
-    if (action != "give") return; // Simple equality check, no transform needed
+    if (action == "give") {
+        std::string blockName;
+        iss >> blockName;
 
-    // Get block name directly - no need for lowercase transform
-    std::string blockName = command.substr(spacePos + 1);
+        static const std::unordered_map<std::string, BlockType> blockTypes = {
+            {"stone", BlockType::STONE},
+            {"dirt", BlockType::DIRT},
+            {"grass_block", BlockType::GRASS_BLOCK},
+            {"oak_planks", BlockType::OAK_PLANKS},
+            {"oak_slab", BlockType::OAK_SLAB},
+            {"oak_stairs", BlockType::OAK_STAIRS},
+            {"oak_log", BlockType::OAK_LOG},
+            {"glass", BlockType::GLASS}
+        };
 
-    // Use unordered_map for O(1) lookup
-    static const std::unordered_map<std::string, BlockType> blockTypes = {
-        {"stone", BlockType::STONE},
-        {"dirt", BlockType::DIRT},
-        {"grass_block", BlockType::GRASS_BLOCK},
-        {"oak_planks", BlockType::OAK_PLANKS},
-        {"oak_slab", BlockType::OAK_SLAB},
-        {"oak_stairs", BlockType::OAK_STAIRS},
-        {"oak_log", BlockType::OAK_LOG},
-        {"glass", BlockType::GLASS}
-    };
+        auto it = blockTypes.find(blockName);
+        if (it != blockTypes.end()) {
+            selectedBlockType = it->second;
+            std::cout << "Selected block type: " << blockName << std::endl;
+        }
+    }
+    else if (action == "gamemode") {
+        std::string mode;
+        iss >> mode;
 
-    auto it = blockTypes.find(blockName);
-    if (it != blockTypes.end()) {
-        selectedBlockType = it->second;
-        std::cout << "Selected block type: " << blockName << std::endl;
+        if (mode == "creative" || mode == "1") {
+            camera.setGameMode(Camera::GameMode::CREATIVE);
+            std::cout << "Game mode set to Creative" << std::endl;
+        }
+        else if (mode == "spectator" || mode == "3") {
+            camera.setGameMode(Camera::GameMode::SPECTATOR);
+            std::cout << "Game mode set to Spectator" << std::endl;
+        }
     }
 }
 
@@ -515,7 +585,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
         if (raycastBlock(camera.position, camera.front, 5.0f, blockPos, hitPos)) {
             Block *block = world.getBlock(blockPos.x, blockPos.y, blockPos.z);
             if (block) {
-                if (button == GLFW_MOUSE_BUTTON_LEFT) {
+                if (button == GLFW_MOUSE_BUTTON_LEFT && camera.canBreakBlocks()) {
                     // Break block
                     Block emptyBlock;
                     emptyBlock.exists = false;
@@ -556,7 +626,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
                                 southChunk->second.needsRemesh = true;
                         }
                     }
-                } else if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+                } else if (button == GLFW_MOUSE_BUTTON_RIGHT && camera.canPlaceBlocks()) {
                     // Calculate adjacent block position based on hit normal
                     glm::vec3 blockCenter = glm::vec3(blockPos) + glm::vec3(0.5f);
                     glm::vec3 normal = glm::normalize(hitPos - blockCenter);
