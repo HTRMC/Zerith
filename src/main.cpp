@@ -1208,6 +1208,8 @@ int main() {
             guiRenderer->renderCrosshair(guiShader->ID);
         }
 
+        guiRenderer->renderText(guiShader->ID, "0123456789", -0.5f, 0.0f, 0.1f);
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }

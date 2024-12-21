@@ -8,6 +8,9 @@
 // First, add these members to the GUIRenderer class in GUIRenderer.h
 class GUIRenderer {
 private:
+    unsigned int textVAO = 0;
+    unsigned int textVBO = 0;
+    unsigned int fontTexture;
     unsigned int VAO, VBO;
     unsigned int crosshairTexture;
     int screenWidth, screenHeight;
@@ -72,12 +75,33 @@ private:
         glEnableVertexAttribArray(1);
     }
 
+    struct CharInfo {
+        float x;      // X position in texture (in pixels)
+        float y;      // Y position in texture (in pixels)
+        float width;  // Width of character (normally 8)
+    };
+
+    std::unordered_map<char, CharInfo> charMap;
+
+    void initCharMap() {
+        // Numbers 0-9 at y=24
+        for(int i = 0; i <= 9; i++) {
+            charMap[static_cast<char>('0' + i)] = {
+                static_cast<float>(i * 8), // x position
+                24.0f,                     // y position
+                8.0f                       // width
+            };
+        }
+    }
+
 public:
     // Add these to the constructor initialization list
     GUIRenderer(int width, int height) : screenWidth(width), screenHeight(height) {
         initQuad();
         initButtons();
+        initCharMap();
         crosshairTexture = TextureManager::getTexture("gui/sprites/hud/crosshair");
+        fontTexture = TextureManager::getTexture("font/ascii");
     }
 
     void setPauseMenuOpen(bool open) {
@@ -258,5 +282,67 @@ public:
     void updateScreenSize(int width, int height) {
         screenWidth = width;
         screenHeight = height;
+    }
+
+    void renderText(unsigned int shaderId, const std::string& text, float x, float y, float scale) {
+        if (textVAO == 0) {
+            glGenVertexArrays(1, &textVAO);
+            glGenBuffers(1, &textVBO);
+
+            glBindVertexArray(textVAO);
+            glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+            glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 6 * 5, NULL, GL_DYNAMIC_DRAW);
+
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), 0);
+            glEnableVertexAttribArray(1);
+            glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+        }
+
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        glActiveTexture(GL_TEXTURE0 + GUI_TEXTURE_UNIT);
+        glBindTexture(GL_TEXTURE_2D, fontTexture);
+        glUniform1i(glGetUniformLocation(shaderId, "guiTexture"), GUI_TEXTURE_UNIT);
+        glUniform1i(glGetUniformLocation(shaderId, "isButton"), 0);
+
+        float aspectRatio = static_cast<float>(screenWidth) / screenHeight;
+        float widthScale = scale / aspectRatio;
+        const float texSize = 128.0f;
+
+        float currentX = x;
+
+        for(char c : text) {
+            auto it = charMap.find(c);
+            if(it == charMap.end()) continue;  // Skip unknown characters
+
+            const CharInfo& charInfo = it->second;
+
+            float u0 = charInfo.x / texSize;
+            float u1 = (charInfo.x + charInfo.width) / texSize;
+            float v1 = 1.0f - (charInfo.y / texSize);
+            float v0 = 1.0f - ((charInfo.y + charInfo.width) / texSize);
+
+            float vertices[6][5] = {
+                { currentX,              y + scale,     0.0f,  u0, v1 },    // top left
+                { currentX + widthScale, y,             0.0f,  u1, v0 },    // bottom right
+                { currentX,              y,             0.0f,  u0, v0 },    // bottom left
+
+                { currentX,              y + scale,     0.0f,  u0, v1 },    // top left
+                { currentX + widthScale, y + scale,     0.0f,  u1, v1 },    // top right
+                { currentX + widthScale, y,             0.0f,  u1, v0 }     // bottom right
+            };
+
+            glBindVertexArray(textVAO);
+            glBindBuffer(GL_ARRAY_BUFFER, textVBO);
+            glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertices), vertices);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            currentX += widthScale;
+        }
+
+        glBindVertexArray(0);
+        glDisable(GL_BLEND);
     }
 };
