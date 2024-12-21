@@ -456,6 +456,10 @@ void framebuffer_size_callback(GLFWwindow *window, int width, int height) {
 }
 
 // Add these global variables at the top of your file
+float fps = 0.0f;
+int frameCount = 0;
+float lastTime = 0.0f;
+
 Camera camera(glm::vec3(0.0f, 0.0f, 3.0f));
 float lastX = 400.0f;
 float lastY = 300.0f;
@@ -522,7 +526,13 @@ void processCommand(const std::string &command) {
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-        if (!isChatOpen) {
+        if (isChatOpen) {
+            // Close chat if it's open
+            chatInput.clear();
+            isChatOpen = false;
+            glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        } else {
+            // Handle pause menu
             isPaused = !isPaused;
             guiRenderer->setPauseMenuOpen(isPaused);
 
@@ -540,9 +550,9 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
                 glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
             }
         }
-    } else if (key == GLFW_KEY_T && action == GLFW_PRESS && !isChatOpen && !isPaused) {
+    } else if ((key == GLFW_KEY_T || key == GLFW_KEY_SLASH) && action == GLFW_PRESS && !isChatOpen && !isPaused) {
         isChatOpen = true;
-        chatInput = "/"; // Initialize with '/' when opening chat
+        chatInput = (key == GLFW_KEY_SLASH) ? "/" : ""; // Initialize with '/' only if slash key was pressed
         acceptingInput = false;
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
     } else if (isChatOpen && !acceptingInput) {
@@ -562,6 +572,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 }
 
 void cursor_position_callback(GLFWwindow *window, double xpos, double ypos) {
+    if (isChatOpen) return;
     if (isPaused) {
         guiRenderer->updateButtonHover(xpos, ypos);
     } else if (!isChatOpen) {
@@ -835,9 +846,7 @@ void mouse_button_callback(GLFWwindow *window, int button, int action, int mods)
 void processInput(GLFWwindow *window) {
     float currentFrame = static_cast<float>(glfwGetTime());
 
-    if (isChatOpen) {
-        return; // Don't process movement when chat is open
-    }
+    if (isChatOpen) return;
 
     // Only update game time and process movement if not paused
     if (!isPaused) {
@@ -995,6 +1004,7 @@ int main() {
     }
 
     // Configure global OpenGL state
+    glfwSwapInterval(0);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
@@ -1196,7 +1206,43 @@ int main() {
         glDepthMask(GL_TRUE);
 
         if (isChatOpen) {
-            std::cout << "\rChat: " << chatInput << std::endl << std::flush;
+            // Render chat input with background
+            glUseProgram(guiShader->ID);
+
+            // Save OpenGL state
+            GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+            GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
+
+            // Setup for GUI rendering
+            glDisable(GL_DEPTH_TEST);
+            glDisable(GL_CULL_FACE);
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+            // Draw chat background
+            glBindVertexArray(guiRenderer->getButtonVAO());
+            glUniform1i(glGetUniformLocation(guiShader->ID, "isButton"), 1);
+
+            // Position the chat box at the bottom left
+            glm::mat4 chatBgModel = glm::mat4(1.0f);
+            chatBgModel = glm::translate(chatBgModel, glm::vec3(-0.7f, -0.8f, 0.0f));
+            chatBgModel = glm::scale(chatBgModel, glm::vec3(0.6f, 0.1f, 1.0f));
+
+            glUniformMatrix4fv(glGetUniformLocation(guiShader->ID, "model"), 1, GL_FALSE, glm::value_ptr(chatBgModel));
+            glUniform4f(glGetUniformLocation(guiShader->ID, "color"), 0.0f, 0.0f, 0.0f, 0.5f);
+
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            // Render chat text
+            std::string displayText = chatInput;
+            if (static_cast<int>(glfwGetTime() * 2) % 2) { // Blink cursor every 0.5 seconds
+                displayText += "_";
+            }
+            guiRenderer->renderText(guiShader->ID, displayText, -0.95f, -0.85f, 0.05f);
+
+            // Restore OpenGL state
+            if (depthTestWasEnabled) glEnable(GL_DEPTH_TEST);
+            if (cullFaceEnabled) glEnable(GL_CULL_FACE);
         }
 
         // Render GUI elements (moved to here)
@@ -1208,7 +1254,23 @@ int main() {
             guiRenderer->renderCrosshair(guiShader->ID);
         }
 
-        guiRenderer->renderText(guiShader->ID, "0123456789", -0.5f, 0.0f, 0.1f);
+        // guiRenderer->renderText(guiShader->ID, R"(!"#$%&'()*+,-./))", -0.5f, 0.15f, 0.1f);
+        // guiRenderer->renderText(guiShader->ID, R"(0123456789:;<=>?)", -0.5f, 0.0f, 0.1f);
+        // guiRenderer->renderText(guiShader->ID, R"(@ABCDEFGHIJKLMNO)", -0.5f, -0.15f, 0.1f);
+        // guiRenderer->renderText(guiShader->ID, R"(PQRSTUVWXYZ[|]^_)", -0.5f, -0.3f, 0.1f);
+        // guiRenderer->renderText(guiShader->ID, R"(`abcdefghijklmno)", -0.5f, -0.45f, 0.1f);
+        // guiRenderer->renderText(guiShader->ID, R"(pqrstuvwxyz{|}~)", -0.5f, -0.6f, 0.1f);
+
+        frameCount++;
+        float currentTime = static_cast<float>(glfwGetTime());
+        if (currentTime - lastTime >= 1.0f) {
+            fps = frameCount / (currentTime - lastTime) + 1;
+            frameCount = 0;
+            lastTime = currentTime;
+        }
+
+        std::string fpsText = "FPS: " + std::to_string(static_cast<int>(fps));
+        guiRenderer->renderText(guiShader->ID, fpsText, -0.95f, 0.9f, 0.05f);
 
         glfwSwapBuffers(window);
         glfwPollEvents();

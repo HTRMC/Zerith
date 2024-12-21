@@ -84,13 +84,31 @@ private:
     std::unordered_map<char, CharInfo> charMap;
 
     void initCharMap() {
-        // Numbers 0-9 at y=24
-        for(int i = 0; i <= 9; i++) {
-            charMap[static_cast<char>('0' + i)] = {
-                static_cast<float>(i * 8), // x position
-                24.0f,                     // y position
-                8.0f                       // width
-            };
+        // Structure to define character ranges
+        struct CharRange {
+            char start;
+            char end;
+            float baseX;
+            float baseY;
+        };
+
+        // Define all character ranges
+        const CharRange ranges[] = {
+            {' ', '/', 0.0f, 16.0f},    // symbols
+            {'0', '?', 0.0f, 24.0f},    // numbers and symbols
+            {'@', 'O', 0.0f, 32.0f},    // @ and first half of uppercase
+            {'P', '_', 0.0f, 40.0f},    // second half of uppercase and symbols
+            {'`', 'o', 0.0f, 48.0f},    // backtick and first half of lowercase
+            {'p', '~', 0.0f, 56.0f}     // second half of lowercase and symbols
+        };
+
+        // Initialize all ranges
+        for (const auto& range : ranges) {
+            float x = range.baseX;
+            for (char c = range.start; c <= range.end; ++c) {
+                charMap[c] = {x, range.baseY, 8.0f};
+                x += 8.0f;
+            }
         }
     }
 
@@ -282,6 +300,10 @@ public:
     void updateScreenSize(int width, int height) {
         screenWidth = width;
         screenHeight = height;
+    }
+
+    unsigned int getButtonVAO() const {
+        return buttonVAO;
     }
 
     void renderText(unsigned int shaderId, const std::string& text, float x, float y, float scale) {
