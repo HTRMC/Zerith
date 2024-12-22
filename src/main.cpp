@@ -61,7 +61,9 @@ public:
     float mouseSensitivity;
 
     enum class GameMode {
+        SURVIVAL,
         CREATIVE,
+        ADVENTURE,
         SPECTATOR
     };
 
@@ -1075,6 +1077,7 @@ int main() {
 
     // Render loop
     while (!glfwWindowShouldClose(window)) {
+        world.update(camera.position);
         processInput(window);
 
         glClearColor(0.4157f, 0.9961f, 0.9961f, 1.0f);

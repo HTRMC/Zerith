@@ -1,5 +1,8 @@
 // World.h
 #pragma once
+#include <queue>
+#include <set>
+
 #include "Chunk.h"
 #include <unordered_map>
 #include <glm/glm.hpp>
@@ -26,22 +29,116 @@ struct ChunkCoordHash {
     }
 };
 
+struct ChunkCoordCompare {
+    bool operator()(const glm::ivec2& a, const glm::ivec2& b) const {
+        if (a.x != b.x) return a.x < b.x;
+        return a.y < b.y;
+    }
+};
+
 class World {
 public:
-    static const int WORLD_SIZE = 2; // 5x5 chunks
+    static const int RENDER_DISTANCE = 8; // Number of chunks to render in each direction
     std::unordered_map<glm::ivec2, Chunk, ChunkCoordHash> chunks;
+    std::queue<glm::ivec2> chunkLoadQueue;
+    std::set<glm::ivec2, ChunkCoordCompare> loadedChunks;
 
     World() {
         // Generate 5x5 chunks centered around (0,0)
-        int offset = WORLD_SIZE / 2;
-        for (int x = -offset; x <= offset; x++) {
-            for (int z = -offset; z <= offset; z++) {
+        int spawnRadius = 2;
+        for (int x = -spawnRadius; x <= spawnRadius; x++) {
+            for (int z = -spawnRadius; z <= spawnRadius; z++) {
+                loadChunk(glm::ivec2(x, z));
+            }
+        }
+    }
+
+    void update(const glm::vec3& playerPos) {
+        // Convert player position to chunk coordinates
+        int playerChunkX = floor(playerPos.x / Chunk::CHUNK_SIZE);
+        int playerChunkZ = floor(playerPos.z / Chunk::CHUNK_SIZE);
+
+        // Queue chunks to load
+        for (int x = playerChunkX - RENDER_DISTANCE; x <= playerChunkX + RENDER_DISTANCE; x++) {
+            for (int z = playerChunkZ - RENDER_DISTANCE; z <= playerChunkZ + RENDER_DISTANCE; z++) {
                 glm::ivec2 chunkPos(x, z);
-                // Use emplace with constructed Chunk
-                auto [it, success] = chunks.emplace(chunkPos, Chunk(x, z));
-                if (success) {
-                    it->second.generateTerrain();
+                if (shouldLoadChunk(chunkPos, glm::ivec2(playerChunkX, playerChunkZ))) {
+                    queueChunkLoad(chunkPos);
                 }
+            }
+        }
+
+        // Process chunk loading queue (limit per frame)
+        int chunksToLoadPerFrame = 2;
+        while (!chunkLoadQueue.empty() && chunksToLoadPerFrame > 0) {
+            glm::ivec2 chunkPos = chunkLoadQueue.front();
+            chunkLoadQueue.pop();
+            loadChunk(chunkPos);
+            chunksToLoadPerFrame--;
+        }
+
+        // Unload distant chunks
+        std::vector<glm::ivec2> chunksToUnload;
+        for (const auto& chunk : chunks) {
+            if (!shouldKeepChunk(chunk.first, glm::ivec2(playerChunkX, playerChunkZ))) {
+                chunksToUnload.push_back(chunk.first);
+            }
+        }
+
+        for (const auto& pos : chunksToUnload) {
+            unloadChunk(pos);
+        }
+    }
+
+    bool shouldLoadChunk(const glm::ivec2& chunkPos, const glm::ivec2& playerChunkPos) const {
+        // Check if the chunk is within render distance and not already loaded
+        float distance = glm::length(glm::vec2(chunkPos - playerChunkPos));
+        return distance <= RENDER_DISTANCE && chunks.find(chunkPos) == chunks.end();
+    }
+
+    bool shouldKeepChunk(const glm::ivec2& chunkPos, const glm::ivec2& playerChunkPos) const {
+        float distance = glm::length(glm::vec2(chunkPos - playerChunkPos));
+        return distance <= RENDER_DISTANCE + 2; // Add small buffer to prevent pop-in
+    }
+
+    void queueChunkLoad(const glm::ivec2& pos) {
+        if (loadedChunks.find(pos) == loadedChunks.end()) {
+            chunkLoadQueue.push(pos);
+            loadedChunks.insert(pos);
+        }
+    }
+
+    void loadChunk(const glm::ivec2& pos) {
+        if (chunks.find(pos) == chunks.end()) {
+            chunks.emplace(pos, Chunk(pos.x, pos.y));
+            chunks[pos].generateTerrain();
+
+            // Update neighboring chunks' mesh
+            updateNeighboringChunks(pos);
+        }
+    }
+
+    void unloadChunk(const glm::ivec2& pos) {
+        chunks.erase(pos);
+        loadedChunks.erase(pos);
+
+        // Update neighboring chunks' mesh
+        updateNeighboringChunks(pos);
+    }
+
+    void updateNeighboringChunks(const glm::ivec2& pos) {
+        // Update meshes of neighboring chunks
+        const std::array<glm::ivec2, 4> neighbors = {
+            glm::ivec2(pos.x + 1, pos.y),
+            glm::ivec2(pos.x - 1, pos.y),
+            glm::ivec2(pos.x, pos.y + 1),
+            glm::ivec2(pos.x, pos.y - 1)
+        };
+
+        for (const auto& neighborPos : neighbors) {
+            auto it = chunks.find(neighborPos);
+            if (it != chunks.end()) {
+                it->second.needsRemesh = true;
             }
         }
     }
