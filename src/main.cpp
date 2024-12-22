@@ -61,10 +61,10 @@ public:
     float mouseSensitivity;
 
     enum class GameMode {
-        SURVIVAL,
-        CREATIVE,
-        ADVENTURE,
-        SPECTATOR
+        SURVIVAL = 0,
+        CREATIVE = 1,
+        ADVENTURE = 2,
+        SPECTATOR = 3
     };
 
     enum class MovementMode {
@@ -87,6 +87,69 @@ public:
     const float PLAYER_HALF_WIDTH = PLAYER_WIDTH / 2.0f;
     const float PLAYER_HALF_HEIGHT = PLAYER_HEIGHT / 2.0f;
     const float JUMP_VELOCITY = 8.0f;
+
+    void setGameMode(GameMode mode) {
+        currentGameMode = mode;
+
+        switch (currentGameMode) {
+            case GameMode::SURVIVAL:
+            currentMode = MovementMode::WALKING;
+            canFly = false;
+            velocity = glm::vec3(0.0f);
+            verticalVelocity = 0.0f;
+            break;
+
+            case GameMode::CREATIVE:
+            canFly = true;
+            velocity = glm::vec3(0.0f);
+            verticalVelocity = 0.0f;
+            break;
+
+            case GameMode::ADVENTURE:
+                currentMode = MovementMode::WALKING;
+            canFly = false;
+            velocity = glm::vec3(0.0f);
+            verticalVelocity = 0.0f;
+            break;
+
+            case GameMode::SPECTATOR:
+                currentMode = MovementMode::FLYING;
+            canFly = true;
+            velocity = glm::vec3(0.0f);
+            verticalVelocity = 0.0f;
+            break;
+        }
+    }
+
+    bool canBreakBlocks() const {
+        switch (currentGameMode) {
+            case GameMode::CREATIVE:
+                return true;
+            case GameMode::SURVIVAL:
+                return true;
+            case GameMode::ADVENTURE:
+                return false;
+            case GameMode::SPECTATOR:
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    bool canPlaceBlocks() const {
+        switch (currentGameMode) {
+            case GameMode::CREATIVE:
+                return true;
+            case GameMode::SURVIVAL:
+                return true;
+            case GameMode::ADVENTURE:
+                return false;
+            case GameMode::SPECTATOR:
+                return false;
+            default:
+                return false;
+        }
+    }
 
     void onPause() {
         // Store the current state when pausing
@@ -147,33 +210,6 @@ public:
             lastJumpTime = currentTime;
         }
     }
-
-    void setGameMode(GameMode mode) {
-        currentGameMode = mode;
-
-        switch (currentGameMode) {
-            case GameMode::SPECTATOR:
-                currentMode = MovementMode::FLYING; // Force flying in spectator
-                velocity = glm::vec3(0.0f);
-                verticalVelocity = 0.0f;
-                break;
-
-            case GameMode::CREATIVE:
-                // Keep current movement mode but reset velocities
-                velocity = glm::vec3(0.0f);
-                verticalVelocity = 0.0f;
-                break;
-        }
-    }
-
-    bool canBreakBlocks() const {
-        return currentGameMode == GameMode::CREATIVE;
-    }
-
-    bool canPlaceBlocks() const {
-        return currentGameMode == GameMode::CREATIVE;
-    }
-
 
     AABB getBoundingBox() const {
         if (currentGameMode == GameMode::SPECTATOR) {
@@ -516,12 +552,24 @@ void processCommand(const std::string &command) {
         std::string mode;
         iss >> mode;
 
-        if (mode == "creative" || mode == "1") {
+        if (mode == "survival" || mode == "0") {
+            camera.setGameMode(Camera::GameMode::SURVIVAL);
+            std::cout << "Game mode set to Survival" << std::endl;
+        }
+        else if (mode == "creative" || mode == "1") {
             camera.setGameMode(Camera::GameMode::CREATIVE);
             std::cout << "Game mode set to Creative" << std::endl;
-        } else if (mode == "spectator" || mode == "3") {
+        }
+        else if (mode == "adventure" || mode == "2") {
+            camera.setGameMode(Camera::GameMode::ADVENTURE);
+            std::cout << "Game mode set to Adventure" << std::endl;
+        }
+        else if (mode == "spectator" || mode == "3") {
             camera.setGameMode(Camera::GameMode::SPECTATOR);
             std::cout << "Game mode set to Spectator" << std::endl;
+        }
+        else {
+            std::cout << "Invalid game mode: " << mode << std::endl;
         }
     }
 }
@@ -886,23 +934,36 @@ void processInput(GLFWwindow *window) {
         static bool spaceWasPressed = false;
         bool spaceIsPressed = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
 
-        if (spaceIsPressed && !spaceWasPressed) {
-            // Handle jumping for walking mode
-            if (camera.currentMode == Camera::MovementMode::WALKING) {
-                camera.jump(gameTime);  // Use gameTime instead of currentFrame
-            }
+        if (camera.currentGameMode == Camera::GameMode::SPECTATOR) {
+            // Always allow flying in SPECTATOR mode
+            camera.currentMode = Camera::MovementMode::FLYING;
 
-            // Detect double-tap for flying toggle
-            if (gameTime - lastSpacePressTime < DOUBLE_TAP_THRESHOLD) {
-                if (camera.currentMode == Camera::MovementMode::FLYING) {
-                    camera.currentMode = Camera::MovementMode::WALKING;
-                } else {
-                    camera.currentMode = Camera::MovementMode::FLYING;
-                }
+            // Handle vertical movement (space for up, shift for down)
+            if (spaceIsPressed) {
+                moveDir += camera.worldUp;  // Move up
             }
-            lastSpacePressTime = gameTime;  // Use gameTime instead of currentFrame
+            if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+                moveDir -= camera.worldUp;  // Move down
+            }
+        } else {
+            if (spaceIsPressed && !spaceWasPressed) {
+                // Handle jumping for walking mode
+                if (camera.currentMode == Camera::MovementMode::WALKING) {
+                    camera.jump(gameTime);  // Use gameTime instead of currentFrame
+                }
+
+                // Detect double-tap for flying toggle
+                if (camera.canFly && gameTime - lastSpacePressTime < DOUBLE_TAP_THRESHOLD) {
+                    if (camera.currentMode == Camera::MovementMode::FLYING) {
+                        camera.currentMode = Camera::MovementMode::WALKING;
+                    } else {
+                        camera.currentMode = Camera::MovementMode::FLYING;
+                    }
+                }
+                lastSpacePressTime = gameTime;  // Use gameTime instead of currentFrame
+            }
+            spaceWasPressed = spaceIsPressed;
         }
-        spaceWasPressed = spaceIsPressed;
 
         // Handle flying vertical movement
         if (camera.currentMode == Camera::MovementMode::FLYING) {
