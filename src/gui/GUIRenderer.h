@@ -202,6 +202,9 @@ public:
         // Save current OpenGL state
         GLboolean depthTestWasEnabled = glIsEnabled(GL_DEPTH_TEST);
         GLboolean cullFaceEnabled = glIsEnabled(GL_CULL_FACE);
+        GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+        GLint currentVAO;
+        glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &currentVAO);
 
         // Setup for GUI rendering
         glDisable(GL_DEPTH_TEST);
@@ -237,11 +240,27 @@ public:
             }
 
             glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            // Render button text
+            // Save current OpenGL state
+            GLint currentVAO;
+            glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &currentVAO);
+
+            // Calculate the text position to center it on the button
+            float textScale = 0.05f;
+            float textWidth = button.text.length() * textScale * 0.5f; // Approximate width of text
+            float textX = button.x - textWidth / 2.0f;
+            float textY = button.y - textScale / 2.0f;
+            renderText(shaderProgram, button.text, textX, textY, textScale);
+
+            // Restore OpenGL state
+            glBindVertexArray(currentVAO);
         }
 
         // Restore OpenGL state
         if (depthTestWasEnabled) glEnable(GL_DEPTH_TEST);
         if (cullFaceEnabled) glEnable(GL_CULL_FACE);
+        if (!blendWasEnabled) glDisable(GL_BLEND);
     }
 
     bool handlePauseMenuClick(double xpos, double ypos) {
