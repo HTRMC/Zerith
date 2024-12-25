@@ -91,6 +91,8 @@ private:
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();
+    void drawFrame(size_t currentFrame);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
     bool checkValidationLayerSupport();
     void mainLoop();
     void cleanup();
