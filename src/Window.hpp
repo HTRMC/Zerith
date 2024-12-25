@@ -20,6 +20,9 @@ public:
     VkSurfaceKHR createSurface(VkInstance instance);
     void pollEvents();
 
+    int getWidth() const { return width; }
+    int getHeight() const { return height; }
+
 private:
     int width;
     int height;
