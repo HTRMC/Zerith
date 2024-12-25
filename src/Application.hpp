@@ -36,6 +36,9 @@ private:
     VkRenderPass renderPass;
     VkPipelineLayout pipelineLayout;
     VkPipeline graphicsPipeline;
+    std::vector<VkFramebuffer> swapChainFramebuffers;
+    VkCommandPool commandPool;
+    std::vector<VkCommandBuffer> commandBuffers;
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -80,6 +83,9 @@ private:
     void createGraphicsPipeline();
     static std::vector<char> readFile(const std::string& filename);
     VkShaderModule createShaderModule(const std::vector<char>& code);
+    void createFramebuffers();
+    void createCommandPool();
+    void createCommandBuffers();
     bool checkValidationLayerSupport();
     void mainLoop();
     void cleanup();
