@@ -8,6 +8,7 @@
 #include <optional>
 #include <algorithm>
 #include <set>
+#include <fstream>
 
 #include "Window.hpp"
 
@@ -32,6 +33,9 @@ private:
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
+    VkRenderPass renderPass;
+    VkPipelineLayout pipelineLayout;
+    VkPipeline graphicsPipeline;
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -72,6 +76,10 @@ private:
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+    void createRenderPass();
+    void createGraphicsPipeline();
+    static std::vector<char> readFile(const std::string& filename);
+    VkShaderModule createShaderModule(const std::vector<char>& code);
     bool checkValidationLayerSupport();
     void mainLoop();
     void cleanup();
