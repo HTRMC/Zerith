@@ -39,6 +39,10 @@ private:
     std::vector<VkFramebuffer> swapChainFramebuffers;
     VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
+    static constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+    std::vector<VkSemaphore> imageAvailableSemaphores;
+    std::vector<VkSemaphore> renderFinishedSemaphores;
+    std::vector<VkFence> inFlightFences;
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -86,6 +90,7 @@ private:
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffers();
+    void createSyncObjects();
     bool checkValidationLayerSupport();
     void mainLoop();
     void cleanup();
