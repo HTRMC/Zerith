@@ -28,8 +28,11 @@ else()
     add_executable(Zerith ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
 endif()
 
-# Link Vulkan
-target_link_libraries(Zerith Vulkan::Vulkan)
+if(UNIX)
+    target_link_libraries(Zerith Vulkan::Vulkan xcb)
+else()
+    target_link_libraries(Zerith Vulkan::Vulkan)
+endif()
 
 # Shader Compilation
 set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)
