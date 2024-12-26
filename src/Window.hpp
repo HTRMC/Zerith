@@ -8,6 +8,7 @@
 #define VK_USE_PLATFORM_XCB_KHR
 #include <xcb/xcb.h>
 #include <xcb/xcb_image.h>
+#include <cstring>
 #endif
 
 #include <string>
