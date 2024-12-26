@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <set>
 #include <fstream>
+#include <chrono>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "Window.hpp"
 
@@ -45,6 +48,17 @@ private:
     std::vector<VkFence> inFlightFences;
     std::string getExecutablePath();
     std::string appPath;
+    VkDescriptorSetLayout descriptorSetLayout;
+    VkDescriptorPool descriptorPool;
+    std::vector<VkDescriptorSet> descriptorSets;
+    std::vector<VkBuffer> uniformBuffers;
+    std::vector<VkDeviceMemory> uniformBuffersMemory;
+    std::chrono::high_resolution_clock::time_point startTime;
+
+    struct UniformBufferObject {
+        glm::mat4 view;
+        glm::mat4 proj;
+    };
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -94,7 +108,16 @@ private:
     void createCommandBuffers();
     void createSyncObjects();
     void drawFrame(size_t currentFrame);
-    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
+    void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex, uint32_t currentFrame);
+    void createDescriptorSetLayout();
+    void createUniformBuffers();
+    void createDescriptorPool();
+    void createDescriptorSets();
+    void updateUniformBuffer(uint32_t currentImage);
+    uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
+    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
+                     VkMemoryPropertyFlags properties, VkBuffer& buffer,
+                     VkDeviceMemory& bufferMemory);
     bool checkValidationLayerSupport();
     void mainLoop();
     void cleanup();

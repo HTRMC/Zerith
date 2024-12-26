@@ -10,6 +10,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/Zerith)
 
 # Find Vulkan
 find_package(Vulkan REQUIRED)
+find_package(glm REQUIRED)
 
 file(GLOB SOURCES "src/*.cpp")
 file(GLOB HEADERS "src/*.hpp")
@@ -29,9 +30,9 @@ else()
 endif()
 
 if(UNIX)
-    target_link_libraries(Zerith Vulkan::Vulkan xcb)
+    target_link_libraries(Zerith Vulkan::Vulkan glm::glm xcb)
 else()
-    target_link_libraries(Zerith Vulkan::Vulkan)
+    target_link_libraries(Zerith Vulkan::Vulkan glm::glm)
 endif()
 
 # Shader Compilation
