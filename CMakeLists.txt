@@ -79,7 +79,7 @@ install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/resources
         COMPONENT application)
 
 install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders
-        DESTINATION .
+        DESTINATION bin
         COMPONENT application)
 
 #=======================================================

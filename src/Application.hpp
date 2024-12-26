@@ -43,6 +43,8 @@ private:
     std::vector<VkSemaphore> imageAvailableSemaphores;
     std::vector<VkSemaphore> renderFinishedSemaphores;
     std::vector<VkFence> inFlightFences;
+    std::string getExecutablePath();
+    std::string appPath;
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;

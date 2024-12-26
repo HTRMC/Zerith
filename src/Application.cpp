@@ -9,7 +9,8 @@
 #endif
 
 Application::Application() : window(800, 600), physicalDevice(VK_NULL_HANDLE) {
-    window.setIcon("resources/x256.ico");
+    appPath = getExecutablePath();
+    window.setIcon(appPath + "/resources/x256.ico");
 }
 
 Application::~Application() {
@@ -545,9 +546,23 @@ void Application::createRenderPass() {
     }
 }
 
+std::string Application::getExecutablePath() {
+#ifdef _WIN32
+    char path[MAX_PATH];
+    GetModuleFileNameA(NULL, path, MAX_PATH);
+    std::string execPath(path);
+    return execPath.substr(0, execPath.find_last_of("\\/"));
+#else
+    char result[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
+    std::string execPath(result, (count > 0) ? count : 0);
+    return execPath.substr(0, execPath.find_last_of("/"));
+#endif
+}
+
 void Application::createGraphicsPipeline() {
-    auto vertShaderCode = readFile("shaders/shader.vert.spv");
-    auto fragShaderCode = readFile("shaders/shader.frag.spv");
+    auto vertShaderCode = readFile(appPath + "/shaders/shader.vert.spv");
+    auto fragShaderCode = readFile(appPath + "/shaders/shader.frag.spv");
 
     VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
     VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
