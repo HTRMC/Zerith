@@ -1,4 +1,4 @@
-# Zerith Installation Guide
+# Installation
 
 ## Windows
 
