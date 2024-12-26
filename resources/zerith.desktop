@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Zerith
 Comment=Vulkan Application
-Exec=/usr/bin/resources/zerith
+Exec=Zerith
 Icon=zerith
 Terminal=false
 Type=Application
