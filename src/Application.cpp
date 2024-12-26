@@ -6,6 +6,8 @@
     #include <vulkan/vulkan_win32.h>
 #else
     #include <vulkan/vulkan_xcb.h>
+    #include <unistd.h>
+    #include <linux/limits.h>
 #endif
 
 Application::Application() : window(800, 600), physicalDevice(VK_NULL_HANDLE) {
