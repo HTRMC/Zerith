@@ -130,7 +130,7 @@ else()
             DESTINATION share/applications
             COMPONENT application)
 
-    install(FILES "${CMAKE_SOURCE_DIR}/resources/x256.png"
+    install(FILES "${CMAKE_SOURCE_DIR}/resources/Zerith.png"
             DESTINATION share/icons/hicolor/256x256/apps
             RENAME zerith.png
             COMPONENT application)
