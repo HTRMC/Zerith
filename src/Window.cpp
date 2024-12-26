@@ -11,17 +11,27 @@ Window::Window(int width, int height) : width(width), height(height) {
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = "ZerithWindow";
+    wc.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+    wc.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
     RegisterClassEx(&wc);
+
+    int screenWidth = GetSystemMetrics(SM_CXSCREEN);
+    int screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
     RECT rect = {0, 0, width, height};
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
+
+    int windowWidth = rect.right - rect.left;
+    int windowHeight = rect.bottom - rect.top;
+    int posX = (screenWidth - windowWidth) / 2;
+    int posY = (screenHeight - windowHeight) / 2;
 
     hwnd = CreateWindowEx(
         0,
         "ZerithWindow",
         "Zerith",
         WS_OVERLAPPEDWINDOW,
-        CW_USEDEFAULT, CW_USEDEFAULT,
+        posX, posY,
         rect.right - rect.left,
         rect.bottom - rect.top,
         nullptr,
@@ -33,7 +43,27 @@ Window::Window(int width, int height) : width(width), height(height) {
     ShowWindow(hwnd, SW_SHOW);
 }
 
+void Window::setIcon(const std::string& iconPath) {
+    // Load icon from file
+    hIcon = (HICON)LoadImage(
+        NULL,
+        iconPath.c_str(),
+        IMAGE_ICON,
+        256, 256,  // Use actual size
+        LR_LOADFROMFILE
+    );
+
+    if (hIcon) {
+        SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+        SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+    }
+}
+
+
 Window::~Window() {
+    if (hIcon) {
+        DestroyIcon(hIcon);
+    }
     DestroyWindow(hwnd);
     UnregisterClass("ZerithWindow", hInstance);
 }
@@ -82,12 +112,15 @@ Window::Window(int width, int height) : width(width), height(height) {
         XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS
     };
 
+    int posX = (screen->width_in_pixels - width) / 2;
+    int posY = (screen->height_in_pixels - height) / 2;
+
     xcb_create_window(
         connection,
         XCB_COPY_FROM_PARENT,
         window,
         screen->root,
-        0, 0,
+        posX, posY,
         width, height,
         0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT,
@@ -98,6 +131,40 @@ Window::Window(int width, int height) : width(width), height(height) {
 
     xcb_map_window(connection, window);
     xcb_flush(connection);
+}
+
+void Window::setWindowIcon(const uint32_t* iconData, int width, int height) {
+    xcb_intern_atom_cookie_t cookie = xcb_intern_atom(
+        connection,
+        0,
+        strlen("_NET_WM_ICON"),
+        "_NET_WM_ICON"
+    );
+
+    xcb_intern_atom_reply_t* reply = xcb_intern_atom_reply(
+        connection,
+        cookie,
+        nullptr
+    );
+
+    if (reply) {
+        xcb_change_property(
+            connection,
+            XCB_PROP_MODE_REPLACE,
+            window,
+            reply->atom,
+            XCB_ATOM_CARDINAL,
+            32,
+            width * height + 2,
+            iconData
+        );
+
+        free(reply);
+    }
+}
+
+void Window::setIcon(const std::string& iconPath) {
+    // TODO: Implement icon setting for XCB
 }
 
 Window::~Window() {

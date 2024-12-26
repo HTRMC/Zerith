@@ -9,6 +9,7 @@
 #endif
 
 Application::Application() : window(800, 600), physicalDevice(VK_NULL_HANDLE) {
+    window.setIcon("resources/x256.ico");
 }
 
 Application::~Application() {

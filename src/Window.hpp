@@ -7,8 +7,10 @@
 #else
 #define VK_USE_PLATFORM_XCB_KHR
 #include <xcb/xcb.h>
+#include <xcb/xcb_image.h>
 #endif
 
+#include <string>
 #include <vulkan/vulkan.h>
 
 class Window {
@@ -19,6 +21,7 @@ public:
     bool shouldClose() const { return windowShouldClose; }
     VkSurfaceKHR createSurface(VkInstance instance);
     void pollEvents();
+    void setIcon(const std::string& iconPath);
 
     int getWidth() const { return width; }
     int getHeight() const { return height; }
@@ -31,10 +34,12 @@ private:
 #ifdef _WIN32
     HINSTANCE hInstance;
     HWND hwnd;
+    HICON hIcon;
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 #else
     xcb_connection_t* connection;
     xcb_window_t window;
     xcb_screen_t* screen;
+    void setWindowIcon(const uint32_t* iconData, int width, int height);
 #endif
 };

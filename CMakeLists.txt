@@ -3,20 +3,37 @@ project(Zerith)
 
 set(CMAKE_CXX_STANDARD 23)
 
+# Set output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/Zerith)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/Zerith)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/Zerith)
+
 # Find Vulkan
 find_package(Vulkan REQUIRED)
 
 file(GLOB SOURCES "src/*.cpp")
 file(GLOB HEADERS "src/*.hpp")
 
-add_executable(Zerith ${SOURCES} ${HEADERS})
+# Copy resources to output directory
+file(COPY ${CMAKE_SOURCE_DIR}/resources DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+
+if(WIN32)
+    enable_language(RC)
+    set(WIN_RESOURCES ${CMAKE_SOURCE_DIR}/resources/resources.rc)
+endif()
+
+if(WIN32)
+    add_executable(Zerith WIN32 ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
+else()
+    add_executable(Zerith ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
+endif()
 
 # Link Vulkan
 target_link_libraries(Zerith Vulkan::Vulkan)
 
 # Shader Compilation
 set(SHADER_DIR ${CMAKE_SOURCE_DIR}/shaders)
-set(BUILD_SHADER_DIR ${CMAKE_BINARY_DIR}/shaders)
+set(BUILD_SHADER_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders)
 
 file(GLOB SHADERS "${SHADER_DIR}/*.vert" "${SHADER_DIR}/*.frag")
 

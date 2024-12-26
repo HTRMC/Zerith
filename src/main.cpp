@@ -1,7 +1,12 @@
 // main.cpp
 #include "Application.hpp"
 
-int main() {
+#ifdef _WIN32
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
+#else
+int main()
+#endif
+{
     Application app;
 
     try {
