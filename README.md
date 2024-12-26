@@ -1,25 +1,47 @@
-# Zerith
+# Zerith Installation Guide
 
-# 1. Install dependencies
-```sudo apt update```
+## Windows
 
-```sudo apt install build-essential cmake vulkan-tools libvulkan-dev libxcb1-dev glslang-tools```
+### Prerequisites
+1. Install [Visual Studio 2022](https://visualstudio.microsoft.com/) with C++ development tools
+2. Install [CMake](https://cmake.org/download/)
+3. Install [Vulkan SDK (1.3.296)](https://vulkan.lunarg.com/sdk/home)
 
-# 2. Build project
-```mkdir -p build/Release```
+### Building
+```powershell
+mkdir build\Release
+cd build\Release
+cmake ..\.. -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
 
-```cd build/Release```
+### Installation
+1. Run the generated installer in `build\Release\Zerith\Zerith-0.0.1-win64.exe`
 
-```cmake ../.. -DCMAKE_BUILD_TYPE=Release```
+## Linux
 
-```make -j$(nproc)```
+### Prerequisites
+```bash
+sudo apt update
+sudo apt install build-essential cmake vulkan-tools libvulkan-dev libxcb1-dev glslang-tools
+```
 
-# 3. Create installer
-```cpack -G DEB```
+### Building
+```bash
+mkdir -p build/Release
+cd build/Release
+cmake ../.. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
 
-# 4. Install package
-```sudo dpkg -i Zerith/Zerith-0.0.1-Linux.deb```
+### Installation
+```bash
+cpack -G DEB
+sudo dpkg -i Zerith/Zerith-0.0.1-Linux.deb
 
-If any dependencies missing
+# Fix missing dependencies if needed
+sudo apt-get install -f
+```
 
-```sudo apt-get install -f```  
+> [!NOTE]  
+> Ensure all prerequisites are installed before building.
