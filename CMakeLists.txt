@@ -138,9 +138,10 @@ else()
     set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
     set(CPACK_DEBIAN_PACKAGE_DEPENDS "libvulkan1")
 
-    install(FILES "${CMAKE_SOURCE_DIR}/resources/zerith.desktop"
-            DESTINATION share/applications
-            COMPONENT application)
+    configure_file("${CMAKE_SOURCE_DIR}/resources/zerith.desktop"
+            "${CMAKE_BINARY_DIR}/zerith.desktop" @ONLY)
+    install(FILES "${CMAKE_BINARY_DIR}/zerith.desktop"
+            DESTINATION share/applications)
 
     install(FILES "${CMAKE_SOURCE_DIR}/resources/Zerith.png"
             DESTINATION share/icons/hicolor/256x256/apps
