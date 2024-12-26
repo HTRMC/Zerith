@@ -15,10 +15,6 @@
 ```make -j$(nproc)```
 
 # 3. Create installer
-```cd ../..```
-
-```cd build/Release```
-
 ```cpack -G DEB```
 
 # 4. Install package

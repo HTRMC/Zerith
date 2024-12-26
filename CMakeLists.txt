@@ -70,9 +70,20 @@ add_dependencies(Zerith CompileShaders)
 # Installation Configuration
 #=======================================================
 
+# Install binary to /usr/bin
 install(TARGETS Zerith
         RUNTIME DESTINATION bin
-        COMPONENT application)
+        RENAME zerith)  # Lowercase for Linux convention
+
+# Install desktop file
+install(FILES "${CMAKE_SOURCE_DIR}/resources/zerith.desktop"
+        PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
+        DESTINATION share/applications)
+
+# Install icon
+install(FILES "${CMAKE_SOURCE_DIR}/resources/Zerith.png"
+        DESTINATION share/icons/hicolor/256x256/apps
+        RENAME zerith.png)
 
 install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/resources
         DESTINATION bin
@@ -121,6 +132,7 @@ if(WIN32)
             "Delete '$DESKTOP\\\\Zerith.lnk'")
 else()
     # Linux configuration
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libvulkan1, libxcb1")
     set(CPACK_GENERATOR "DEB")
     set(CPACK_DEBIAN_PACKAGE_MAINTAINER "HTRMC")
     set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
