@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.29)
-project(Zerith)
+project(Zerith VERSION 0.0.1)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -62,3 +62,75 @@ add_custom_target(CompileShaders ALL
 
 # Ensure the shaders are ready before the main build
 add_dependencies(Zerith CompileShaders)
+
+#=======================================================
+# Installation Configuration
+#=======================================================
+
+install(TARGETS Zerith
+        RUNTIME DESTINATION bin
+        COMPONENT application)
+
+install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/resources
+        DESTINATION bin
+        COMPONENT application)
+
+install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders
+        DESTINATION .
+        COMPONENT application)
+
+#=======================================================
+# CPack Configuration
+#=======================================================
+
+set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/Zerith")
+
+set(CPACK_PACKAGE_NAME "Zerith")
+set(CPACK_PACKAGE_VENDOR "HTRMC")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Zerith - Vulkan Application")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Zerith")
+
+if(WIN32)
+    # Windows NSIS configuration
+    set(CPACK_GENERATOR "NSIS")
+    set(CPACK_NSIS_PACKAGE_NAME "Zerith")
+    set(CPACK_NSIS_DISPLAY_NAME "Zerith")
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/resources/x256.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/resources/x256.ico")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\Zerith.exe")
+    set(CPACK_NSIS_HELP_LINK "https://github.com/HTRMC/Zerith")
+    set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/HTRMC/Zerith")
+    set(CPACK_NSIS_CONTACT "support@example.com")
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+
+    # Create Start Menu shortcuts
+    set(CPACK_NSIS_MENU_LINKS
+            "bin/Zerith.exe" "Zerith"
+            "https://github.com/HTRMC/Zerith" "Zerith Website")
+
+    # Desktop shortcut
+    set(CPACK_NSIS_CREATE_ICONS_EXTRA
+            "CreateShortCut '$DESKTOP\\\\Zerith.lnk' '$INSTDIR\\\\bin\\\\Zerith.exe'")
+    set(CPACK_NSIS_DELETE_ICONS_EXTRA
+            "Delete '$DESKTOP\\\\Zerith.lnk'")
+else()
+    # Linux configuration
+    set(CPACK_GENERATOR "DEB")
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "HTRMC")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "graphics")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libvulkan1")
+
+    install(FILES "${CMAKE_SOURCE_DIR}/resources/zerith.desktop"
+            DESTINATION share/applications
+            COMPONENT application)
+
+    install(FILES "${CMAKE_SOURCE_DIR}/resources/x256.png"
+            DESTINATION share/icons/hicolor/256x256/apps
+            RENAME zerith.png
+            COMPONENT application)
+endif()
+
+include(CPack)

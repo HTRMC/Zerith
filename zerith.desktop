@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Zerith
+Comment=Vulkan Application
+Exec=zerith
+Icon=zerith
+Terminal=false
+Type=Application
+Categories=Graphics;
+Keywords=vulkan;graphics;
