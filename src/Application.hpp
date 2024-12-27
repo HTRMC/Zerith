@@ -61,6 +61,9 @@ private:
     float yaw = -135.0f;   // Initial yaw for looking at center (-135 degrees)
     float pitch = -35.264f; // Initial pitch for looking at center (arctan(1/√2))
     float mouseSensitivity = 0.1f;
+    VkImage depthImage;
+    VkDeviceMemory depthImageMemory;
+    VkImageView depthImageView;
 
     struct UniformBufferObject {
         glm::mat4 view;
@@ -110,6 +113,19 @@ private:
     void createGraphicsPipeline();
     static std::vector<char> readFile(const std::string& filename);
     VkShaderModule createShaderModule(const std::vector<char>& code);
+
+    VkFormat findDepthFormat();
+
+    VkFormat findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
+                                 VkFormatFeatureFlags features);
+
+    void createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage,
+                     VkMemoryPropertyFlags properties, VkImage &image, VkDeviceMemory &imageMemory);
+
+    VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+
+    void createDepthResources();
+
     void createFramebuffers();
     void createCommandPool();
     void createCommandBuffers();
