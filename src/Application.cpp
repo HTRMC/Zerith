@@ -868,21 +868,15 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-    pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+        pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    // Create model matrix with rotation
     glm::mat4 model = glm::mat4(1.0f);
-    model = glm::rotate(model, time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)); // Rotate around Z axis
-    model = glm::rotate(model, time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // Rotate around Y axis
+    model = glm::translate(model, glm::vec3(-8.0f, -8.0f, -8.0f));
 
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
-    0, sizeof(glm::mat4), &model);
+        0, sizeof(glm::mat4), &model);
 
-    vkCmdDraw(commandBuffer, 36, 1, 0, 0);
+    vkCmdDraw(commandBuffer, 36 * 16 * 16 * 16, 1, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 
@@ -922,23 +916,19 @@ void Application::createUniformBuffers() {
 }
 
 void Application::updateUniformBuffer(uint32_t currentImage) {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>
-        (currentTime - startTime).count();
-
     UniformBufferObject ubo{};
+
     // Create view matrix
     ubo.view = glm::lookAt(
-        glm::vec3(2.0f, 2.0f, 2.0f),    // Camera position
-        glm::vec3(0.0f, 0.0f, 0.0f),    // Look at point
-        glm::vec3(0.0f, 0.0f, 1.0f)     // Up vector
+        glm::vec3(24.0f, 24.0f, 24.0f),     // Camera position
+        glm::vec3(8.0f, 8.0f, 8.0f),        // Look at point
+        glm::vec3(0.0f, 0.0f, 1.0f)         // Up vector
     );
 
     // Create projection matrix
     ubo.proj = glm::perspective(glm::radians(45.0f),
         static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height),
-        0.1f, 10.0f);
+        0.1f, 100.0f);
 
     // GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates
     // is inverted. Vulkan clip coordinates requires correcting for this.
