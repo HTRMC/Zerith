@@ -2,6 +2,31 @@
 #include "Window.hpp"
 
 #ifdef _WIN32
+void Window::setCaptureMouse(bool capture) {
+    if (capture) {
+        RECT rect;
+        GetClientRect(hwnd, &rect);
+        ClientToScreen(hwnd, (POINT*)&rect.left);
+        ClientToScreen(hwnd, (POINT*)&rect.right);
+        ClipCursor(&rect);
+        ShowCursor(FALSE);
+        centerCursor();
+    } else {
+        ClipCursor(NULL);
+        ShowCursor(TRUE);
+    }
+}
+
+void Window::centerCursor() {
+    RECT rect;
+    GetClientRect(hwnd, &rect);
+    POINT center = { (rect.right - rect.left) / 2, (rect.bottom - rect.top) / 2 };
+    ClientToScreen(hwnd, &center);
+    SetCursorPos(center.x, center.y);
+    mouse.x = static_cast<float>(rect.right - rect.left) / 2;
+    mouse.y = static_cast<float>(rect.bottom - rect.top) / 2;
+}
+
 Window::Window(int width, int height) : width(width), height(height) {
     hInstance = GetModuleHandle(nullptr);
 
@@ -37,7 +62,7 @@ Window::Window(int width, int height) : width(width), height(height) {
         nullptr,
         nullptr,
         hInstance,
-        nullptr
+        this
     );
 
     ShowWindow(hwnd, SW_SHOW);
@@ -69,7 +94,62 @@ Window::~Window() {
 }
 
 LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    Window* window = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
     switch (uMsg) {
+        case WM_CREATE: {
+            LPCREATESTRUCT pCreateStruct = reinterpret_cast<LPCREATESTRUCT>(lParam);
+            SetWindowLongPtr(hwnd, GWLP_USERDATA,
+                reinterpret_cast<LONG_PTR>(pCreateStruct->lpCreateParams));
+            return 0;
+        }
+
+        case WM_KEYDOWN:
+            if (window) {
+                switch (wParam) {
+                    case 'W': window->keys.w = true; break;
+                    case 'A': window->keys.a = true; break;
+                    case 'S': window->keys.s = true; break;
+                    case 'D': window->keys.d = true; break;
+                    case VK_SHIFT: window->keys.shift = true; break;
+                    case VK_SPACE: window->keys.space = true; break;
+                }
+            }
+        return 0;
+
+        case WM_KEYUP:
+            if (window) {
+                switch (wParam) {
+                    case 'W': window->keys.w = false; break;
+                    case 'A': window->keys.a = false; break;
+                    case 'S': window->keys.s = false; break;
+                    case 'D': window->keys.d = false; break;
+                    case VK_SHIFT: window->keys.shift = false; break;
+                    case VK_SPACE: window->keys.space = false; break;
+                }
+            }
+        return 0;
+
+        case WM_MOUSEMOVE: {
+            if (window) {
+                int x = GET_X_LPARAM(lParam);
+                int y = GET_Y_LPARAM(lParam);
+
+                if (window->mouse.firstMouse) {
+                    window->mouse.x = static_cast<float>(x);
+                    window->mouse.y = static_cast<float>(y);
+                    window->mouse.firstMouse = false;
+                }
+
+                window->mouse.deltaX = static_cast<float>(x) - window->mouse.x;
+                window->mouse.deltaY = static_cast<float>(y) - window->mouse.y;
+                window->mouse.x = static_cast<float>(x);
+                window->mouse.y = static_cast<float>(y);
+                window->centerCursor();
+            }
+            return 0;
+        }
+
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
@@ -100,6 +180,27 @@ VkSurfaceKHR Window::createSurface(VkInstance instance) {
 }
 
 #else
+void Window::setCaptureMouse(bool capture) {
+    // For XCB we would need to handle mouse capture differently
+    // This is a simplified version
+    xcb_grab_pointer(connection, 0, window,
+        XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION,
+        XCB_GRAB_MODE_ASYNC, XCB_GRAB_MODE_ASYNC,
+        window, XCB_NONE, XCB_CURRENT_TIME);
+    if (capture) {
+        centerCursor();
+    }
+}
+
+void Window::centerCursor() {
+    xcb_warp_pointer(connection, XCB_NONE, window,
+        0, 0, 0, 0,
+        width / 2, height / 2);
+    xcb_flush(connection);
+    mouse.x = static_cast<float>(width) / 2;
+    mouse.y = static_cast<float>(height) / 2;
+}
+
 Window::Window(int width, int height) : width(width), height(height) {
     connection = xcb_connect(nullptr, nullptr);
     screen = xcb_setup_roots_iterator(xcb_get_setup(connection)).data;
@@ -175,6 +276,44 @@ void Window::pollEvents() {
     xcb_generic_event_t* event;
     while ((event = xcb_poll_for_event(connection))) {
         switch (event->response_type & ~0x80) {
+            case XCB_KEY_PRESS: {
+                xcb_key_press_event_t* key_event = (xcb_key_press_event_t*)event;
+                switch (key_event->detail) {
+                    case 25: keys.w = true; break; // W
+                    case 38: keys.a = true; break; // A
+                    case 39: keys.s = true; break; // S
+                    case 40: keys.d = true; break; // D
+                    case 50: keys.shift = true; break; // Left Shift
+                    case 65: keys.space = true; break; // Space
+                }
+                break;
+            }
+            case XCB_KEY_RELEASE: {
+                xcb_key_release_event_t* key_event = (xcb_key_release_event_t*)event;
+                switch (key_event->detail) {
+                    case 25: keys.w = false; break; // W
+                    case 38: keys.a = false; break; // A
+                    case 39: keys.s = false; break; // S
+                    case 40: keys.d = false; break; // D
+                    case 50: keys.shift = false; break; // Left Shift
+                    case 65: keys.space = false; break; // Space
+                }
+                break;
+            }
+            case XCB_MOTION_NOTIFY: {
+                xcb_motion_notify_event_t* motion = (xcb_motion_notify_event_t*)event;
+                if (mouse.firstMouse) {
+                    mouse.x = static_cast<float>(motion->event_x);
+                    mouse.y = static_cast<float>(motion->event_y);
+                    mouse.firstMouse = false;
+                }
+
+                mouse.deltaX = static_cast<float>(motion->event_x) - mouse.x;
+                mouse.deltaY = static_cast<float>(motion->event_y) - mouse.y;
+
+                centerCursor();
+                break;
+            }
             case XCB_CLIENT_MESSAGE:
                 windowShouldClose = true;
                 break;

@@ -15,6 +15,7 @@
 Application::Application() : window(800, 600), physicalDevice(VK_NULL_HANDLE) {
     appPath = getExecutablePath();
     window.setIcon(appPath + "/resources/x256.ico");
+    window.setCaptureMouse(true);
 }
 
 Application::~Application() {
@@ -208,6 +209,9 @@ void Application::mainLoop() {
         if (window.shouldClose()) {
             break;
         }
+
+        updateCamera();
+        updateCameraRotation();
 
         try {
             drawFrame(currentFrame);
@@ -920,9 +924,9 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
 
     // Create view matrix
     ubo.view = glm::lookAt(
-        glm::vec3(24.0f, 24.0f, 24.0f),     // Camera position
-        glm::vec3(8.0f, 8.0f, 8.0f),        // Look at point
-        glm::vec3(0.0f, 0.0f, 1.0f)         // Up vector
+        cameraPos,                    // Camera position
+        cameraPos + cameraFront,      // Look at point
+        cameraUp                      // Up vector
     );
 
     // Create projection matrix
@@ -1030,4 +1034,51 @@ uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
     }
 
     throw std::runtime_error("failed to find suitable memory type!");
+}
+
+void Application::updateCamera() {
+    // Project cameraFront onto the horizontal plane
+    glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
+    glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
+
+    if (window.isKeyPressed('W')) {
+        cameraPos += horizontalFront * cameraSpeed;
+    }
+    if (window.isKeyPressed('S')) {
+        cameraPos -= horizontalFront * cameraSpeed;
+    }
+    if (window.isKeyPressed('A')) {
+        cameraPos -= horizontalRight * cameraSpeed;
+    }
+    if (window.isKeyPressed('D')) {
+        cameraPos += horizontalRight * cameraSpeed;
+    }
+    if (window.isSpacePressed()) {
+        cameraPos += cameraUp * cameraSpeed;
+    }
+    if (window.isShiftPressed()) {
+        cameraPos -= cameraUp * cameraSpeed;
+    }
+}
+
+void Application::updateCameraRotation() {
+    // Update rotation based on mouse movement
+    float deltaX = window.getMouseDeltaX() * mouseSensitivity;
+    float deltaY = -window.getMouseDeltaY() * mouseSensitivity; // Inverted Y axis
+
+    yaw -= deltaX;
+    pitch += deltaY;
+
+    // Clamp pitch to avoid flipping
+    if (pitch > 89.0f) pitch = 89.0f;
+    if (pitch < -89.0f) pitch = -89.0f;
+
+    // Calculate new front vector
+    glm::vec3 front;
+    front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front.y = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
+    front.z = sin(glm::radians(pitch));
+    cameraFront = glm::normalize(front);
+
+    window.resetMouseDeltas();
 }
