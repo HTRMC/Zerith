@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "BlockGeometry.hpp"
 #include "Window.hpp"
 
 class Application {
@@ -64,6 +65,9 @@ private:
     VkImage depthImage;
     VkDeviceMemory depthImageMemory;
     VkImageView depthImageView;
+    VkBuffer vertexBuffer;
+    VkDeviceMemory vertexBufferMemory;
+    size_t vertexCount;
 
     struct UniformBufferObject {
         glm::mat4 view;
@@ -143,6 +147,11 @@ private:
                      VkDeviceMemory& bufferMemory);
     void updateCamera();
     void updateCameraRotation();
+
+    void createVertexBuffer();
+
+    void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
     bool checkValidationLayerSupport();
     void mainLoop();
     void cleanup();
