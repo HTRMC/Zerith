@@ -11,6 +11,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/Zerith)
 # Find Vulkan
 find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
+find_package(Stb REQUIRED)
 
 file(GLOB SOURCES "src/*.cpp")
 file(GLOB HEADERS "src/*.hpp")
@@ -28,6 +29,9 @@ if(WIN32)
 else()
     add_executable(Zerith ${SOURCES} ${HEADERS} ${WIN_RESOURCES})
 endif()
+
+# Include directories
+target_include_directories(Zerith PRIVATE ${Stb_INCLUDE_DIR})
 
 if(UNIX)
     target_link_libraries(Zerith Vulkan::Vulkan glm::glm xcb)

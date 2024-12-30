@@ -6,6 +6,7 @@
 struct Vertex {
     glm::vec3 pos;
     glm::vec3 color;
+    glm::vec2 texCoord;
 };
 
 class BlockGeometry {
@@ -25,6 +26,39 @@ public:
 
     // Vertices for a single face (two triangles)
     static const std::array<std::array<glm::vec3, 6>, 6> FACE_VERTICES;
+
+    static constexpr std::array<std::array<glm::vec2, 6>, 6> FACE_TEX_COORDS = {{
+        // Front face (+Z)
+        {{
+            {0.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f},
+            {0.0f, 1.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}
+        }},
+        // Back face (-Z)
+        {{
+            {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f},
+            {0.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}
+        }},
+        // Top face (+Y)
+        {{
+            {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f},
+            {0.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}
+        }},
+        // Bottom face (-Y)
+        {{
+            {0.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f},
+            {0.0f, 1.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}
+        }},
+        // Right face (+X)
+        {{
+            {0.0f, 1.0f}, {1.0f, 1.0f}, {1.0f, 0.0f},
+            {0.0f, 1.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}
+        }},
+        // Left face (-X)
+        {{
+            {0.0f, 1.0f}, {0.0f, 0.0f}, {1.0f, 0.0f},
+            {0.0f, 1.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}
+        }}
+    }};
 
     static bool blockExists(int x, int y, int z) {
         return x >= 0 && x < GRID_SIZE &&
@@ -80,8 +114,12 @@ private:
         glm::vec3 offset(x, y, z);
         glm::vec3 color = COLORS[faceIndex];
 
-        for (const auto& vertexPos : FACE_VERTICES[faceIndex]) {
-            vertices.push_back({vertexPos + offset, color});
+        for (size_t i = 0; i < 6; i++) {
+            vertices.push_back({
+                FACE_VERTICES[faceIndex][i] + offset,
+                color,
+                FACE_TEX_COORDS[faceIndex][i]
+            });
         }
     }
 };

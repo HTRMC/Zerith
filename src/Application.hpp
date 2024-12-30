@@ -68,6 +68,10 @@ private:
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     size_t vertexCount;
+    VkImage textureImage;
+    VkDeviceMemory textureImageMemory;
+    VkImageView textureImageView;
+    VkSampler textureSampler;
 
     struct UniformBufferObject {
         glm::mat4 view;
@@ -151,6 +155,13 @@ private:
     void createVertexBuffer();
 
     void copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
+
+    void createTextureImage();
+    void createTextureImageView();
+    void createTextureSampler();
+    void transitionImageLayout(VkImage image, VkFormat format,
+        VkImageLayout oldLayout, VkImageLayout newLayout);
+    void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
 
     bool checkValidationLayerSupport();
     void mainLoop();
