@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(Zerith VERSION 0.0.1)
+project(Zerith VERSION 0.0.2)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -104,6 +104,7 @@ install(DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders
 
 set(CPACK_PACKAGE_DIRECTORY "${CMAKE_BINARY_DIR}/Zerith")
 
+set(CPACK_PROJECT_NAME "Zerith")
 set(CPACK_PACKAGE_NAME "Zerith")
 set(CPACK_PACKAGE_VENDOR "HTRMC")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Zerith - Vulkan Application")
