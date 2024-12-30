@@ -1146,7 +1146,7 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
     // Create projection matrix
     ubo.proj = glm::perspective(glm::radians(45.0f),
         static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height),
-        0.1f, 100.0f);
+        0.1f, 1000.0f);
 
     // GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates
     // is inverted. Vulkan clip coordinates requires correcting for this.
