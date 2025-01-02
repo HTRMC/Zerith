@@ -11,6 +11,7 @@ struct Vertex {
 
 class BlockGeometry {
 public:
+    static constexpr int CHUNK_SIZE = 16;
     static constexpr int GRID_SIZE = 16;
     static constexpr int NUM_BLOCKS = GRID_SIZE * GRID_SIZE * GRID_SIZE;
 
@@ -61,9 +62,7 @@ public:
     }};
 
     static bool blockExists(int x, int y, int z) {
-        return x >= 0 && x < GRID_SIZE &&
-               y >= 0 && y < GRID_SIZE &&
-               z >= 0 && z < GRID_SIZE;
+        return z >= 0 && z < CHUNK_SIZE;
     }
 
     static std::vector<Vertex> generateGeometry() {
@@ -81,33 +80,33 @@ public:
         return vertices;
     }
 
+    static std::vector<Vertex> generateChunkGeometry(int chunkX, int chunkY) {
+        std::vector<Vertex> vertices;
+        vertices.reserve(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 36);
+
+        for (int x = 0; x < CHUNK_SIZE; x++) {
+            for (int y = 0; y < CHUNK_SIZE; y++) {
+                for (int z = 0; z < CHUNK_SIZE; z++) {
+                    addBlockGeometry(vertices,
+                        x + chunkX,
+                        y + chunkY,
+                        z);
+                }
+            }
+        }
+
+        return vertices;
+    }
+
 private:
     static void addBlockGeometry(std::vector<Vertex>& vertices, int x, int y, int z) {
-        // Check each face direction
-        // Front face (+Z)
-        if (!blockExists(x, y, z + 1)) {
-            addFace(vertices, x, y, z, 0);
-        }
-        // Back face (-Z)
-        if (!blockExists(x, y, z - 1)) {
-            addFace(vertices, x, y, z, 1);
-        }
-        // Top face (+Y)
-        if (!blockExists(x, y + 1, z)) {
-            addFace(vertices, x, y, z, 2);
-        }
-        // Bottom face (-Y)
-        if (!blockExists(x, y - 1, z)) {
-            addFace(vertices, x, y, z, 3);
-        }
-        // Right face (+X)
-        if (!blockExists(x + 1, y, z)) {
-            addFace(vertices, x, y, z, 4);
-        }
-        // Left face (-X)
-        if (!blockExists(x - 1, y, z)) {
-            addFace(vertices, x, y, z, 5);
-        }
+        // Only add faces that are exposed
+        if (!blockExists(x, y, z + 1)) addFace(vertices, x, y, z, 0); // Front
+        if (!blockExists(x, y, z - 1)) addFace(vertices, x, y, z, 1); // Back
+        if (!blockExists(x, y + 1, z)) addFace(vertices, x, y, z, 2); // Top
+        if (!blockExists(x, y - 1, z)) addFace(vertices, x, y, z, 3); // Bottom
+        if (!blockExists(x + 1, y, z)) addFace(vertices, x, y, z, 4); // Right
+        if (!blockExists(x - 1, y, z)) addFace(vertices, x, y, z, 5); // Left
     }
 
     static void addFace(std::vector<Vertex>& vertices, int x, int y, int z, int faceIndex) {

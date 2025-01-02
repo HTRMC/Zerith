@@ -100,6 +100,7 @@ void Application::initVulkan() {
     createDepthResources();
     createFramebuffers();
     createCommandPool();
+    chunkManager = std::make_unique<ChunkManager>(device, physicalDevice, commandPool, graphicsQueue);
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
@@ -291,6 +292,8 @@ void Application::mainLoop() {
 
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
+
+    chunkManager.reset();
 
     vkDestroySampler(device, textureSampler, nullptr);
     vkDestroyImageView(device, textureImageView, nullptr);
@@ -991,6 +994,7 @@ void Application::createSyncObjects() {
 }
 
 void Application::drawFrame(size_t currentFrame) {
+    chunkManager->updateLoadedChunks(cameraPos);
     vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -1076,17 +1080,18 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
-    glm::mat4 model = glm::mat4(1.0f);
-    model = glm::translate(model, glm::vec3(-8.0f, -8.0f, -8.0f));
+    for (const auto& pair : chunkManager->chunks) {
+        const Chunk* chunk = pair.second.get();
 
-    vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
-        0, sizeof(glm::mat4), &model);
+        glm::mat4 model = glm::mat4(1.0f);
+        vkCmdPushConstants(commandBuffer, pipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
-    VkBuffer vertexBuffers[] = {vertexBuffer};
-    VkDeviceSize offsets[] = {0};
-    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-
-    vkCmdDraw(commandBuffer, vertexCount, 1, 0, 0);
+        VkBuffer vertexBuffers[] = {chunk->vertexBuffer};
+        VkDeviceSize offsets[] = {0};
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdDraw(commandBuffer, chunk->vertexCount, 1, 0, 0);
+    }
 
     vkCmdEndRenderPass(commandBuffer);
 

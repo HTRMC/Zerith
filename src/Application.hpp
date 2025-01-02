@@ -14,6 +14,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "BlockGeometry.hpp"
+#include "ChunkManager.hpp"
 #include "Window.hpp"
 
 class Application {
@@ -72,6 +73,7 @@ private:
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
     VkSampler textureSampler;
+    std::unique_ptr<ChunkManager> chunkManager;
 
     struct UniformBufferObject {
         glm::mat4 view;
