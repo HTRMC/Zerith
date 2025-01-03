@@ -6,6 +6,8 @@
 
 #include <array>
 
+#include "CubeGeometry.hpp"
+
 #ifdef _WIN32
     #include <vulkan/vulkan_win32.h>
 #else
@@ -13,63 +15,6 @@
     #include <unistd.h>
     #include <linux/limits.h>
 #endif
-
-const std::array<std::array<glm::vec3, 6>, 6> BlockGeometry::FACE_VERTICES = {{
-    // Front face (+Z)
-    {{
-        {-0.5f, -0.5f,  0.5f},
-        {-0.5f,  0.5f,  0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        {-0.5f, -0.5f,  0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        { 0.5f, -0.5f,  0.5f}
-    }},
-    // Back face (-Z)
-    {{
-        {-0.5f, -0.5f, -0.5f},
-        { 0.5f, -0.5f, -0.5f},
-        { 0.5f,  0.5f, -0.5f},
-        {-0.5f, -0.5f, -0.5f},
-        { 0.5f,  0.5f, -0.5f},
-        {-0.5f,  0.5f, -0.5f}
-    }},
-    // Top face (+Y)
-    {{
-        {-0.5f,  0.5f, -0.5f},
-        { 0.5f,  0.5f, -0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        {-0.5f,  0.5f, -0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        {-0.5f,  0.5f,  0.5f}
-    }},
-    // Bottom face (-Y)
-    {{
-        {-0.5f, -0.5f, -0.5f},
-        {-0.5f, -0.5f,  0.5f},
-        { 0.5f, -0.5f,  0.5f},
-        {-0.5f, -0.5f, -0.5f},
-        { 0.5f, -0.5f,  0.5f},
-        { 0.5f, -0.5f, -0.5f}
-    }},
-    // Right face (+X)
-    {{
-        { 0.5f, -0.5f, -0.5f},
-        { 0.5f, -0.5f,  0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        { 0.5f, -0.5f, -0.5f},
-        { 0.5f,  0.5f,  0.5f},
-        { 0.5f,  0.5f, -0.5f}
-    }},
-    // Left face (-X)
-    {{
-        {-0.5f, -0.5f, -0.5f},
-        {-0.5f,  0.5f, -0.5f},
-        {-0.5f,  0.5f,  0.5f},
-        {-0.5f, -0.5f, -0.5f},
-        {-0.5f,  0.5f,  0.5f},
-        {-0.5f, -0.5f,  0.5f}
-    }}
-}};
 
 Application::Application() : window(800, 600), physicalDevice(VK_NULL_HANDLE) {
     appPath = getExecutablePath();
@@ -100,12 +45,12 @@ void Application::initVulkan() {
     createDepthResources();
     createFramebuffers();
     createCommandPool();
-    chunkManager = std::make_unique<ChunkManager>(device, physicalDevice, commandPool, graphicsQueue);
     createTextureImage();
     createTextureImageView();
     createTextureSampler();
     createVertexBuffer();
     createUniformBuffers();
+    createTransformBuffer();
     createDescriptorPool();
     createDescriptorSets();
     createCommandBuffers();
@@ -293,7 +238,8 @@ void Application::mainLoop() {
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
 
-    chunkManager.reset();
+    vkDestroyBuffer(device, transformBuffer, nullptr);
+    vkFreeMemory(device, transformBufferMemory, nullptr);
 
     vkDestroySampler(device, textureSampler, nullptr);
     vkDestroyImageView(device, textureImageView, nullptr);
@@ -302,6 +248,8 @@ void Application::cleanup() {
 
     vkDestroyBuffer(device, vertexBuffer, nullptr);
     vkFreeMemory(device, vertexBufferMemory, nullptr);
+    vkDestroyBuffer(device, indexBuffer, nullptr);
+    vkFreeMemory(device, indexBufferMemory, nullptr);
 
     vkDestroyImageView(device, depthImageView, nullptr);
     vkDestroyImage(device, depthImage, nullptr);
@@ -784,33 +732,26 @@ void Application::createGraphicsPipeline() {
 
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
+    // Vertex input
     VkVertexInputBindingDescription bindingDescription{};
     bindingDescription.binding = 0;
     bindingDescription.stride = sizeof(Vertex);
     bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+    std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+
+    // Position attribute
     attributeDescriptions[0].binding = 0;
     attributeDescriptions[0].location = 0;
     attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attributeDescriptions[0].offset = offsetof(Vertex, pos);
 
+    // Texture coordinate attribute
     attributeDescriptions[1].binding = 0;
     attributeDescriptions[1].location = 1;
-    attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-    attributeDescriptions[1].offset = offsetof(Vertex, color);
+    attributeDescriptions[1].format = VK_FORMAT_R32G32_SFLOAT;
+    attributeDescriptions[1].offset = offsetof(Vertex, texCoord);
 
-    attributeDescriptions[2].binding = 0;
-    attributeDescriptions[2].location = 2;
-    attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;    // Note: R32G32 for vec2
-    attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-    attributeDescriptions[3].binding = 0;
-    attributeDescriptions[3].location = 3;
-    attributeDescriptions[3].format = VK_FORMAT_R32_SFLOAT;
-    attributeDescriptions[3].offset = offsetof(Vertex, textureIndex);
-
-    // Vertex input state
     VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertexInputInfo.vertexBindingDescriptionCount = 1;
@@ -851,6 +792,7 @@ void Application::createGraphicsPipeline() {
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
     rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
+    // rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
@@ -1005,7 +947,6 @@ void Application::createSyncObjects() {
 }
 
 void Application::drawFrame(size_t currentFrame) {
-    chunkManager->updateLoadedChunks(cameraPos);
     vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
@@ -1088,21 +1029,21 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
+    VkBuffer vertexBuffers[] = {vertexBuffer};
+    VkDeviceSize offsets[] = {0};
+    vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+    vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
-    for (const auto& pair : chunkManager->chunks) {
-        const Chunk* chunk = pair.second.get();
+    // Base model matrix
+    glm::mat4 model = glm::mat4(1.0f);
+    vkCmdPushConstants(commandBuffer, pipelineLayout,
+        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
-        glm::mat4 model = glm::mat4(1.0f);
-        vkCmdPushConstants(commandBuffer, pipelineLayout,
-            VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
-
-        VkBuffer vertexBuffers[] = {chunk->vertexBuffer};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdDraw(commandBuffer, chunk->vertexCount, 1, 0, 0);
-    }
+    // Draw all faces in one instanced call
+    vkCmdDrawIndexed(commandBuffer, vertexCount, 6, 0, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 
@@ -1112,7 +1053,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 }
 
 void Application::createDescriptorSetLayout() {
-    std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 3> bindings{};
 
     // Uniform buffer binding
     bindings[0].binding = 0;
@@ -1125,6 +1066,12 @@ void Application::createDescriptorSetLayout() {
     bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     bindings[1].descriptorCount = 1;
     bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    // Transform storage buffer binding
+    bindings[2].binding = 2;
+    bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[2].descriptorCount = 1;
+    bindings[2].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1175,11 +1122,13 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
 }
 
 void Application::createDescriptorPool() {
-    std::array<VkDescriptorPoolSize, 2> poolSizes{};
+    std::array<VkDescriptorPoolSize, 3> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1216,7 +1165,12 @@ void Application::createDescriptorSets() {
         imageInfo.imageView = textureImageView;
         imageInfo.sampler = textureSampler;
 
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+        VkDescriptorBufferInfo transformBufferInfo{};
+        transformBufferInfo.buffer = transformBuffer;
+        transformBufferInfo.offset = 0;
+        transformBufferInfo.range = sizeof(glm::mat4) * CUBE_FACE_TRANSFORMS.size();
+
+        std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = descriptorSets[i];
@@ -1233,6 +1187,14 @@ void Application::createDescriptorSets() {
         descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         descriptorWrites[1].descriptorCount = 1;
         descriptorWrites[1].pImageInfo = &imageInfo;
+
+        descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[2].dstSet = descriptorSets[i];
+        descriptorWrites[2].dstBinding = 2;
+        descriptorWrites[2].dstArrayElement = 0;
+        descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[2].descriptorCount = 1;
+        descriptorWrites[2].pBufferInfo = &transformBufferInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
             descriptorWrites.data(), 0, nullptr);
@@ -1327,30 +1289,60 @@ void Application::updateCameraRotation() {
 }
 
 void Application::createVertexBuffer() {
-    std::vector<Vertex> vertices = BlockGeometry::generateGeometry();
-    vertexCount = vertices.size();
-    VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+    std::vector<Vertex> vertices = CubeGeometry::getPlaneVertices();
+    std::vector<uint32_t> indices = CubeGeometry::getPlaneIndices();
 
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+    vertexCount = indices.size();
+
+    VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
+    VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+
+    // Create staging buffer for vertices
+    VkBuffer vertexStagingBuffer;
+    VkDeviceMemory vertexStagingBufferMemory;
+    createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer, stagingBufferMemory);
+        vertexStagingBuffer, vertexStagingBufferMemory);
 
+    // Copy vertex data
     void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices.data(), (size_t) bufferSize);
-    vkUnmapMemory(device, stagingBufferMemory);
+    vkMapMemory(device, vertexStagingBufferMemory, 0, vertexBufferSize, 0, &data);
+    memcpy(data, vertices.data(), (size_t)vertexBufferSize);
+    vkUnmapMemory(device, vertexStagingBufferMemory);
 
-    createBuffer(bufferSize,
+    // Create vertex buffer
+    createBuffer(vertexBufferSize,
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         vertexBuffer, vertexBufferMemory);
 
-    copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+    // Create staging buffer for indices
+    VkBuffer indexStagingBuffer;
+    VkDeviceMemory indexStagingBufferMemory;
+    createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        indexStagingBuffer, indexStagingBufferMemory);
 
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
+    // Copy index data
+    vkMapMemory(device, indexStagingBufferMemory, 0, indexBufferSize, 0, &data);
+    memcpy(data, indices.data(), (size_t)indexBufferSize);
+    vkUnmapMemory(device, indexStagingBufferMemory);
+
+    // Create index buffer
+    createBuffer(indexBufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        indexBuffer, indexBufferMemory);
+
+    // Copy buffers
+    copyBuffer(vertexStagingBuffer, vertexBuffer, vertexBufferSize);
+    copyBuffer(indexStagingBuffer, indexBuffer, indexBufferSize);
+
+    // Cleanup staging buffers
+    vkDestroyBuffer(device, vertexStagingBuffer, nullptr);
+    vkFreeMemory(device, vertexStagingBufferMemory, nullptr);
+    vkDestroyBuffer(device, indexStagingBuffer, nullptr);
+    vkFreeMemory(device, indexStagingBufferMemory, nullptr);
 }
 
 void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -1365,7 +1357,7 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
     vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
@@ -1388,12 +1380,12 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 
 void Application::createTextureImage() {
     const std::vector<std::string> textureFiles = {
-        "/resources/dirt.png",
-        "/resources/grass_block_top.png",
-        "/resources/grass_block_side.png",
-        "/resources/grass_block_side_overlay.png",
-        "/resources/stone.png",
-        "/resources/missing.png"
+        "/resources/dirt.png",                      // Index 0
+        "/resources/grass_block_top.png",           // Index 1
+        "/resources/grass_block_side.png",          // Index 2
+        "/resources/grass_block_side_overlay.png",  // Index 3
+        "/resources/stone.png",                     // Index 4
+        "/resources/missing.png"                    // Index 5
     };
 
     int texWidth, texHeight, texChannels;
@@ -1439,7 +1431,7 @@ void Application::createTextureImage() {
 
     vkUnmapMemory(device, stagingBufferMemory);
 
-// Create the texture array image
+    // Create the texture array image
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -1764,4 +1756,34 @@ void Application::transitionImageLayout(VkImage image, VkFormat format,
     );
 
     endSingleTimeCommands(commandBuffer);
+}
+
+void Application::createTransformBuffer() {
+    VkDeviceSize bufferSize = sizeof(glm::mat4) * CUBE_FACE_TRANSFORMS.size();
+
+    // Create staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        stagingBuffer, stagingBufferMemory);
+
+    // Copy transform data to staging buffer
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, CUBE_FACE_TRANSFORMS.data(), bufferSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create device local buffer
+    createBuffer(bufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        transformBuffer, transformBufferMemory);
+
+    // Copy from staging to device local buffer
+    copyBuffer(stagingBuffer, transformBuffer, bufferSize);
+
+    // Cleanup staging buffer
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
 }

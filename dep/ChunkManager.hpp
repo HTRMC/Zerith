@@ -32,7 +32,9 @@ public:
         for (auto& pair : chunks) {
             if (pair.second->vertexBuffer != VK_NULL_HANDLE) {
                 vkDestroyBuffer(device, pair.second->vertexBuffer, nullptr);
+                vkDestroyBuffer(device, pair.second->indexBuffer, nullptr);
                 vkFreeMemory(device, pair.second->vertexBufferMemory, nullptr);
+                vkFreeMemory(device, pair.second->indexBufferMemory, nullptr);
             }
         }
     }
@@ -75,28 +77,52 @@ public:
 
 private:
     void createVertexBuffer(Chunk* chunk) {
-        VkDeviceSize bufferSize = sizeof(Vertex) * chunk->vertices.size();
+        VkDeviceSize vertexBufferSize = sizeof(Vertex) * chunk->vertices.size();
+        VkDeviceSize indexBufferSize = sizeof(uint32_t) * chunk->indices.size();
 
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        // Create staging buffers
+        VkBuffer stagingVertexBuffer, stagingIndexBuffer;
+        VkDeviceMemory stagingVertexMemory, stagingIndexMemory;
+
+        createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer, stagingBufferMemory);
+            stagingVertexBuffer, stagingVertexMemory);
 
+        createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            stagingIndexBuffer, stagingIndexMemory);
+
+        // Copy vertex data
         void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-        memcpy(data, chunk->vertices.data(), bufferSize);
-        vkUnmapMemory(device, stagingBufferMemory);
+        vkMapMemory(device, stagingVertexMemory, 0, vertexBufferSize, 0, &data);
+        memcpy(data, chunk->vertices.data(), vertexBufferSize);
+        vkUnmapMemory(device, stagingVertexMemory);
 
-        createBuffer(bufferSize,
+        // Copy index data
+        vkMapMemory(device, stagingIndexMemory, 0, indexBufferSize, 0, &data);
+        memcpy(data, chunk->indices.data(), indexBufferSize);
+        vkUnmapMemory(device, stagingIndexMemory);
+
+        // Create device local buffers
+        createBuffer(vertexBufferSize,
             VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             chunk->vertexBuffer, chunk->vertexBufferMemory);
 
-        copyBuffer(stagingBuffer, chunk->vertexBuffer, bufferSize);
+        createBuffer(indexBufferSize,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            chunk->indexBuffer, chunk->indexBufferMemory);
 
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
+        // Copy to device local memory
+        copyBuffer(stagingVertexBuffer, chunk->vertexBuffer, vertexBufferSize);
+        copyBuffer(stagingIndexBuffer, chunk->indexBuffer, indexBufferSize);
+
+        // Cleanup staging buffers
+        vkDestroyBuffer(device, stagingVertexBuffer, nullptr);
+        vkDestroyBuffer(device, stagingIndexBuffer, nullptr);
+        vkFreeMemory(device, stagingVertexMemory, nullptr);
+        vkFreeMemory(device, stagingIndexMemory, nullptr);
     }
 
     // Include your existing buffer creation and copying methods here

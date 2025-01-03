@@ -13,8 +13,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "BlockGeometry.hpp"
-#include "ChunkManager.hpp"
 #include "Window.hpp"
 
 class Application {
@@ -56,12 +54,14 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     std::chrono::high_resolution_clock::time_point startTime;
-    glm::vec3 cameraPos = glm::vec3(24.0f, 24.0f, 24.0f);
+    glm::vec3 cameraPos = glm::vec3(-1.0f, 0.0f, 0.0f);
     glm::vec3 cameraFront = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
     glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
     float cameraSpeed = 0.01f;
-    float yaw = -135.0f;   // Initial yaw for looking at center (-135 degrees)
-    float pitch = -35.264f; // Initial pitch for looking at center (arctan(1/√2))
+    // float yaw = -135.0f;   // Initial yaw for looking at center (-135 degrees)
+    // float pitch = -35.264f; // Initial pitch for looking at center (arctan(1/√2))
+    float yaw = 0.0f;
+    float pitch = 0.0f;
     float mouseSensitivity = 0.1f;
     VkImage depthImage;
     VkDeviceMemory depthImageMemory;
@@ -73,7 +73,10 @@ private:
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
     VkSampler textureSampler;
-    std::unique_ptr<ChunkManager> chunkManager;
+    VkBuffer indexBuffer;
+    VkDeviceMemory indexBufferMemory;
+    VkBuffer transformBuffer;
+    VkDeviceMemory transformBufferMemory;
 
     struct UniformBufferObject {
         glm::mat4 view;
@@ -171,6 +174,8 @@ private:
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
                                uint32_t layerCount);
+
+    void createTransformBuffer();
 
     bool checkValidationLayerSupport();
     void mainLoop();
