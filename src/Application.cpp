@@ -1043,7 +1043,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
         VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
     // Draw all faces in one instanced call
-    vkCmdDrawIndexed(commandBuffer, vertexCount, 6, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, vertexCount, SubChunk::SUBCHUNK * 6, 0, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 

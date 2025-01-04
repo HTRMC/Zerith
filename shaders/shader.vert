@@ -10,11 +10,9 @@ layout(push_constant) uniform PushConstants {
     mat4 model;
 } push;
 
-// Per-vertex attributes
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec2 inTexCoord;
 
-// Face transforms stored in storage buffer
 layout(binding = 2) readonly buffer FaceTransforms {
     mat4 transforms[6];
 } faceTransforms;
@@ -22,7 +20,26 @@ layout(binding = 2) readonly buffer FaceTransforms {
 layout(location = 0) out vec2 fragTexCoord;
 
 void main() {
-    mat4 faceTransform = faceTransforms.transforms[gl_InstanceIndex];
-    gl_Position = ubo.proj * ubo.view * push.model * faceTransform * vec4(inPosition, 1.0);
+    // Calculate cube instance ID (which cube in the 16x16x16 grid)
+    int cubeID = gl_InstanceIndex / 6;  // Divide by 6 because each cube has 6 faces
+
+    // Calculate which face of the cube we're drawing (0-5)
+    int faceIndex = gl_InstanceIndex % 6;  // This gives us which face of the current cube
+
+    // Calculate grid position
+    int x = cubeID % 16;
+    int y = (cubeID / 16) % 16;
+    int z = cubeID / (16 * 16);
+
+    // Create translation matrix for this cube instance
+    mat4 translation = mat4(1.0);
+    translation[3].x = float(x);
+    translation[3].y = float(y);
+    translation[3].z = float(z);
+
+    // Combine all transforms
+    mat4 finalTransform = ubo.proj * ubo.view * push.model * translation * faceTransforms.transforms[faceIndex];
+    gl_Position = finalTransform * vec4(inPosition, 1.0);
+
     fragTexCoord = inTexCoord;
 }

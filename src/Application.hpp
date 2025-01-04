@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "Subchunk.hpp"
 #include "Window.hpp"
 
 class Application {
@@ -77,6 +78,7 @@ private:
     VkDeviceMemory indexBufferMemory;
     VkBuffer transformBuffer;
     VkDeviceMemory transformBufferMemory;
+    SubChunk subChunk;
 
     struct UniformBufferObject {
         glm::mat4 view;
