@@ -1386,7 +1386,7 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 
 void Application::createTextureImage() {
     const std::vector<std::string> textureFiles = {
-        "/resources/oak_planks.png",                      // Index 0
+        "/resources/dirt.png",                      // Index 0
         "/resources/grass_block_top.png",           // Index 1
         "/resources/grass_block_side.png",          // Index 2
         "/resources/grass_block_side_overlay.png",  // Index 3

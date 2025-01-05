@@ -39,10 +39,24 @@ void main() {
     translation[3].y = float(y);
     translation[3].z = float(z);
 
+    // Determine texture ID based on position
+    uint textureID;
+    if (z == 15) {  // Top layer
+                    if (faceIndex == 4) textureID = 1;  // Top face - grass top
+                    else if (faceIndex == 5) textureID = 0;  // Bottom face - dirt
+                    else textureID = 2;  // Side faces - grass side
+    }
+    else if (z >= 13) {  // Dirt layers
+                         textureID = 0;  // Dirt texture
+    }
+    else {  // Stone layers
+            textureID = 4;  // Stone texture
+    }
+
     // Combine all transforms
     mat4 finalTransform = ubo.proj * ubo.view * push.model * translation * faceTransforms.transforms[faceIndex];
     gl_Position = finalTransform * vec4(inPosition, 1.0);
 
     fragTexCoord = inTexCoord;
-    fragTextureID = inTextureID;
+    fragTextureID = textureID;
 }
