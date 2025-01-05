@@ -88,16 +88,15 @@ public:
     static std::vector<Vertex> getPlaneVertices() {
         return {
                 {{0.0f, 0.0f, 0.0f}, {1.0f, 1.0f}},  // Bottom-left
+                {{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}},  // Top-left
                 {{1.0f, 0.0f, 0.0f}, {0.0f, 1.0f}},  // Bottom-right
-                {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f}},  // Top-right
-                {{0.0f, 1.0f, 0.0f}, {1.0f, 0.0f}}   // Top-left
+                {{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f}}   // Top-right
         };
     }
 
     static std::vector<uint32_t> getPlaneIndices() {
         return {
-            0, 1, 2,  // First triangle
-            2, 3, 0   // Second triangle
+            0, 2, 1, 3  // Triangle strip order
         };
     }
 };
