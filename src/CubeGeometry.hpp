@@ -7,6 +7,7 @@
 struct Vertex {
     glm::vec3 pos;
     glm::vec2 texCoord;
+    uint16_t textureID;
 };
 
 // Define the transforms for each face of the cube
