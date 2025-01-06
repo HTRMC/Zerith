@@ -67,6 +67,17 @@ vec3 getFaceNormal(int faceType) {
     }
 }
 
+vec2 rotateUV(vec2 uv, int faceType) {
+    switch(faceType) {
+        case FACE_XP: // Right face (+X)
+            return vec2(1.0 - uv.y, uv.x);
+        case FACE_XN: // Left face (-X)
+            return vec2(uv.y, 1.0 - uv.x);
+        default:
+            return uv;
+    }
+}
+
 vec3 rotateVertex(vec3 pos, int faceType) {
     vec3 final = pos;
 
@@ -115,7 +126,7 @@ void main() {
     // Final transformation
     gl_Position = ubo.proj * ubo.view * push.model * vec4(worldPos, 1.0);
 
-    fragTexCoord = inTexCoord;
+    fragTexCoord = rotateUV(inTexCoord, face_type);
     fragTextureID = getTextureID(block_type, face_type);
     fragNormal = normal;
     fragPos = worldPos;
