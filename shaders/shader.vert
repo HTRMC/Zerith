@@ -22,6 +22,12 @@ const int FACE_YP = 3;  // Front
 const int FACE_ZN = 4;  // Bottom
 const int FACE_ZP = 5;  // Top
 
+// Block type constants (matching your C++ enum)
+const int BLOCK_AIR = 0;
+const int BLOCK_STONE = 1;
+const int BLOCK_GRASS_BLOCK = 8;
+const int BLOCK_DIRT = 9;
+
 layout(binding = 2) readonly buffer InstanceData {
     uint data[];
 } instanceData;
@@ -30,6 +36,24 @@ layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out flat uint fragTextureID;
 layout(location = 2) out vec3 fragNormal;
 layout(location = 3) out vec3 fragPos;
+
+uint getTextureID(int blockType, int faceType) {
+    switch(blockType) {
+        case BLOCK_STONE:
+            return 4; // Stone texture
+
+        case BLOCK_GRASS_BLOCK:
+            if (faceType == FACE_ZP) return 1;      // Top texture (grass)
+            else if (faceType == FACE_ZN) return 0; // Bottom texture (dirt)
+            else return 2;                          // Side texture (grass side)
+
+        case BLOCK_DIRT:
+            return 0; // Dirt texture
+
+        default:
+            return 5; // Missing texture
+    }
+}
 
 vec3 getFaceNormal(int faceType) {
     switch(faceType) {
@@ -77,6 +101,7 @@ void main() {
     int x = int((instance_data >> 3) & 0x1F);  // Next 5 bits for X position
     int y = int((instance_data >> 8) & 0x1F);  // Next 5 bits for Y position
     int z = int((instance_data >> 13) & 0x1F); // Next 5 bits for Z position
+    int block_type = int((instance_data >> 18) & 0x3F); // Next 6 bits for block type
 
     // Rotate the vertex based on face type
     vec3 rotatedPos = rotateVertex(inPosition, face_type);
@@ -91,7 +116,7 @@ void main() {
     gl_Position = ubo.proj * ubo.view * push.model * vec4(worldPos, 1.0);
 
     fragTexCoord = inTexCoord;
-    fragTextureID = inTextureID;
+    fragTextureID = getTextureID(block_type, face_type);
     fragNormal = normal;
     fragPos = worldPos;
 }
