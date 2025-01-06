@@ -7,6 +7,8 @@ layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in flat uint fragTextureID;
 layout(location = 2) in vec3 fragNormal;
 layout(location = 3) in vec3 fragPos;
+layout(location = 4) in flat uint fragBlockType;
+layout(location = 5) in flat uint fragFaceType;
 
 layout(location = 0) out vec4 outColor;
 
@@ -17,7 +19,19 @@ void main() {
     float ambientStrength = 0.3;                     // Ambient light intensity
 
     // Get base color from texture
-    vec4 texColor = texture(texSampler, vec3(fragTexCoord, fragTextureID));
+    vec4 texColor;
+
+    // Special case for grass block sides (texture ID 2)
+    if (fragTextureID == 2) {
+        // Get base grass side texture
+        vec4 baseColor = texture(texSampler, vec3(fragTexCoord, 2));
+        // Get overlay texture
+        vec4 overlayColor = texture(texSampler, vec3(fragTexCoord, 3));
+        // Blend them together
+        texColor = mix(baseColor, overlayColor, overlayColor.a);
+    } else {
+        texColor = texture(texSampler, vec3(fragTexCoord, fragTextureID));
+    }
 
     // Calculate diffuse lighting
     float diff = max(dot(normalize(fragNormal), lightDir), 0.0);
