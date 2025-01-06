@@ -7,6 +7,7 @@
 #include <array>
 
 #include "Quad.hpp"
+#include "QuadInstance.hpp"
 
 #ifdef _WIN32
     #include <vulkan/vulkan_win32.h>
@@ -794,10 +795,10 @@ void Application::createGraphicsPipeline() {
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizer.lineWidth = 1.0f;
-    // rasterizer.cullMode = VK_CULL_MODE_NONE;
-    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.cullMode = VK_CULL_MODE_NONE;
+    // rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
     rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -1295,14 +1296,14 @@ void Application::updateCameraRotation() {
 void Application::createVertexBuffer() {
     std::vector<Vertex> vertices = Quad::getQuadVertices();
     std::vector<uint32_t> indices = Quad::getQuadIndices();
-    std::vector<glm::mat4> instanceTransforms = Quad::generateInstanceTransforms();
+    std::vector<uint32_t> instanceData = QuadInstance::generateCubeGrid(16, 16);
 
     vertexCount = static_cast<uint32_t>(indices.size());
-    instanceCount = Quad::INSTANCE_COUNT;
+    instanceCount = static_cast<uint32_t>(instanceData.size());
 
     VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
     VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
-    VkDeviceSize instanceBufferSize = sizeof(glm::mat4) * instanceTransforms.size();
+    VkDeviceSize instanceBufferSize = sizeof(uint32_t) * instanceData.size();
 
     // Create staging buffer for vertices
     VkBuffer vertexStagingBuffer;
@@ -1341,22 +1342,22 @@ void Application::createVertexBuffer() {
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         indexBuffer, indexBufferMemory);
 
-    // Create instance transform buffer
+    // Create instance data buffer
     createBuffer(instanceBufferSize,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         instanceBuffer, instanceBufferMemory);
 
-    // Create staging buffer for instance transforms
+    // Create staging buffer for instance data
     VkBuffer instanceStagingBuffer;
     VkDeviceMemory instanceStagingBufferMemory;
     createBuffer(instanceBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         instanceStagingBuffer, instanceStagingBufferMemory);
 
-    // Copy instance transform data
+    // Copy instance data
     vkMapMemory(device, instanceStagingBufferMemory, 0, instanceBufferSize, 0, &data);
-    memcpy(data, instanceTransforms.data(), (size_t)instanceBufferSize);
+    memcpy(data, instanceData.data(), (size_t)instanceBufferSize);  // Changed from instanceTransforms
     vkUnmapMemory(device, instanceStagingBufferMemory);
 
     // Copy buffers
