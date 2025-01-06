@@ -6,6 +6,7 @@
 
 #include <array>
 
+#include "ChunkStorage.hpp"
 #include "Quad.hpp"
 #include "QuadInstance.hpp"
 
@@ -1296,7 +1297,10 @@ void Application::updateCameraRotation() {
 void Application::createVertexBuffer() {
     std::vector<Vertex> vertices = Quad::getQuadVertices();
     std::vector<uint32_t> indices = Quad::getQuadIndices();
-    std::vector<uint32_t> instanceData = QuadInstance::generateCubeGrid(16, 16);
+
+    // Generate chunk data and get visible faces
+    auto chunkData = ChunkStorage::generateTestChunk();
+    std::vector<uint32_t> instanceData = ChunkStorage::generateVisibleFaces(chunkData);
 
     vertexCount = static_cast<uint32_t>(indices.size());
     instanceCount = static_cast<uint32_t>(instanceData.size());
