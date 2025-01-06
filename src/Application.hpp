@@ -55,7 +55,7 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     std::chrono::high_resolution_clock::time_point startTime;
-    glm::vec3 cameraPos = glm::vec3(-1.0f, 0.0f, 0.0f);
+    glm::vec3 cameraPos = glm::vec3(-1.0f, -1.0f, 1.0f);
     glm::vec3 cameraFront = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
     glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
     float cameraSpeed = 0.01f;
@@ -70,15 +70,16 @@ private:
     VkBuffer vertexBuffer;
     VkDeviceMemory vertexBufferMemory;
     size_t vertexCount;
+    uint32_t instanceCount;
     VkImage textureImage;
     VkDeviceMemory textureImageMemory;
     VkImageView textureImageView;
     VkSampler textureSampler;
     VkBuffer indexBuffer;
     VkDeviceMemory indexBufferMemory;
-    VkBuffer transformBuffer;
-    VkDeviceMemory transformBufferMemory;
-    SubChunk subChunk;
+    VkBuffer instanceBuffer;
+    VkDeviceMemory instanceBufferMemory;
+    // SubChunk subChunk;
 
     struct UniformBufferObject {
         glm::mat4 view;

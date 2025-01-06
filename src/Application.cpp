@@ -6,7 +6,7 @@
 
 #include <array>
 
-#include "CubeGeometry.hpp"
+#include "Quad.hpp"
 
 #ifdef _WIN32
     #include <vulkan/vulkan_win32.h>
@@ -50,7 +50,6 @@ void Application::initVulkan() {
     createTextureSampler();
     createVertexBuffer();
     createUniformBuffers();
-    createTransformBuffer();
     createDescriptorPool();
     createDescriptorSets();
     createCommandBuffers();
@@ -238,14 +237,13 @@ void Application::mainLoop() {
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
 
-    vkDestroyBuffer(device, transformBuffer, nullptr);
-    vkFreeMemory(device, transformBufferMemory, nullptr);
-
     vkDestroySampler(device, textureSampler, nullptr);
     vkDestroyImageView(device, textureImageView, nullptr);
     vkDestroyImage(device, textureImage, nullptr);
     vkFreeMemory(device, textureImageMemory, nullptr);
 
+    vkDestroyBuffer(device, instanceBuffer, nullptr);
+    vkFreeMemory(device, instanceBufferMemory, nullptr);
     vkDestroyBuffer(device, vertexBuffer, nullptr);
     vkFreeMemory(device, vertexBufferMemory, nullptr);
     vkDestroyBuffer(device, indexBuffer, nullptr);
@@ -796,7 +794,7 @@ void Application::createGraphicsPipeline() {
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
     rasterizer.lineWidth = 1.0f;
     // rasterizer.cullMode = VK_CULL_MODE_NONE;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
@@ -1049,7 +1047,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
         VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
     // Draw all faces in one instanced call
-    vkCmdDrawIndexed(commandBuffer, vertexCount, SubChunk::SUBCHUNK * 6, 0, 0, 0);
+    vkCmdDrawIndexed(commandBuffer, vertexCount, instanceCount, 0, 0, 0);
 
     vkCmdEndRenderPass(commandBuffer);
 
@@ -1073,7 +1071,7 @@ void Application::createDescriptorSetLayout() {
     bindings[1].descriptorCount = 1;
     bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
-    // Transform storage buffer binding
+    // Instance transform buffer binding
     bindings[2].binding = 2;
     bindings[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     bindings[2].descriptorCount = 1;
@@ -1171,10 +1169,10 @@ void Application::createDescriptorSets() {
         imageInfo.imageView = textureImageView;
         imageInfo.sampler = textureSampler;
 
-        VkDescriptorBufferInfo transformBufferInfo{};
-        transformBufferInfo.buffer = transformBuffer;
-        transformBufferInfo.offset = 0;
-        transformBufferInfo.range = sizeof(glm::mat4) * CUBE_FACE_TRANSFORMS.size();
+        VkDescriptorBufferInfo instanceBufferInfo{};
+        instanceBufferInfo.buffer = instanceBuffer;
+        instanceBufferInfo.offset = 0;
+        instanceBufferInfo.range = sizeof(glm::mat4) * Quad::INSTANCE_COUNT;
 
         std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
@@ -1200,7 +1198,7 @@ void Application::createDescriptorSets() {
         descriptorWrites[2].dstArrayElement = 0;
         descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[2].descriptorCount = 1;
-        descriptorWrites[2].pBufferInfo = &transformBufferInfo;
+        descriptorWrites[2].pBufferInfo = &instanceBufferInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
             descriptorWrites.data(), 0, nullptr);
@@ -1295,13 +1293,16 @@ void Application::updateCameraRotation() {
 }
 
 void Application::createVertexBuffer() {
-    std::vector<Vertex> vertices = CubeGeometry::getPlaneVertices();
-    std::vector<uint32_t> indices = CubeGeometry::getPlaneIndices();
+    std::vector<Vertex> vertices = Quad::getQuadVertices();
+    std::vector<uint32_t> indices = Quad::getQuadIndices();
+    std::vector<glm::mat4> instanceTransforms = Quad::generateInstanceTransforms();
 
-    vertexCount = indices.size();
+    vertexCount = static_cast<uint32_t>(indices.size());
+    instanceCount = Quad::INSTANCE_COUNT;
 
     VkDeviceSize vertexBufferSize = sizeof(vertices[0]) * vertices.size();
     VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
+    VkDeviceSize instanceBufferSize = sizeof(glm::mat4) * instanceTransforms.size();
 
     // Create staging buffer for vertices
     VkBuffer vertexStagingBuffer;
@@ -1340,15 +1341,36 @@ void Application::createVertexBuffer() {
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         indexBuffer, indexBufferMemory);
 
+    // Create instance transform buffer
+    createBuffer(instanceBufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        instanceBuffer, instanceBufferMemory);
+
+    // Create staging buffer for instance transforms
+    VkBuffer instanceStagingBuffer;
+    VkDeviceMemory instanceStagingBufferMemory;
+    createBuffer(instanceBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        instanceStagingBuffer, instanceStagingBufferMemory);
+
+    // Copy instance transform data
+    vkMapMemory(device, instanceStagingBufferMemory, 0, instanceBufferSize, 0, &data);
+    memcpy(data, instanceTransforms.data(), (size_t)instanceBufferSize);
+    vkUnmapMemory(device, instanceStagingBufferMemory);
+
     // Copy buffers
     copyBuffer(vertexStagingBuffer, vertexBuffer, vertexBufferSize);
     copyBuffer(indexStagingBuffer, indexBuffer, indexBufferSize);
+    copyBuffer(instanceStagingBuffer, instanceBuffer, instanceBufferSize);
 
     // Cleanup staging buffers
     vkDestroyBuffer(device, vertexStagingBuffer, nullptr);
     vkFreeMemory(device, vertexStagingBufferMemory, nullptr);
     vkDestroyBuffer(device, indexStagingBuffer, nullptr);
     vkFreeMemory(device, indexStagingBufferMemory, nullptr);
+    vkDestroyBuffer(device, instanceStagingBuffer, nullptr);
+    vkFreeMemory(device, instanceStagingBufferMemory, nullptr);
 }
 
 void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
@@ -1762,34 +1784,4 @@ void Application::transitionImageLayout(VkImage image, VkFormat format,
     );
 
     endSingleTimeCommands(commandBuffer);
-}
-
-void Application::createTransformBuffer() {
-    VkDeviceSize bufferSize = sizeof(glm::mat4) * CUBE_FACE_TRANSFORMS.size();
-
-    // Create staging buffer
-    VkBuffer stagingBuffer;
-    VkDeviceMemory stagingBufferMemory;
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer, stagingBufferMemory);
-
-    // Copy transform data to staging buffer
-    void* data;
-    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, CUBE_FACE_TRANSFORMS.data(), bufferSize);
-    vkUnmapMemory(device, stagingBufferMemory);
-
-    // Create device local buffer
-    createBuffer(bufferSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        transformBuffer, transformBufferMemory);
-
-    // Copy from staging to device local buffer
-    copyBuffer(stagingBuffer, transformBuffer, bufferSize);
-
-    // Cleanup staging buffer
-    vkDestroyBuffer(device, stagingBuffer, nullptr);
-    vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
