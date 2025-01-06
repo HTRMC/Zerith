@@ -4,6 +4,7 @@
 #include <cstdint>
 
 #include "BlockType.hpp"
+#include "PerlinNoise.hpp"
 #include "QuadInstance.hpp"
 
 class ChunkStorage {
@@ -88,19 +89,33 @@ public:
     // Generate a test chunk with some blocks
     static BlockGrid generateTestChunk() {
         BlockGrid blocks = {};  // Initialize all to AIR
+        PerlinNoise noise(42); // Initialize with seed 42
 
-        // Create a simple pattern - a solid ground with some blocks on top
+        // Generate heightmap for the chunk
         for (int x = 0; x < CHUNK_SIZE; x++) {
             for (int y = 0; y < CHUNK_SIZE; y++) {
-                // Solid ground at z=0
-                blocks[x][y][0] = BlockType::STONE;
+                // Generate height using multiple octaves of noise
+                double nx = x / static_cast<double>(CHUNK_SIZE) * 0.3; // Scale factor of 4.0
+                double ny = y / static_cast<double>(CHUNK_SIZE) * 0.3;
 
-                // Add some grass blocks above stone
-                if ((x + y) % 3 == 0) {
-                    blocks[x][y][1] = BlockType::GRASS_BLOCK;
-                }
-                if ((x * y) % 5 == 0) {
-                    blocks[x][y][2] = BlockType::DIRT;
+                // Generate height value between 0 and CHUNK_SIZE
+                int height = static_cast<int>(
+                    PerlinNoise::normalize(
+                        noise.octaveNoise(nx, ny, 0.0, 4, 1.0), // 4 octaves
+                        1.0,              // min height
+                        CHUNK_SIZE * 0.75 // max height (75% of chunk height)
+                    )
+                );
+
+                // Fill blocks from bottom to height
+                for (int z = 0; z < height; z++) {
+                    if (z == height - 1) {
+                        blocks[x][y][z] = BlockType::GRASS_BLOCK;
+                    } else if (z >= height - 4) {
+                        blocks[x][y][z] = BlockType::DIRT;
+                    } else {
+                        blocks[x][y][z] = BlockType::STONE;
+                    }
                 }
             }
         }
