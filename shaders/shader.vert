@@ -28,6 +28,20 @@ layout(binding = 2) readonly buffer InstanceData {
 
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out flat uint fragTextureID;
+layout(location = 2) out vec3 fragNormal;
+layout(location = 3) out vec3 fragPos;
+
+vec3 getFaceNormal(int faceType) {
+    switch(faceType) {
+        case FACE_XP: return vec3(1.0, 0.0, 0.0);  // Right face (+X)
+        case FACE_XN: return vec3(-1.0, 0.0, 0.0); // Left face (-X)
+        case FACE_YP: return vec3(0.0, 1.0, 0.0);  // Front face (+Y)
+        case FACE_YN: return vec3(0.0, -1.0, 0.0); // Back face (-Y)
+        case FACE_ZP: return vec3(0.0, 0.0, 1.0);  // Top face (+Z)
+        case FACE_ZN: return vec3(0.0, 0.0, -1.0); // Bottom face (-Z)
+        default: return vec3(0.0, 1.0, 0.0);
+    }
+}
 
 vec3 rotateVertex(vec3 pos, int faceType) {
     vec3 final = pos;
@@ -70,9 +84,14 @@ void main() {
     // Apply position offset
     vec3 worldPos = rotatedPos + vec3(float(x), float(y), float(z));
 
+    // Get face normal
+    vec3 normal = getFaceNormal(face_type);
+
     // Final transformation
     gl_Position = ubo.proj * ubo.view * push.model * vec4(worldPos, 1.0);
 
     fragTexCoord = inTexCoord;
     fragTextureID = inTextureID;
+    fragNormal = normal;
+    fragPos = worldPos;
 }

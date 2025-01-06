@@ -5,19 +5,28 @@ layout(binding = 1) uniform sampler2DArray texSampler;
 
 layout(location = 0) in vec2 fragTexCoord;
 layout(location = 1) in flat uint fragTextureID;
+layout(location = 2) in vec3 fragNormal;
+layout(location = 3) in vec3 fragPos;
 
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    // For grass block sides, we need to blend the side texture with the overlay
-    if (fragTextureID == 2) {  // If it's a grass block side
-       vec4 sideTexture = texture(texSampler, vec3(fragTexCoord, 2));  // grass_block_side
-       vec4 overlayTexture = texture(texSampler, vec3(fragTexCoord, 3));  // grass_block_side_overlay
+    // Light properties
+    vec3 lightDir = normalize(vec3(0.5, 1.0, 0.8)); // Light direction
+    vec3 lightColor = vec3(1.0, 1.0, 0.9);          // Slightly warm light
+    float ambientStrength = 0.3;                     // Ambient light intensity
 
-       // Blend the textures using the overlay's alpha channel
-       outColor = vec4(mix(sideTexture.rgb, overlayTexture.rgb, overlayTexture.a), sideTexture.a);
-    } else {
-        // For all other blocks, just use the texture directly
-        outColor = texture(texSampler, vec3(fragTexCoord, fragTextureID));
-    }
+    // Get base color from texture
+    vec4 texColor = texture(texSampler, vec3(fragTexCoord, fragTextureID));
+
+    // Calculate diffuse lighting
+    float diff = max(dot(normalize(fragNormal), lightDir), 0.0);
+
+    // Combine ambient and diffuse
+    vec3 ambient = ambientStrength * lightColor;
+    vec3 diffuse = diff * lightColor;
+    vec3 lighting = ambient + diffuse;
+
+    // Apply lighting to texture color
+    outColor = vec4(texColor.rgb * lighting, texColor.a);
 }
