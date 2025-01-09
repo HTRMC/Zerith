@@ -79,7 +79,6 @@ private:
     VkDeviceMemory indexBufferMemory;
     VkBuffer instanceBuffer;
     VkDeviceMemory instanceBufferMemory;
-    // SubChunk subChunk;
 
     struct UniformBufferObject {
         glm::mat4 view;
@@ -177,8 +176,6 @@ private:
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
                                uint32_t layerCount);
-
-    void createTransformBuffer();
 
     bool checkValidationLayerSupport();
     void mainLoop();
