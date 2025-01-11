@@ -18,7 +18,27 @@
     #include <linux/limits.h>
 #endif
 
-Application::Application() : window(800, 600), physicalDevice(VK_NULL_HANDLE) {
+Application::Application() : physicalDevice(VK_NULL_HANDLE)
+#ifdef _WIN32
+    , window(GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2)
+#else
+    , window([]{
+        xcb_connection_t* tmpConn = xcb_connect(nullptr, nullptr);
+        xcb_screen_t* tmpScreen = xcb_setup_roots_iterator(xcb_get_setup(tmpConn)).data;
+        int width = tmpScreen->width_in_pixels / 2;
+        int height = tmpScreen->height_in_pixels / 2;
+        xcb_disconnect(tmpConn);
+        return std::make_pair(width, height);
+    }().first, []{
+        xcb_connection_t* tmpConn = xcb_connect(nullptr, nullptr);
+        xcb_screen_t* tmpScreen = xcb_setup_roots_iterator(xcb_get_setup(tmpConn)).data;
+        int width = tmpScreen->width_in_pixels / 2;
+        int height = tmpScreen->height_in_pixels / 2;
+        xcb_disconnect(tmpConn);
+        return std::make_pair(width, height);
+    }().second)
+#endif
+{
     appPath = getExecutablePath();
     window.setIcon(appPath + "/resources/x256.ico");
     window.setCaptureMouse(true);

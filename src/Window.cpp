@@ -45,9 +45,9 @@ Window::Window(int width, int height) : width(width), height(height) {
 
     RECT rect = {0, 0, width, height};
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
-
     int windowWidth = rect.right - rect.left;
     int windowHeight = rect.bottom - rect.top;
+
     int posX = (screenWidth - windowWidth) / 2;
     int posY = (screenHeight - windowHeight) / 2;
 
@@ -57,8 +57,7 @@ Window::Window(int width, int height) : width(width), height(height) {
         "Zerith",
         WS_OVERLAPPEDWINDOW,
         posX, posY,
-        rect.right - rect.left,
-        rect.bottom - rect.top,
+        windowWidth, windowHeight,
         nullptr,
         nullptr,
         hInstance,
