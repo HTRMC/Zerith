@@ -42,8 +42,11 @@ void Application::initVulkan() {
     createSwapChain();
     createImageViews();
     createRenderPass();
+    createDescriptorPool();
     createDescriptorSetLayout();
+    createSkyDescriptorSetLayout();
     createGraphicsPipeline();
+    createSkyPipeline();
     createDepthResources();
     createFramebuffers();
     createCommandPool();
@@ -52,7 +55,7 @@ void Application::initVulkan() {
     createTextureSampler();
     createVertexBuffer();
     createUniformBuffers();
-    createDescriptorPool();
+    createSkyColorsBuffer();
     createDescriptorSets();
     createCommandBuffers();
     createSyncObjects();
@@ -238,6 +241,16 @@ void Application::mainLoop() {
 
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vkUnmapMemory(device, skyColorsBuffersMemory[i]);
+        vkDestroyBuffer(device, skyColorsBuffers[i], nullptr);
+        vkFreeMemory(device, skyColorsBuffersMemory[i], nullptr);
+    }
+
+    vkDestroyDescriptorSetLayout(device, skyDescriptorSetLayout, nullptr);
+    vkDestroyPipeline(device, skyPipeline, nullptr);
+    vkDestroyPipelineLayout(device, skyPipelineLayout, nullptr);
 
     vkDestroySampler(device, textureSampler, nullptr);
     vkDestroyImageView(device, textureImageView, nullptr);
@@ -967,6 +980,7 @@ void Application::drawFrame(size_t currentFrame) {
     }
 
     updateUniformBuffer(currentFrame);
+    updateSkyColors(currentFrame);
 
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
     vkResetCommandBuffer(commandBuffers[currentFrame], 0);
@@ -1033,6 +1047,13 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     renderPassInfo.pClearValues = clearValues.data();
 
     vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    // Draw sky first
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyPipeline);
+    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+        skyPipelineLayout, 0, 1, &skyDescriptorSets[currentFrame], 0, nullptr);
+    vkCmdDraw(commandBuffer, 6, 1, 0, 0);  // 6 vertices for fullscreen quad
+
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
 
     VkBuffer vertexBuffers[] = {vertexBuffer};
@@ -1128,19 +1149,21 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
 }
 
 void Application::createDescriptorPool() {
-    std::array<VkDescriptorPoolSize, 3> poolSizes{};
+    std::array<VkDescriptorPoolSize, 4> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     poolSizes[1].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[3].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    poolSizes[3].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
     poolInfo.pPoolSizes = poolSizes.data();
-    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
 
     if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("failed to create descriptor pool!");
@@ -1174,7 +1197,7 @@ void Application::createDescriptorSets() {
         VkDescriptorBufferInfo instanceBufferInfo{};
         instanceBufferInfo.buffer = instanceBuffer;
         instanceBufferInfo.offset = 0;
-        instanceBufferInfo.range = sizeof(glm::mat4) * Quad::INSTANCE_COUNT;
+        instanceBufferInfo.range = sizeof(uint32_t) * instanceCount;
 
         std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
 
@@ -1789,4 +1812,220 @@ void Application::transitionImageLayout(VkImage image, VkFormat format,
     );
 
     endSingleTimeCommands(commandBuffer);
+}
+
+void Application::createSkyPipeline() {
+    // Read shader files
+    auto skyVertShaderCode = readFile(appPath + "/shaders/sky.vert.spv");
+    auto skyFragShaderCode = readFile(appPath + "/shaders/sky.frag.spv");
+
+    VkShaderModule skyVertShaderModule = createShaderModule(skyVertShaderCode);
+    VkShaderModule skyFragShaderModule = createShaderModule(skyFragShaderCode);
+
+    VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+    vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertShaderStageInfo.module = skyVertShaderModule;
+    vertShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+    fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragShaderStageInfo.module = skyFragShaderModule;
+    fragShaderStageInfo.pName = "main";
+
+    VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+    // Vertex input state - we don't need any vertex input as the positions are hardcoded in the shader
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertexInputInfo.vertexBindingDescriptionCount = 0;
+    vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
+    // Input assembly - we're drawing triangles
+    VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+    inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+    // Viewport and scissor
+    VkViewport viewport{};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = static_cast<float>(swapChainExtent.width);
+    viewport.height = static_cast<float>(swapChainExtent.height);
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = swapChainExtent;
+
+    VkPipelineViewportStateCreateInfo viewportState{};
+    viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewportState.viewportCount = 1;
+    viewportState.pViewports = &viewport;
+    viewportState.scissorCount = 1;
+    viewportState.pScissors = &scissor;
+
+    // Rasterizer
+    VkPipelineRasterizationStateCreateInfo rasterizer{};
+    rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = VK_FALSE;
+    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0f;
+    rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.depthBiasEnable = VK_FALSE;
+
+    // Multisampling
+    VkPipelineMultisampleStateCreateInfo multisampling{};
+    multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = VK_FALSE;
+    multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+    // Depth and stencil state
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_FALSE;  // Disable depth testing for sky
+    depthStencil.depthWriteEnable = VK_FALSE; // Don't write to depth buffer
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
+    // Color blending
+    VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+    colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+    colorBlendAttachment.blendEnable = VK_FALSE;
+
+    VkPipelineColorBlendStateCreateInfo colorBlending{};
+    colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    colorBlending.logicOpEnable = VK_FALSE;
+    colorBlending.attachmentCount = 1;
+    colorBlending.pAttachments = &colorBlendAttachment;
+
+    // Pipeline layout (for uniforms)
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+    pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &skyDescriptorSetLayout;
+
+    if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &skyPipelineLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create sky pipeline layout!");
+    }
+
+    // Create the graphics pipeline
+    VkGraphicsPipelineCreateInfo pipelineInfo{};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipelineInfo.stageCount = 2;
+    pipelineInfo.pStages = shaderStages;
+    pipelineInfo.pVertexInputState = &vertexInputInfo;
+    pipelineInfo.pInputAssemblyState = &inputAssembly;
+    pipelineInfo.pViewportState = &viewportState;
+    pipelineInfo.pRasterizationState = &rasterizer;
+    pipelineInfo.pMultisampleState = &multisampling;
+    pipelineInfo.pDepthStencilState = &depthStencil;
+    pipelineInfo.pColorBlendState = &colorBlending;
+    pipelineInfo.layout = skyPipelineLayout;
+    pipelineInfo.renderPass = renderPass;
+    pipelineInfo.subpass = 0;  // Use the first subpass
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+    if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &skyPipeline) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create sky pipeline!");
+    }
+
+    // Cleanup shader modules
+    vkDestroyShaderModule(device, skyFragShaderModule, nullptr);
+    vkDestroyShaderModule(device, skyVertShaderModule, nullptr);
+}
+
+void Application::createSkyDescriptorSetLayout() {
+    VkDescriptorSetLayoutBinding skyColorsBinding{};
+    skyColorsBinding.binding = 0;
+    skyColorsBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    skyColorsBinding.descriptorCount = 1;
+    skyColorsBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    skyColorsBinding.pImmutableSamplers = nullptr;
+
+    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = 1;
+    layoutInfo.pBindings = &skyColorsBinding;
+
+    if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &skyDescriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create sky descriptor set layout!");
+    }
+}
+
+void Application::createSkyColorsBuffer() {
+    VkDeviceSize bufferSize = sizeof(SkyColors);
+
+    // Create uniform buffers for each frame in flight
+    skyColorsBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    skyColorsBuffersMemory.resize(MAX_FRAMES_IN_FLIGHT);
+    skyColorsMapped.resize(MAX_FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        createBuffer(
+            bufferSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            skyColorsBuffers[i],
+            skyColorsBuffersMemory[i]
+        );
+
+        // Map the memory persistently
+        vkMapMemory(device, skyColorsBuffersMemory[i], 0, bufferSize, 0, &skyColorsMapped[i]);
+
+        // Initialize with default sky colors (Minecraft-like colors)
+        SkyColors defaultColors{
+            glm::vec4(0.0f, 0.5f, 1.0f, 1.0f),  // Top color: light blue
+            glm::vec4(0.5f, 0.7f, 1.0f, 1.0f)   // Bottom color: slightly lighter blue
+        };
+        memcpy(skyColorsMapped[i], &defaultColors, sizeof(SkyColors));
+    }
+
+    // Create descriptor sets
+    std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, skyDescriptorSetLayout);
+    VkDescriptorSetAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    allocInfo.descriptorPool = descriptorPool;  // Use existing descriptor pool
+    allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    allocInfo.pSetLayouts = layouts.data();
+
+    skyDescriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+    if (vkAllocateDescriptorSets(device, &allocInfo, skyDescriptorSets.data()) != VK_SUCCESS) {
+        throw std::runtime_error("failed to allocate sky descriptor sets!");
+    }
+
+    // Update descriptor sets
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        VkDescriptorBufferInfo bufferInfo{};
+        bufferInfo.buffer = skyColorsBuffers[i];
+        bufferInfo.offset = 0;
+        bufferInfo.range = sizeof(SkyColors);
+
+        VkWriteDescriptorSet descriptorWrite{};
+        descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrite.dstSet = skyDescriptorSets[i];
+        descriptorWrite.dstBinding = 0;
+        descriptorWrite.dstArrayElement = 0;
+        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrite.descriptorCount = 1;
+        descriptorWrite.pBufferInfo = &bufferInfo;
+
+        vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+    }
+}
+
+void Application::updateSkyColors(uint32_t currentFrame) {
+    // For testing, let's set some constant colors first
+    SkyColors colors{};
+    colors.topColor = glm::vec4(0.0f, 0.5f, 1.0f, 1.0f);    // Sky blue
+    colors.bottomColor = glm::vec4(0.5f, 0.7f, 1.0f, 1.0f); // Light blue
+
+    memcpy(skyColorsMapped[currentFrame], &colors, sizeof(SkyColors));
 }

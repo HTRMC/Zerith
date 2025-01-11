@@ -79,6 +79,20 @@ private:
     VkDeviceMemory indexBufferMemory;
     VkBuffer instanceBuffer;
     VkDeviceMemory instanceBufferMemory;
+    VkPipeline skyPipeline;
+    VkPipelineLayout skyPipelineLayout;
+    VkBuffer skyColorsBuffer;
+    VkDeviceMemory skyColorsMemory;
+    VkDescriptorSetLayout skyDescriptorSetLayout;
+    std::vector<VkDescriptorSet> skyDescriptorSets;
+    std::vector<VkBuffer> skyColorsBuffers;
+    std::vector<VkDeviceMemory> skyColorsBuffersMemory;
+    std::vector<void*> skyColorsMapped;
+
+    struct SkyColors {
+        glm::vec4 topColor;
+        glm::vec4 bottomColor;
+    };
 
     struct UniformBufferObject {
         glm::mat4 view;
@@ -176,6 +190,11 @@ private:
 
     void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout,
                                uint32_t layerCount);
+
+    void createSkyPipeline();
+    void createSkyDescriptorSetLayout();
+    void createSkyColorsBuffer();
+    void updateSkyColors(uint32_t currentFrame);
 
     bool checkValidationLayerSupport();
     void mainLoop();
