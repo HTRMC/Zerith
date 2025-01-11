@@ -16,7 +16,7 @@ void main() {
     height = (height + 1.0) * 0.5; // Map from [-1, 1] to [0, 1]
 
     // Apply a power function to create sharper transition near horizon
-    height = pow(height, 0.5);
+    height = pow(height, 1);
 
     // Create stronger horizon glow
     float horizonGlow = 1.0 - abs(normalize(fragViewDir).z);
@@ -28,8 +28,4 @@ void main() {
 
     // Add horizon glow
     outColor = mix(baseColor, horizonColor, horizonGlow * 0.3);
-
-    // Add atmospheric scattering
-    float scatterStrength = pow(1.0 - height, 3.0) * 0.2;
-    outColor.rgb += vec3(scatterStrength);
 }

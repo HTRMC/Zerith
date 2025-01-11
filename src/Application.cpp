@@ -2029,8 +2029,8 @@ void Application::updateSkyColors(uint32_t currentFrame) {
         cameraFront,      // Look direction
         cameraUp         // Up vector
     );
-    skyUBO.topColor = glm::vec4(0.5f, 0.7f, 1.0f, 1.0f);    // Sky blue
-    skyUBO.bottomColor = glm::vec4(0.0f, 0.5f, 1.0f, 1.0f); // Light blue
+    skyUBO.topColor = glm::vec4(0.4706f, 0.6549f, 1.0f, 1.0f);    // Top sky color (#78a7ff)
+    skyUBO.bottomColor = glm::vec4(0.7529f, 0.8471f, 1.0f, 1.0f); // Bottom sky color (#c0d8ff)
 
     memcpy(skyColorsMapped[currentFrame], &skyUBO, sizeof(SkyUBO));
 }
