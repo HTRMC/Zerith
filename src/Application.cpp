@@ -1943,17 +1943,17 @@ void Application::createSkyPipeline() {
 }
 
 void Application::createSkyDescriptorSetLayout() {
-    VkDescriptorSetLayoutBinding skyColorsBinding{};
-    skyColorsBinding.binding = 0;
-    skyColorsBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    skyColorsBinding.descriptorCount = 1;
-    skyColorsBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    skyColorsBinding.pImmutableSamplers = nullptr;
+    VkDescriptorSetLayoutBinding skyUBOBinding{};
+    skyUBOBinding.binding = 0;
+    skyUBOBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    skyUBOBinding.descriptorCount = 1;
+    skyUBOBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+    skyUBOBinding.pImmutableSamplers = nullptr;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutInfo.bindingCount = 1;
-    layoutInfo.pBindings = &skyColorsBinding;
+    layoutInfo.pBindings = &skyUBOBinding;
 
     if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &skyDescriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("failed to create sky descriptor set layout!");
@@ -1961,7 +1961,7 @@ void Application::createSkyDescriptorSetLayout() {
 }
 
 void Application::createSkyColorsBuffer() {
-    VkDeviceSize bufferSize = sizeof(SkyColors);
+    VkDeviceSize bufferSize = sizeof(SkyUBO);
 
     // Create uniform buffers for each frame in flight
     skyColorsBuffers.resize(MAX_FRAMES_IN_FLIGHT);
@@ -1980,12 +1980,13 @@ void Application::createSkyColorsBuffer() {
         // Map the memory persistently
         vkMapMemory(device, skyColorsBuffersMemory[i], 0, bufferSize, 0, &skyColorsMapped[i]);
 
-        // Initialize with default sky colors (Minecraft-like colors)
-        SkyColors defaultColors{
-            glm::vec4(0.0f, 0.5f, 1.0f, 1.0f),  // Top color: light blue
-            glm::vec4(0.5f, 0.7f, 1.0f, 1.0f)   // Bottom color: slightly lighter blue
+        // Initialize with default sky colors and identity view matrix
+        SkyUBO defaultColors{
+            glm::mat4(1.0f),                      // Identity view matrix
+            glm::vec4(0.0f, 0.5f, 1.0f, 1.0f),   // Top color: light blue
+            glm::vec4(0.5f, 0.7f, 1.0f, 1.0f)    // Bottom color: slightly lighter blue
         };
-        memcpy(skyColorsMapped[i], &defaultColors, sizeof(SkyColors));
+        memcpy(skyColorsMapped[i], &defaultColors, sizeof(SkyUBO));
     }
 
     // Create descriptor sets
@@ -2006,7 +2007,7 @@ void Application::createSkyColorsBuffer() {
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = skyColorsBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(SkyColors);
+        bufferInfo.range = sizeof(SkyUBO);
 
         VkWriteDescriptorSet descriptorWrite{};
         descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2022,10 +2023,14 @@ void Application::createSkyColorsBuffer() {
 }
 
 void Application::updateSkyColors(uint32_t currentFrame) {
-    // For testing, let's set some constant colors first
-    SkyColors colors{};
-    colors.topColor = glm::vec4(0.0f, 0.5f, 1.0f, 1.0f);    // Sky blue
-    colors.bottomColor = glm::vec4(0.5f, 0.7f, 1.0f, 1.0f); // Light blue
+    SkyUBO skyUBO{};
+    skyUBO.view = glm::lookAt(
+        glm::vec3(0.0f), // Camera position for sky (always at origin)
+        cameraFront,      // Look direction
+        cameraUp         // Up vector
+    );
+    skyUBO.topColor = glm::vec4(0.5f, 0.7f, 1.0f, 1.0f);    // Sky blue
+    skyUBO.bottomColor = glm::vec4(0.0f, 0.5f, 1.0f, 1.0f); // Light blue
 
-    memcpy(skyColorsMapped[currentFrame], &colors, sizeof(SkyColors));
+    memcpy(skyColorsMapped[currentFrame], &skyUBO, sizeof(SkyUBO));
 }

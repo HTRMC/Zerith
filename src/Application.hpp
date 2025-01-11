@@ -89,7 +89,8 @@ private:
     std::vector<VkDeviceMemory> skyColorsBuffersMemory;
     std::vector<void*> skyColorsMapped;
 
-    struct SkyColors {
+    struct SkyUBO {
+        glm::mat4 view;
         glm::vec4 topColor;
         glm::vec4 bottomColor;
     };
