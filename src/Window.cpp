@@ -138,10 +138,18 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
                     window->mouse.x = static_cast<float>(x);
                     window->mouse.y = static_cast<float>(y);
                     window->mouse.firstMouse = false;
+                    window->mouse.deltaX = 0.0f;
+                    window->mouse.deltaY = 0.0f;
+                } else {
+                    float deltaX = static_cast<float>(x) - window->mouse.x;
+                    float deltaY = static_cast<float>(y) - window->mouse.y;
+
+                    // Small deadzone (0.5 pixels)
+                    const float DEADZONE = 0.5f;
+                    window->mouse.deltaX = (std::abs(deltaX) > DEADZONE) ? deltaX : 0.0f;
+                    window->mouse.deltaY = (std::abs(deltaY) > DEADZONE) ? deltaY : 0.0f;
                 }
 
-                window->mouse.deltaX = static_cast<float>(x) - window->mouse.x;
-                window->mouse.deltaY = static_cast<float>(y) - window->mouse.y;
                 window->mouse.x = static_cast<float>(x);
                 window->mouse.y = static_cast<float>(y);
                 window->centerCursor();
