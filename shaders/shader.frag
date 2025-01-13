@@ -25,8 +25,11 @@ void main() {
         vec4 baseColor = texture(texSampler, vec3(fragTexCoord, 2));
         // Get overlay texture
         vec4 overlayColor = texture(texSampler, vec3(fragTexCoord, 3));
-        // Blend them together
-        texColor = mix(baseColor, overlayColor, overlayColor.a);
+        // Pre-multiply alpha and blend
+        vec4 blendedColor;
+        blendedColor.rgb = mix(baseColor.rgb, overlayColor.rgb * overlayColor.a, overlayColor.a);
+        blendedColor.a = baseColor.a;  // Keep base alpha
+        texColor = blendedColor;
     } else {
         texColor = texture(texSampler, vec3(fragTexCoord, fragTextureID));
     }
