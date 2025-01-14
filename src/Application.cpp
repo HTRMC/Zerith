@@ -75,6 +75,7 @@ void Application::initVulkan() {
     createTextureImageView();
     createTextureSampler();
     createVertexBuffer();
+    createIndirectBuffer();
     createUniformBuffers();
     createSkyColorsBuffer();
     createDescriptorSets();
@@ -268,6 +269,9 @@ void Application::mainLoop() {
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
 
+    vkDestroyBuffer(device, indirectBuffer, nullptr);
+    vkFreeMemory(device, indirectBufferMemory, nullptr);
+
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vkUnmapMemory(device, skyColorsBuffersMemory[i]);
         vkDestroyBuffer(device, skyColorsBuffers[i], nullptr);
@@ -389,6 +393,7 @@ void Application::createLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures{};
 
     deviceFeatures.samplerAnisotropy = VK_TRUE;
+    deviceFeatures.fillModeNonSolid = VK_TRUE;
 
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -1096,8 +1101,9 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
         VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
     // Draw all faces in one instanced call
-    vkCmdDrawIndexed(commandBuffer, vertexCount, instanceCount, 0, 0, 0);
-
+    vkCmdDrawIndexedIndirect(commandBuffer, indirectBuffer, 0, 1, sizeof(VkDrawIndexedIndirectCommand));
+    // Need to switch to
+    // vkCmdDrawIndexedIndirect();
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -2060,4 +2066,41 @@ void Application::updateSkyColors(uint32_t currentFrame) {
     skyUBO.bottomColor = glm::vec4(0.7529f, 0.8471f, 1.0f, 1.0f); // Bottom sky color (#c0d8ff)
 
     memcpy(skyColorsMapped[currentFrame], &skyUBO, sizeof(SkyUBO));
+}
+
+void Application::createIndirectBuffer() {
+    VkDrawIndexedIndirectCommand indirectCmd{};
+    indirectCmd.indexCount = vertexCount;      // Number of indices
+    indirectCmd.instanceCount = instanceCount; // Number of instances
+    indirectCmd.firstIndex = 0;               // Starting index in index buffer
+    indirectCmd.vertexOffset = 0;             // Offset added to vertex indices
+    indirectCmd.firstInstance = 0;            // First instance ID
+
+    VkDeviceSize bufferSize = sizeof(VkDrawIndexedIndirectCommand);
+
+    // Create staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        stagingBuffer, stagingBufferMemory);
+
+    // Copy data to staging buffer
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, &indirectCmd, bufferSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create indirect buffer
+    createBuffer(bufferSize,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        indirectBuffer, indirectBufferMemory);
+
+    // Copy data from staging buffer to indirect buffer
+    copyBuffer(stagingBuffer, indirectBuffer, bufferSize);
+
+    // Cleanup staging buffer
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
 }

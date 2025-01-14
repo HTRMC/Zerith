@@ -93,6 +93,16 @@ private:
     std::vector<VkBuffer> skyColorsBuffers;
     std::vector<VkDeviceMemory> skyColorsBuffersMemory;
     std::vector<void*> skyColorsMapped;
+    VkBuffer indirectBuffer;
+    VkDeviceMemory indirectBufferMemory;
+
+    struct VkDrawIndexedIndirectCommand {
+        uint32_t indexCount;
+        uint32_t instanceCount;
+        uint32_t firstIndex;
+        int32_t vertexOffset;
+        uint32_t firstInstance;
+    };
 
     struct SkyUBO {
         glm::mat4 view;
@@ -201,6 +211,8 @@ private:
     void createSkyDescriptorSetLayout();
     void createSkyColorsBuffer();
     void updateSkyColors(uint32_t currentFrame);
+
+    void createIndirectBuffer();
 
     bool checkValidationLayerSupport();
     void mainLoop();
