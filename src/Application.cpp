@@ -50,6 +50,7 @@ Application::~Application() {
 
 void Application::run() {
     initVulkan();
+    lastFrameTime = std::chrono::steady_clock::now();
     mainLoop();
 }
 
@@ -237,6 +238,11 @@ void Application::mainLoop() {
     size_t currentFrame = 0;
 
     while (!window.shouldClose()) {
+        // Calculate delta time
+        auto currentTime = std::chrono::steady_clock::now();
+        deltaTime = std::chrono::duration<float>(currentTime - lastFrameTime).count();
+        lastFrameTime = currentTime;
+
         window.pollEvents();
 
         if (window.shouldClose()) {
@@ -1293,26 +1299,27 @@ uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
 }
 
 void Application::updateCamera() {
+    float movementSpeed = baseMovementSpeed * deltaTime;
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
     glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
 
     if (window.isKeyPressed('W')) {
-        cameraPos += horizontalFront * cameraSpeed;
+        cameraPos += horizontalFront * movementSpeed;
     }
     if (window.isKeyPressed('S')) {
-        cameraPos -= horizontalFront * cameraSpeed;
+        cameraPos -= horizontalFront * movementSpeed;
     }
     if (window.isKeyPressed('A')) {
-        cameraPos -= horizontalRight * cameraSpeed;
+        cameraPos -= horizontalRight * movementSpeed;
     }
     if (window.isKeyPressed('D')) {
-        cameraPos += horizontalRight * cameraSpeed;
+        cameraPos += horizontalRight * movementSpeed;
     }
     if (window.isSpacePressed()) {
-        cameraPos += cameraUp * cameraSpeed;
+        cameraPos += cameraUp * movementSpeed;
     }
     if (window.isShiftPressed()) {
-        cameraPos -= cameraUp * cameraSpeed;
+        cameraPos -= cameraUp * movementSpeed;
     }
 
     // Update chunks based on new camera position

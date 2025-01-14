@@ -25,6 +25,11 @@ public:
     void run();
 
 private:
+    std::chrono::steady_clock::time_point lastFrameTime;
+    float deltaTime = 0.0f;
+    float baseMovementSpeed = 4.317f;
+    float walkMovementSpeed = 4.317f;
+
     Window window;
     VkSurfaceKHR surface;
     VkInstance instance;
