@@ -109,19 +109,16 @@ void main() {
     // Extract instance data
     uint instance_data = instanceData.data[gl_InstanceIndex];
     int face_type = int(instance_data & 0x7);  // Lower 3 bits for face type
-    int local_x = int((instance_data >> 3) & 0x1F);     // Next 5 bits for X position
-    int local_y = int((instance_data >> 8) & 0x1F);     // Next 5 bits for Y position
-    int local_z = int((instance_data >> 13) & 0x1F);    // Next 5 bits for Z position
+    int x = int((instance_data >> 3) & 0x1F);  // Next 5 bits for X position
+    int y = int((instance_data >> 8) & 0x1F);  // Next 5 bits for Y position
+    int z = int((instance_data >> 13) & 0x1F); // Next 5 bits for Z position
     int block_type = int((instance_data >> 18) & 0x3F); // Next 6 bits for block type
-
-    // Get chunk-space position
-    vec3 chunkPos = vec3(float(local_x), float(local_y), float(local_z));
 
     // Rotate the vertex based on face type
     vec3 rotatedPos = rotateVertex(inPosition, face_type);
 
     // Apply position offset
-    vec3 worldPos = rotatedPos + chunkPos;
+    vec3 worldPos = rotatedPos + vec3(float(x), float(y), float(z));
 
     // Get face normal
     vec3 normal = getFaceNormal(face_type);

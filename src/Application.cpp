@@ -1321,48 +1321,6 @@ void Application::updateCamera() {
     if (window.isShiftPressed()) {
         cameraPos -= cameraUp * movementSpeed;
     }
-
-    // Update chunks based on new camera position
-    chunkManager.updateChunks(cameraPos);
-
-    // Get updated instance data
-    auto newInstanceData = chunkManager.getVisibleFaces();
-
-    // If instance data has changed, update the buffer
-    if (newInstanceData != instanceData) {
-        instanceData = std::move(newInstanceData);
-        instanceCount = static_cast<uint32_t>(instanceData.size());
-
-        // Recreate instance buffer with new data
-        createBuffer(
-            sizeof(uint32_t) * instanceData.size(),
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            instanceBuffer,
-            instanceBufferMemory
-        );
-
-        // Upload new instance data
-        VkBuffer stagingBuffer;
-        VkDeviceMemory stagingBufferMemory;
-        createBuffer(
-            sizeof(uint32_t) * instanceData.size(),
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            stagingBuffer,
-            stagingBufferMemory
-        );
-
-        void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, sizeof(uint32_t) * instanceData.size(), 0, &data);
-        memcpy(data, instanceData.data(), sizeof(uint32_t) * instanceData.size());
-        vkUnmapMemory(device, stagingBufferMemory);
-
-        copyBuffer(stagingBuffer, instanceBuffer, sizeof(uint32_t) * instanceData.size());
-
-        vkDestroyBuffer(device, stagingBuffer, nullptr);
-        vkFreeMemory(device, stagingBufferMemory, nullptr);
-    }
 }
 
 void Application::updateCameraRotation() {
@@ -1390,12 +1348,10 @@ void Application::createVertexBuffer() {
     std::vector<Vertex> vertices = Quad::getQuadVertices();
     std::vector<uint32_t> indices = Quad::getQuadIndices();
 
-    // Initialize chunk at origin
-    ChunkPos originChunk = {0, 0, 0};
-    chunkManager.getChunk(originChunk);
-    chunkManager.updateChunks(cameraPos);
+    // Generate chunk data and get visible faces
+    auto chunkData = ChunkStorage::generateTestChunk();
+    std::vector<uint32_t> instanceData = ChunkStorage::generateVisibleFaces(chunkData);
 
-    instanceData = chunkManager.getVisibleFaces();
     vertexCount = static_cast<uint32_t>(indices.size());
     instanceCount = static_cast<uint32_t>(instanceData.size());
 

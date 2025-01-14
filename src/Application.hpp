@@ -13,7 +13,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
-#include "ChunkManager.hpp"
 #include "Subchunk.hpp"
 #include "Window.hpp"
 
@@ -94,8 +93,6 @@ private:
     std::vector<VkBuffer> skyColorsBuffers;
     std::vector<VkDeviceMemory> skyColorsBuffersMemory;
     std::vector<void*> skyColorsMapped;
-    ChunkManager chunkManager;
-    std::vector<uint32_t> instanceData;
 
     struct SkyUBO {
         glm::mat4 view;
