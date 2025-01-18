@@ -132,7 +132,7 @@ public:
         std::vector<uint32_t> allInstances;
         chunkPositions.clear();
 
-        const int CHUNKS_PER_ROW = 5;  // Changed from 3 to 5
+        const int CHUNKS_PER_ROW = 32;  // Changed from 3 to 5
         const int START_OFFSET = -(CHUNKS_PER_ROW / 2);  // This will be -2 for 5x5
 
         // Generate 3x3 chunks

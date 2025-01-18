@@ -27,7 +27,7 @@ public:
 private:
     std::chrono::steady_clock::time_point lastFrameTime;
     float deltaTime = 0.0f;
-    float baseMovementSpeed = 4.317f;
+    float baseMovementSpeed = 4.317f * 10;
     float walkMovementSpeed = 4.317f;
 
     Window window;
