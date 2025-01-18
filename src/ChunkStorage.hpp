@@ -132,16 +132,23 @@ public:
         std::vector<uint32_t> allInstances;
         chunkPositions.clear();
 
+        const int CHUNKS_PER_ROW = 5;  // Changed from 3 to 5
+        const int START_OFFSET = -(CHUNKS_PER_ROW / 2);  // This will be -2 for 5x5
+
         // Generate 3x3 chunks
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
+        for (int x = 0; x < CHUNKS_PER_ROW; x++) {
+            for (int y = 0; y < CHUNKS_PER_ROW; y++) {
                 // Generate the chunk data
                 auto chunkData = generateTestChunk();
                 auto instances = generateVisibleFaces(chunkData);
 
                 // Add chunk position
                 ChunkPositionData posData;
-                posData.position = glm::vec3(x * CHUNK_SIZE, y * CHUNK_SIZE, 0);
+                posData.position = glm::vec3(
+                    (x + START_OFFSET) * CHUNK_SIZE,
+                    (y + START_OFFSET) * CHUNK_SIZE,
+                    0
+                );
                 posData.padding = 0;
                 chunkPositions.push_back(posData);
 

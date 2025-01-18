@@ -126,8 +126,8 @@ void main() {
     int block_type = int((instance_data >> 18) & 0x3F); // Next 6 bits for block type
 
     // Calculate chunk index
-    int chunksPerRow = 3;
-    int totalChunks = chunksPerRow * chunksPerRow;
+    const int CHUNKS_PER_ROW = 5;  // Changed from 3 to 5
+    int totalChunks = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
     int instancesPerChunk = int(ubo.instanceCount) / totalChunks;
     int chunkIndex = gl_InstanceIndex / instancesPerChunk;
 
