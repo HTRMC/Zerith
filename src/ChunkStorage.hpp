@@ -18,6 +18,11 @@ public:
         BlockType blockType;
     };
 
+    struct ChunkPositionData {
+        glm::vec3 position;
+        uint32_t padding;  // For alignment
+    };
+
     static uint32_t packInstanceData(const InstanceData& data) {
         return (static_cast<uint32_t>(data.face) & 0x7) |           // Face type (3 bits)
                ((data.x & 0x1F) << 3) |                             // X position (5 bits)
@@ -121,5 +126,30 @@ public:
         }
 
         return blocks;
+    }
+
+    static std::vector<uint32_t> generateMultiChunk(std::vector<ChunkPositionData>& chunkPositions) {
+        std::vector<uint32_t> allInstances;
+        chunkPositions.clear();
+
+        // Generate 3x3 chunks
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                // Generate the chunk data
+                auto chunkData = generateTestChunk();
+                auto instances = generateVisibleFaces(chunkData);
+
+                // Add chunk position
+                ChunkPositionData posData;
+                posData.position = glm::vec3(x * CHUNK_SIZE, y * CHUNK_SIZE, 0);
+                posData.padding = 0;
+                chunkPositions.push_back(posData);
+
+                // Add instances from this chunk
+                allInstances.insert(allInstances.end(), instances.begin(), instances.end());
+            }
+        }
+
+        return allInstances;
     }
 };

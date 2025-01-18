@@ -13,6 +13,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+#include "ChunkStorage.hpp"
 #include "Subchunk.hpp"
 #include "Window.hpp"
 
@@ -95,6 +96,9 @@ private:
     std::vector<void*> skyColorsMapped;
     VkBuffer indirectBuffer;
     VkDeviceMemory indirectBufferMemory;
+    VkBuffer chunkPositionsBuffer;
+    VkDeviceMemory chunkPositionsBufferMemory;
+    std::vector<ChunkStorage::ChunkPositionData> chunkPositions;
 
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
@@ -113,6 +117,8 @@ private:
     struct UniformBufferObject {
         glm::mat4 view;
         glm::mat4 proj;
+        uint32_t instanceCount;  // Added this
+        glm::vec3 padding;      // Add padding to maintain alignment
     };
 
     struct QueueFamilyIndices {

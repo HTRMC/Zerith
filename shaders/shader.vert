@@ -4,6 +4,8 @@
 layout(binding = 0) uniform UniformBufferObject {
     mat4 view;
     mat4 proj;
+    uint instanceCount;
+    vec3 padding;
 } ubo;
 
 layout(push_constant) uniform PushConstants {
@@ -31,6 +33,15 @@ const int BLOCK_DIRT = 9;
 layout(binding = 2) readonly buffer InstanceData {
     uint data[];
 } instanceData;
+
+struct ChunkPosition {
+    vec3 position;
+    uint padding;
+};
+
+layout(binding = 3) readonly buffer ChunkPositions {
+    ChunkPosition positions[];
+} chunkPositions;
 
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out flat uint fragTextureID;
@@ -114,11 +125,23 @@ void main() {
     int z = int((instance_data >> 13) & 0x1F); // Next 5 bits for Z position
     int block_type = int((instance_data >> 18) & 0x3F); // Next 6 bits for block type
 
+    // Calculate chunk index
+    int chunksPerRow = 3;
+    int totalChunks = chunksPerRow * chunksPerRow;
+    int instancesPerChunk = int(ubo.instanceCount) / totalChunks;
+    int chunkIndex = gl_InstanceIndex / instancesPerChunk;
+
     // Rotate the vertex based on face type
     vec3 rotatedPos = rotateVertex(inPosition, face_type);
 
-    // Apply position offset
-    vec3 worldPos = rotatedPos + vec3(float(x), float(y), float(z));
+    // Apply block position offset
+    vec3 blockOffset = vec3(float(x), float(y), float(z));
+
+    // Apply chunk position offset
+    vec3 chunkOffset = chunkPositions.positions[chunkIndex].position;
+
+    // Combine all positions
+    vec3 worldPos = rotatedPos + blockOffset + chunkOffset;
 
     // Get face normal
     vec3 normal = getFaceNormal(face_type);
