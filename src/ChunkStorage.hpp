@@ -20,7 +20,7 @@ public:
 
     struct ChunkPositionData {
         glm::vec3 position;
-        uint32_t instanceOffset;
+        uint32_t instanceStart;
     };
 
     static uint32_t packInstanceData(const InstanceData& data) {
@@ -152,6 +152,7 @@ public:
 
         const int CHUNKS_PER_ROW = 32;
         const int START_OFFSET = -(CHUNKS_PER_ROW / 2);
+        uint32_t currentOffset = 0;
 
         // Pre-generate all chunks first to calculate offsets
         std::vector<std::vector<uint32_t>> chunkInstances;
@@ -173,10 +174,12 @@ public:
                     (y + START_OFFSET) * CHUNK_SIZE,
                     0
                 );
-                posData.instanceOffset = totalInstanceCount;  // Store the offset
+                posData.instanceStart = currentOffset;
                 chunkPositions.push_back(posData);
 
-                totalInstanceCount += instances.size();
+                // Add instances and update offset
+                allInstances.insert(allInstances.end(), instances.begin(), instances.end());
+                currentOffset += instances.size();
             }
         }
 

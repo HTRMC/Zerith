@@ -1,5 +1,6 @@
 // shader.vert
 #version 450
+#define CHUNK_SIZE 16
 
 layout(binding = 0) uniform UniformBufferObject {
     mat4 view;
@@ -36,7 +37,7 @@ layout(binding = 2) readonly buffer InstanceData {
 
 struct ChunkPosition {
     vec3 position;
-    uint instanceOffset;
+    uint instanceStart;
 };
 
 layout(binding = 3) readonly buffer ChunkPositions {
@@ -116,19 +117,35 @@ vec3 rotateVertex(vec3 pos, int faceType) {
     return final;
 }
 
-void main() {
-    uint currentInstance = gl_InstanceIndex;
-    uint chunkIndex = 0;
-    for (uint i = 0; i < chunkPositions.positions.length(); i++) {
-        uint nextOffset = i < chunkPositions.positions.length() - 1 ?
-                         chunkPositions.positions[i + 1].instanceOffset :
-                         ubo.instanceCount;
-        if (currentInstance >= chunkPositions.positions[i].instanceOffset &&
-            currentInstance < nextOffset) {
-            chunkIndex = i;
-            break;
+uint findChunkIndex(uint currentInstance) {
+    // Binary search through chunk positions
+    uint left = 0;
+    uint right = chunkPositions.positions.length() - 1;
+
+    while (left <= right) {
+        uint mid = (left + right) / 2;
+        uint startOffset = chunkPositions.positions[mid].instanceStart;
+        uint endOffset = mid < chunkPositions.positions.length() - 1 ?
+        chunkPositions.positions[mid + 1].instanceStart :
+        ubo.instanceCount;
+
+        if (currentInstance >= startOffset && currentInstance < endOffset) {
+            return mid;
+        }
+
+        if (currentInstance < startOffset) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
         }
     }
+
+    return 0; // Fallback
+}
+
+void main() {
+    // Find chunk index using binary search
+    uint chunkIndex = findChunkIndex(gl_InstanceIndex);
 
     // Extract instance data
     uint instance_data = instanceData.data[gl_InstanceIndex];
