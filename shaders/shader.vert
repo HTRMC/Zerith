@@ -36,7 +36,7 @@ layout(binding = 2) readonly buffer InstanceData {
 
 struct ChunkPosition {
     vec3 position;
-    uint padding;
+    uint instanceOffset;
 };
 
 layout(binding = 3) readonly buffer ChunkPositions {
@@ -117,19 +117,26 @@ vec3 rotateVertex(vec3 pos, int faceType) {
 }
 
 void main() {
+    uint currentInstance = gl_InstanceIndex;
+    uint chunkIndex = 0;
+    for (uint i = 0; i < chunkPositions.positions.length(); i++) {
+        uint nextOffset = i < chunkPositions.positions.length() - 1 ?
+                         chunkPositions.positions[i + 1].instanceOffset :
+                         ubo.instanceCount;
+        if (currentInstance >= chunkPositions.positions[i].instanceOffset &&
+            currentInstance < nextOffset) {
+            chunkIndex = i;
+            break;
+        }
+    }
+
     // Extract instance data
     uint instance_data = instanceData.data[gl_InstanceIndex];
-    int face_type = int(instance_data & 0x7);  // Lower 3 bits for face type
-    int x = int((instance_data >> 3) & 0x1F);  // Next 5 bits for X position
-    int y = int((instance_data >> 8) & 0x1F);  // Next 5 bits for Y position
-    int z = int((instance_data >> 13) & 0x1F); // Next 5 bits for Z position
-    int block_type = int((instance_data >> 18) & 0x3F); // Next 6 bits for block type
-
-    // Calculate chunk index
-    const int CHUNKS_PER_ROW = 32;  // Changed from 3 to 5
-    int totalChunks = CHUNKS_PER_ROW * CHUNKS_PER_ROW;
-    int instancesPerChunk = int(ubo.instanceCount) / totalChunks;
-    int chunkIndex = gl_InstanceIndex / instancesPerChunk;
+    int face_type = int(instance_data & 0x7);           // Lower 3 bits for face type
+    int x = int((instance_data >> 3) & 0xF);           // Next 4 bits for X position
+    int y = int((instance_data >> 7) & 0xF);           // Next 4 bits for Y position
+    int z = int((instance_data >> 11) & 0xF);          // Next 4 bits for Z position
+    int block_type = int((instance_data >> 15) & 0x1FFFF); // Next 17 bits for block type
 
     // Rotate the vertex based on face type
     vec3 rotatedPos = rotateVertex(inPosition, face_type);
