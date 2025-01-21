@@ -269,6 +269,9 @@ void Application::mainLoop() {
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
 
+    vkDestroyBuffer(device, chunkIndicesBuffer, nullptr);
+    vkFreeMemory(device, chunkIndicesBufferMemory, nullptr);
+
     vkDestroyBuffer(device, chunkPositionsBuffer, nullptr);
     vkFreeMemory(device, chunkPositionsBufferMemory, nullptr);
 
@@ -1114,7 +1117,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
 }
 
 void Application::createDescriptorSetLayout() {
-    std::array<VkDescriptorSetLayoutBinding, 4> bindings{};
+    std::array<VkDescriptorSetLayoutBinding, 5> bindings{};
 
     // Uniform buffer binding
     bindings[0].binding = 0;
@@ -1139,6 +1142,12 @@ void Application::createDescriptorSetLayout() {
     bindings[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     bindings[3].descriptorCount = 1;
     bindings[3].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // Chunk indices buffer binding
+    bindings[4].binding = 4;
+    bindings[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    bindings[4].descriptorCount = 1;
+    bindings[4].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
     VkDescriptorSetLayoutCreateInfo layoutInfo{};
     layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1192,7 +1201,7 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
 }
 
 void Application::createDescriptorPool() {
-    std::array<VkDescriptorPoolSize, 4> poolSizes{};
+    std::array<VkDescriptorPoolSize, 5> poolSizes{};
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT * 2);
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
@@ -1201,6 +1210,8 @@ void Application::createDescriptorPool() {
     poolSizes[2].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
     poolSizes[3].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
     poolSizes[3].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    poolSizes[4].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+    poolSizes[4].descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
 
     VkDescriptorPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1247,7 +1258,12 @@ void Application::createDescriptorSets() {
         chunkPositionsBufferInfo.offset = 0;
         chunkPositionsBufferInfo.range = sizeof(ChunkStorage::ChunkPositionData) * chunkPositions.size();
 
-        std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
+        VkDescriptorBufferInfo chunkIndicesBufferInfo{};
+        chunkIndicesBufferInfo.buffer = chunkIndicesBuffer;
+        chunkIndicesBufferInfo.offset = 0;
+        chunkIndicesBufferInfo.range = sizeof(uint32_t) * chunkIndices.size();
+
+        std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
 
         descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = descriptorSets[i];
@@ -1280,6 +1296,14 @@ void Application::createDescriptorSets() {
         descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         descriptorWrites[3].descriptorCount = 1;
         descriptorWrites[3].pBufferInfo = &chunkPositionsBufferInfo;
+
+        descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[4].dstSet = descriptorSets[i];
+        descriptorWrites[4].dstBinding = 4;
+        descriptorWrites[4].dstArrayElement = 0;
+        descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        descriptorWrites[4].descriptorCount = 1;
+        descriptorWrites[4].pBufferInfo = &chunkIndicesBufferInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
             descriptorWrites.data(), 0, nullptr);
@@ -1379,7 +1403,7 @@ void Application::createVertexBuffer() {
     std::vector<uint32_t> indices = Quad::getQuadIndices();
 
     // Generate chunk data and get visible faces for multiple chunks
-    auto instances = ChunkStorage::generateMultiChunk(chunkPositions);
+    auto instances = ChunkStorage::generateMultiChunk(chunkPositions, chunkIndices);
 
     vertexCount = static_cast<uint32_t>(indices.size());
     instanceCount = static_cast<uint32_t>(instances.size());
@@ -1388,6 +1412,7 @@ void Application::createVertexBuffer() {
     VkDeviceSize indexBufferSize = sizeof(indices[0]) * indices.size();
     VkDeviceSize instanceBufferSize = sizeof(uint32_t) * instances.size();
     VkDeviceSize chunkPositionsBufferSize = sizeof(ChunkStorage::ChunkPositionData) * chunkPositions.size();
+    VkDeviceSize chunkIndicesBufferSize = sizeof(uint32_t) * chunkIndices.size();
 
     // Create staging buffer for vertices
     VkBuffer vertexStagingBuffer;
@@ -1462,11 +1487,30 @@ void Application::createVertexBuffer() {
     memcpy(data, chunkPositions.data(), (size_t)chunkPositionsBufferSize);
     vkUnmapMemory(device, chunkPositionsStagingBufferMemory);
 
+    // Create chunk indices buffer
+    createBuffer(chunkIndicesBufferSize,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        chunkIndicesBuffer, chunkIndicesBufferMemory);
+
+    // Create staging buffer for chunk indices
+    VkBuffer chunkIndicesStagingBuffer;
+    VkDeviceMemory chunkIndicesStagingBufferMemory;
+    createBuffer(chunkIndicesBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        chunkIndicesStagingBuffer, chunkIndicesStagingBufferMemory);
+
+    // Copy chunk indices data
+    vkMapMemory(device, chunkIndicesStagingBufferMemory, 0, chunkIndicesBufferSize, 0, &data);
+    memcpy(data, chunkIndices.data(), (size_t)chunkIndicesBufferSize);
+    vkUnmapMemory(device, chunkIndicesStagingBufferMemory);
+
     // Copy buffers
     copyBuffer(vertexStagingBuffer, vertexBuffer, vertexBufferSize);
     copyBuffer(indexStagingBuffer, indexBuffer, indexBufferSize);
     copyBuffer(instanceStagingBuffer, instanceBuffer, instanceBufferSize);
     copyBuffer(chunkPositionsStagingBuffer, chunkPositionsBuffer, chunkPositionsBufferSize);
+    copyBuffer(chunkIndicesStagingBuffer, chunkIndicesBuffer, chunkIndicesBufferSize);
 
     // Cleanup staging buffers
     vkDestroyBuffer(device, vertexStagingBuffer, nullptr);
@@ -1477,6 +1521,8 @@ void Application::createVertexBuffer() {
     vkFreeMemory(device, instanceStagingBufferMemory, nullptr);
     vkDestroyBuffer(device, chunkPositionsStagingBuffer, nullptr);
     vkFreeMemory(device, chunkPositionsStagingBufferMemory, nullptr);
+    vkDestroyBuffer(device, chunkIndicesStagingBuffer, nullptr);
+    vkFreeMemory(device, chunkIndicesStagingBufferMemory, nullptr);
 }
 
 void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {

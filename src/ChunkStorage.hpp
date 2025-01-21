@@ -146,19 +146,21 @@ public:
         return blocks;
     }
 
-    static std::vector<uint32_t> generateMultiChunk(std::vector<ChunkPositionData>& chunkPositions) {
+    static std::vector<uint32_t> generateMultiChunk(std::vector<ChunkPositionData>& chunkPositions, std::vector<uint32_t>& chunkIndices) {
         std::vector<uint32_t> allInstances;
         chunkPositions.clear();
+        chunkIndices.clear();
 
         const int CHUNKS_PER_ROW = 32;
         const int START_OFFSET = -(CHUNKS_PER_ROW / 2);
         uint32_t currentOffset = 0;
+        uint32_t chunkIndex = 0;
 
         // Pre-generate all chunks first to calculate offsets
         std::vector<std::vector<uint32_t>> chunkInstances;
         uint32_t totalInstanceCount = 0;
 
-        // First pass: generate all chunks and store instance counts
+        // First pass: generate all chunks and calculate total size
         for (int x = 0; x < CHUNKS_PER_ROW; x++) {
             for (int y = 0; y < CHUNKS_PER_ROW; y++) {
                 auto chunkData = generateTestChunk(x + START_OFFSET, y + START_OFFSET);
@@ -177,16 +179,22 @@ public:
                 posData.instanceStart = currentOffset;
                 chunkPositions.push_back(posData);
 
-                // Add instances and update offset
-                allInstances.insert(allInstances.end(), instances.begin(), instances.end());
                 currentOffset += instances.size();
+                totalInstanceCount += instances.size();
+                chunkIndex++;
             }
         }
 
-        // Second pass: combine all instances
+        // Pre-allocate vectors to avoid reallocations
         allInstances.reserve(totalInstanceCount);
+        chunkIndices.reserve(totalInstanceCount);
+
+        // Second pass: combine all instances and create chunk indices
+        chunkIndex = 0;
         for (const auto& instances : chunkInstances) {
             allInstances.insert(allInstances.end(), instances.begin(), instances.end());
+            chunkIndices.insert(chunkIndices.end(), instances.size(), chunkIndex);
+            chunkIndex++;
         }
 
         return allInstances;

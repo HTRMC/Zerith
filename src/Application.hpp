@@ -99,6 +99,9 @@ private:
     VkBuffer chunkPositionsBuffer;
     VkDeviceMemory chunkPositionsBufferMemory;
     std::vector<ChunkStorage::ChunkPositionData> chunkPositions;
+    VkBuffer chunkIndicesBuffer;
+    VkDeviceMemory chunkIndicesBufferMemory;
+    std::vector<uint32_t> chunkIndices;
 
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;

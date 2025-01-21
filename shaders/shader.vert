@@ -44,6 +44,10 @@ layout(binding = 3) readonly buffer ChunkPositions {
     ChunkPosition positions[];
 } chunkPositions;
 
+layout(binding = 4) readonly buffer ChunkIndices {
+    uint indices[];
+} chunkIndices;
+
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out flat uint fragTextureID;
 layout(location = 2) out vec3 fragNormal;
@@ -117,36 +121,7 @@ vec3 rotateVertex(vec3 pos, int faceType) {
     return final;
 }
 
-uint findChunkIndex(uint currentInstance) {
-    // Binary search through chunk positions
-    uint left = 0;
-    uint right = chunkPositions.positions.length() - 1;
-
-    while (left <= right) {
-        uint mid = (left + right) / 2;
-        uint startOffset = chunkPositions.positions[mid].instanceStart;
-        uint endOffset = mid < chunkPositions.positions.length() - 1 ?
-        chunkPositions.positions[mid + 1].instanceStart :
-        ubo.instanceCount;
-
-        if (currentInstance >= startOffset && currentInstance < endOffset) {
-            return mid;
-        }
-
-        if (currentInstance < startOffset) {
-            right = mid - 1;
-        } else {
-            left = mid + 1;
-        }
-    }
-
-    return 0; // Fallback
-}
-
 void main() {
-    // Find chunk index using binary search
-    uint chunkIndex = findChunkIndex(gl_InstanceIndex);
-
     // Extract instance data
     uint instance_data = instanceData.data[gl_InstanceIndex];
     int face_type = int(instance_data & 0x7);           // Lower 3 bits for face type
@@ -154,6 +129,8 @@ void main() {
     int y = int((instance_data >> 7) & 0xF);           // Next 4 bits for Y position
     int z = int((instance_data >> 11) & 0xF);          // Next 4 bits for Z position
     int block_type = int((instance_data >> 15) & 0x1FFFF); // Next 17 bits for block type
+
+    uint chunkIndex = chunkIndices.indices[gl_InstanceIndex];
 
     // Rotate the vertex based on face type
     vec3 rotatedPos = rotateVertex(inPosition, face_type);
