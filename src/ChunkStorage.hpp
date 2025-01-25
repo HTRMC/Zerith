@@ -15,7 +15,6 @@ public:
     struct InstanceData {
         FaceType face;
         uint32_t x, y, z;
-        BlockType blockType;
     };
 
     struct ChunkPositionData {
@@ -24,11 +23,10 @@ public:
     };
 
     static uint32_t packInstanceData(const InstanceData& data) {
-        return (static_cast<uint32_t>(data.face) & 0x7) |           // Face type (3 bits)
+        return (static_cast<uint32_t>(data.face) & 0x7) |          // Face type (3 bits)
                ((data.x & 0xF) << 3) |                             // X position (4 bits)
                ((data.y & 0xF) << 7) |                             // Y position (4 bits)
-               ((data.z & 0xF) << 11) |                            // Z position (4 bits)
-               ((static_cast<uint32_t>(data.blockType) & 0x1FFF) << 15); // Block type (17 bits)
+               ((data.z & 0xF) << 11);                             // Z position (4 bits)
     }
 
     // Check if a block should have a face based on neighbors
@@ -60,9 +58,11 @@ public:
     }
 
     // Generate instance data for all visible faces in the chunk
-    static std::vector<uint32_t> generateVisibleFaces(const BlockGrid& blocks) {
+    static std::vector<uint32_t> generateVisibleFaces(const BlockGrid& blocks, std::vector<uint32_t>& outBlockTypes) {
         std::vector<uint32_t> instances;
         instances.reserve(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 3);
+        outBlockTypes.clear();
+        outBlockTypes.reserve(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE * 3);
 
         // Check each block position
         for (int x = 0; x < CHUNK_SIZE; x++) {
@@ -76,11 +76,12 @@ public:
                         for (int f = 0; f < 6; f++) {
                             FaceType face = static_cast<FaceType>(f);
                             if (shouldCreateFace(blocks, x, y, z, face)) {
-                                InstanceData data{face, static_cast<uint32_t>(x),
-                                                     static_cast<uint32_t>(y),
-                                                     static_cast<uint32_t>(z),
-                                                     blockType};
+                                InstanceData data{face,
+                                    static_cast<uint32_t>(x),
+                                    static_cast<uint32_t>(y),
+                                    static_cast<uint32_t>(z)};
                                 instances.push_back(packInstanceData(data));
+                                outBlockTypes.push_back(static_cast<uint32_t>(blockType));
                             }
                         }
                     }
@@ -146,57 +147,65 @@ public:
         return blocks;
     }
 
-    static std::vector<uint32_t> generateMultiChunk(std::vector<ChunkPositionData>& chunkPositions, std::vector<uint32_t>& chunkIndices) {
-        std::vector<uint32_t> allInstances;
-        chunkPositions.clear();
-        chunkIndices.clear();
+static std::vector<uint32_t> generateMultiChunk(
+    std::vector<ChunkPositionData>& chunkPositions,
+    std::vector<uint32_t>& chunkIndices,
+    std::vector<uint32_t>& outBlockTypes) {
 
-        const int CHUNKS_PER_ROW = 32;
-        const int START_OFFSET = -(CHUNKS_PER_ROW / 2);
-        uint32_t currentOffset = 0;
-        uint32_t chunkIndex = 0;
+    std::vector<uint32_t> allInstances;
+    chunkPositions.clear();
+    chunkIndices.clear();
+    outBlockTypes.clear();
 
-        // Pre-generate all chunks first to calculate offsets
-        std::vector<std::vector<uint32_t>> chunkInstances;
-        uint32_t totalInstanceCount = 0;
+    const int CHUNKS_PER_ROW = 32;
+    const int START_OFFSET = -(CHUNKS_PER_ROW / 2);
+    uint32_t currentOffset = 0;
+    uint32_t chunkIndex = 0;
 
-        // First pass: generate all chunks and calculate total size
-        for (int x = 0; x < CHUNKS_PER_ROW; x++) {
-            for (int y = 0; y < CHUNKS_PER_ROW; y++) {
-                auto chunkData = generateTestChunk(x + START_OFFSET, y + START_OFFSET);
-                auto instances = generateVisibleFaces(chunkData);
+    // Pre-generate all chunks first to calculate offsets
+    std::vector<std::pair<std::vector<uint32_t>, std::vector<uint32_t>>> chunkData; // <instances, blockTypes>
+    uint32_t totalInstanceCount = 0;
 
-                // Store instances for this chunk
-                chunkInstances.push_back(instances);
+    // First pass: generate all chunks and calculate total size
+    for (int x = 0; x < CHUNKS_PER_ROW; x++) {
+        for (int y = 0; y < CHUNKS_PER_ROW; y++) {
+            auto chunk = generateTestChunk(x + START_OFFSET, y + START_OFFSET);
+            std::vector<uint32_t> chunkBlockTypes;
+            auto instances = generateVisibleFaces(chunk, chunkBlockTypes);
 
-                // Add chunk position with instance offset
-                ChunkPositionData posData;
-                posData.position = glm::vec3(
-                    (x + START_OFFSET) * CHUNK_SIZE,
-                    (y + START_OFFSET) * CHUNK_SIZE,
-                    0
-                );
-                posData.instanceStart = currentOffset;
-                chunkPositions.push_back(posData);
+            // Store instances and block types for this chunk
+            chunkData.push_back({instances, chunkBlockTypes});
 
-                currentOffset += instances.size();
-                totalInstanceCount += instances.size();
-                chunkIndex++;
-            }
-        }
+            // Add chunk position with instance offset
+            ChunkPositionData posData;
+            posData.position = glm::vec3(
+                (x + START_OFFSET) * CHUNK_SIZE,
+                (y + START_OFFSET) * CHUNK_SIZE,
+                0
+            );
+            posData.instanceStart = currentOffset;
+            chunkPositions.push_back(posData);
 
-        // Pre-allocate vectors to avoid reallocations
-        allInstances.reserve(totalInstanceCount);
-        chunkIndices.reserve(totalInstanceCount);
-
-        // Second pass: combine all instances and create chunk indices
-        chunkIndex = 0;
-        for (const auto& instances : chunkInstances) {
-            allInstances.insert(allInstances.end(), instances.begin(), instances.end());
-            chunkIndices.insert(chunkIndices.end(), instances.size(), chunkIndex);
+            currentOffset += instances.size();
+            totalInstanceCount += instances.size();
             chunkIndex++;
         }
-
-        return allInstances;
     }
+
+    // Pre-allocate vectors to avoid reallocations
+    allInstances.reserve(totalInstanceCount);
+    chunkIndices.reserve(totalInstanceCount);
+    outBlockTypes.reserve(totalInstanceCount);
+
+    // Second pass: combine all instances and create chunk indices
+    chunkIndex = 0;
+    for (const auto& [instances, blockTypes] : chunkData) {
+        allInstances.insert(allInstances.end(), instances.begin(), instances.end());
+        outBlockTypes.insert(outBlockTypes.end(), blockTypes.begin(), blockTypes.end());
+        chunkIndices.insert(chunkIndices.end(), instances.size(), chunkIndex);
+        chunkIndex++;
+    }
+
+    return allInstances;
+}
 };

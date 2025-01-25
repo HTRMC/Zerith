@@ -48,6 +48,10 @@ layout(binding = 4) readonly buffer ChunkIndices {
     uint indices[];
 } chunkIndices;
 
+layout(binding = 5) readonly buffer BlockTypes {
+    uint blockTypes[];  // New buffer for block types
+} blockTypeData;
+
 layout(location = 0) out vec2 fragTexCoord;
 layout(location = 1) out flat uint fragTextureID;
 layout(location = 2) out vec3 fragNormal;
@@ -128,7 +132,8 @@ void main() {
     int x = int((instance_data >> 3) & 0xF);           // Next 4 bits for X position
     int y = int((instance_data >> 7) & 0xF);           // Next 4 bits for Y position
     int z = int((instance_data >> 11) & 0xF);          // Next 4 bits for Z position
-    int block_type = int((instance_data >> 15) & 0x1FFFF); // Next 17 bits for block type
+
+    int block_type = int(blockTypeData.blockTypes[gl_InstanceIndex]);
 
     uint chunkIndex = chunkIndices.indices[gl_InstanceIndex];
 
