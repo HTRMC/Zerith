@@ -127,18 +127,33 @@ vec3 rotateVertex(vec3 pos, int faceType) {
 
 void main() {
     // Extract instance data
-    uint instance_data = instanceData.data[gl_InstanceIndex];
-    int face_type = int(instance_data & 0x7);           // Lower 3 bits for face type
-    int x = int((instance_data >> 3) & 0xF);           // Next 4 bits for X position
-    int y = int((instance_data >> 7) & 0xF);           // Next 4 bits for Y position
-    int z = int((instance_data >> 11) & 0xF);          // Next 4 bits for Z position
+    uint instance_data = instanceData.data[gl_InstanceIndex];   // Get instance data
+
+    int face_type = int(instance_data & 0x7);                   // Lower 3 bits for face type
+    int x = int((instance_data >> 3) & 0xF);                    // Next 4 bits for X position
+    int y = int((instance_data >> 7) & 0xF);                    // Next 4 bits for Y position
+    int z = int((instance_data >> 11) & 0xF);                   // Next 4 bits for Z position
+    int width = int((instance_data >> 15) & 0xF);               // Next 4 bits for width
+    int height = int((instance_data >> 19) & 0xF);              // Next 4 bits for height
+
+
+    vec3 scaledPos = vec3(
+        inPosition.x * ((face_type == FACE_XN || face_type == FACE_XP) ? 1 : width),
+        inPosition.y * ((face_type == FACE_ZN || face_type == FACE_ZP) ? height : 1),
+        inPosition.z * ((face_type == FACE_YN || face_type == FACE_YP) ? width : 1)
+    );
+
+    vec2 finalUV = vec2(
+        inTexCoord.x * ((face_type == FACE_XN || face_type == FACE_XP) ? 1 : width),
+        inTexCoord.y * ((face_type == FACE_ZN || face_type == FACE_ZP) ? height : width)
+    );
 
     int block_type = int(blockTypeData.blockTypes[gl_InstanceIndex]);
 
     uint chunkIndex = chunkIndices.indices[gl_InstanceIndex];
 
     // Rotate the vertex based on face type
-    vec3 rotatedPos = rotateVertex(inPosition, face_type);
+    vec3 rotatedPos = rotateVertex(scaledPos, face_type);
 
     // Apply block position offset
     vec3 blockOffset = vec3(float(x), float(y), float(z));
@@ -155,7 +170,7 @@ void main() {
     // Final transformation
     gl_Position = ubo.proj * ubo.view * push.model * vec4(worldPos, 1.0);
 
-    fragTexCoord = rotateUV(inTexCoord, face_type);
+    fragTexCoord = rotateUV(finalUV, face_type);
     fragTextureID = getTextureID(block_type, face_type);
     fragNormal = normal;
     fragPos = worldPos;
