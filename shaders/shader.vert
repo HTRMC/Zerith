@@ -125,6 +125,29 @@ vec3 rotateVertex(vec3 pos, int faceType) {
     return final;
 }
 
+vec3 applyFaceDimensions(vec3 pos, int face_type, float width, float height) {
+    switch(face_type) {
+        case FACE_XP: // Right face (+X)
+        case FACE_XN: // Left face (-X)
+            pos.y *= width;  // Width along Y
+            pos.z *= height; // Height along Z
+            break;
+
+        case FACE_YP: // Front face (+Y)
+        case FACE_YN: // Back face (-Y)
+            pos.x *= width;  // Width along X
+            pos.z *= height; // Height along Z
+            break;
+
+        case FACE_ZP: // Top face (+Z)
+        case FACE_ZN: // Bottom face (-Z)
+            pos.x *= width;  // Width along X
+            pos.y *= height; // Height along Y
+            break;
+    }
+    return pos;
+}
+
 void main() {
     // Extract instance data
     uint instance_data = instanceData.data[gl_InstanceIndex];
@@ -136,13 +159,13 @@ void main() {
     int height = int((instance_data >> 19) & 0xF) + 1; // Next 4 bits for height (add 1 to get actual size)
 
     int block_type = int(blockTypeData.blockTypes[gl_InstanceIndex]);
-
     uint chunkIndex = chunkIndices.indices[gl_InstanceIndex];
 
     // Rotate the vertex based on face type
     vec3 rotatedPos = rotateVertex(inPosition, face_type);
-    rotatedPos.x *= float(width);  // Scale X by width
-    rotatedPos.y *= float(height); // Scale Y by height
+
+    // Apply face-specific scaling
+    rotatedPos = applyFaceDimensions(rotatedPos, face_type, width, height);
 
     // Apply block position offset
     vec3 blockOffset = vec3(float(x), float(y), float(z));
