@@ -19,6 +19,7 @@
 #endif
 
 Application::Application() : physicalDevice(VK_NULL_HANDLE)
+    , player(glm::vec3(0.0f, 0.0f, 50.0f))
 #ifdef _WIN32
     , window(GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2)
 #else
@@ -829,6 +830,7 @@ void Application::createGraphicsPipeline() {
     viewport.x = 0.0f;
     viewport.y = 0.0f;
     viewport.width = (float)swapChainExtent.width;
+
     viewport.height = (float)swapChainExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
@@ -1191,7 +1193,7 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
     );
 
     // Create projection matrix
-    ubo.proj = glm::perspective(glm::radians(45.0f),
+    ubo.proj = glm::perspective(glm::radians(70.0f),
         static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height),
         0.1f, 1000.0f);
 
@@ -1376,28 +1378,30 @@ uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
 }
 
 void Application::updateCamera() {
-    float movementSpeed = baseMovementSpeed * deltaTime;
-    glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
-    glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
+    // Calculate movement direction based on camera orientation
+    glm::vec3 moveDirection(0.0f, 0.0f, 0.0f);
 
-    if (window.isKeyPressed('W')) {
-        cameraPos += horizontalFront * movementSpeed;
+    float yaw_rad = glm::radians(yaw);
+    glm::vec3 forward = glm::normalize(glm::vec3(cos(yaw_rad), sin(yaw_rad), 0.0f));
+    glm::vec3 right = glm::normalize(glm::vec3(sin(yaw_rad), -cos(yaw_rad), 0.0f));
+
+    if (window.isKeyPressed('W')) moveDirection += forward;
+    if (window.isKeyPressed('S')) moveDirection -= forward;
+    if (window.isKeyPressed('A')) moveDirection -= right;
+    if (window.isKeyPressed('D')) moveDirection += right;
+    if (window.isSpacePressed()) moveDirection.z = 1.0f;
+
+    // Normalize horizontal movement
+    if (glm::length(moveDirection) > 0) {
+        moveDirection = glm::normalize(moveDirection);
     }
-    if (window.isKeyPressed('S')) {
-        cameraPos -= horizontalFront * movementSpeed;
-    }
-    if (window.isKeyPressed('A')) {
-        cameraPos -= horizontalRight * movementSpeed;
-    }
-    if (window.isKeyPressed('D')) {
-        cameraPos += horizontalRight * movementSpeed;
-    }
-    if (window.isSpacePressed()) {
-        cameraPos += cameraUp * movementSpeed;
-    }
-    if (window.isShiftPressed()) {
-        cameraPos -= cameraUp * movementSpeed;
-    }
+
+    // Update player physics
+    player.move(moveDirection, deltaTime);
+    player.update(deltaTime, chunkPositions);
+
+    // Update camera position to follow player's eye position
+    cameraPos = player.getEyePosition();
 }
 
 void Application::updateCameraRotation() {
