@@ -14,7 +14,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "ChunkStorage.hpp"
-#include "Player.hpp"
 #include "Subchunk.hpp"
 #include "Window.hpp"
 
@@ -105,13 +104,6 @@ private:
     std::vector<uint32_t> chunkIndices;
     VkBuffer blockTypeBuffer;
     VkDeviceMemory blockTypeBufferMemory;
-    Player player;
-    VkPipeline debugPipeline;
-    VkPipelineLayout debugPipelineLayout;
-    VkDescriptorSetLayout debugDescriptorSetLayout;
-    std::vector<VkDescriptorSet> debugDescriptorSets;
-    VkBuffer debugVertexBuffer;
-    VkDeviceMemory debugVertexBufferMemory;
 
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
