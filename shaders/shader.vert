@@ -87,14 +87,32 @@ vec3 getFaceNormal(int faceType) {
     }
 }
 
-vec2 rotateUV(vec2 uv, int faceType) {
+vec2 rotateUV(vec2 uv, int faceType, float width, float height) {
+    vec2 scaledUV = uv;
+
     switch(faceType) {
         case FACE_XP: // Right face (+X)
-            return vec2(1.0 - uv.y, uv.x);
+            scaledUV = vec2(uv.x * height, uv.y * width);
+            return vec2(scaledUV.y, scaledUV.x);
+
         case FACE_XN: // Left face (-X)
-            return vec2(uv.y, 1.0 - uv.x);
+            scaledUV = vec2(uv.x * height, uv.y * width);
+            return vec2(scaledUV.y, 1.0 - scaledUV.x);
+
+        case FACE_YP: // Front face (+Y)
+            return vec2(uv.x * width, uv.y * height);
+
+        case FACE_YN: // Back face (-Y)
+            return vec2(width - uv.x * width, uv.y * height);
+
+        case FACE_ZP: // Top face (+Z)
+            return vec2(uv.x * width, uv.y * height);
+
+        case FACE_ZN: // Bottom face (-Z)
+            return vec2(uv.x * width, uv.y * height);
+
         default:
-            return uv;
+            return scaledUV;
     }
 }
 
@@ -182,7 +200,7 @@ void main() {
     // Final transformation
     gl_Position = ubo.proj * ubo.view * push.model * vec4(worldPos, 1.0);
 
-    fragTexCoord = rotateUV(inTexCoord, face_type);
+    fragTexCoord = rotateUV(inTexCoord, face_type, float(width), float(height));
     fragTextureID = getTextureID(block_type, face_type);
     fragNormal = normal;
     fragPos = worldPos;
