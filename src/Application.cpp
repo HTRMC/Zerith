@@ -1380,22 +1380,22 @@ void Application::updateCamera() {
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
     glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
 
-    if (window.isKeyPressed('W')) {
+    if (window.isKeyPressed(KeyCode::W)) {
         cameraPos += horizontalFront * movementSpeed;
     }
-    if (window.isKeyPressed('S')) {
+    if (window.isKeyPressed(KeyCode::S)) {
         cameraPos -= horizontalFront * movementSpeed;
     }
-    if (window.isKeyPressed('A')) {
+    if (window.isKeyPressed(KeyCode::A)) {
         cameraPos -= horizontalRight * movementSpeed;
     }
-    if (window.isKeyPressed('D')) {
+    if (window.isKeyPressed(KeyCode::D)) {
         cameraPos += horizontalRight * movementSpeed;
     }
-    if (window.isSpacePressed()) {
+    if (window.isKeyPressed(KeyCode::SPACE)) {
         cameraPos += cameraUp * movementSpeed;
     }
-    if (window.isShiftPressed()) {
+    if (window.isKeyPressed(KeyCode::SHIFT_LEFT)) {
         cameraPos -= cameraUp * movementSpeed;
     }
 }

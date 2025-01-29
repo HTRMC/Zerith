@@ -15,28 +15,14 @@
 #include <string>
 #include <vulkan/vulkan.h>
 
+#include "InputManager.hpp"
+
 class Window {
 private:
     int width;
     int height;
     bool windowShouldClose = false;
-
-    struct {
-        bool w = false;
-        bool a = false;
-        bool s = false;
-        bool d = false;
-        bool shift = false;
-        bool space = false;
-    } keys;
-
-    struct {
-        float x = 0.0f;
-        float y = 0.0f;
-        float deltaX = 0.0f;
-        float deltaY = 0.0f;
-        bool firstMouse = true;
-    } mouse;
+    InputManager inputManager;
 
 public:
     Window(int width, int height);
@@ -50,22 +36,11 @@ public:
     int getWidth() const { return width; }
     int getHeight() const { return height; }
 
-    bool isKeyPressed(char key) const {
-        switch(key) {
-            case 'W': return keys.w;
-            case 'A': return keys.a;
-            case 'S': return keys.s;
-            case 'D': return keys.d;
-            default: return false;
-        }
-    }
-
-    bool isShiftPressed() const { return keys.shift; }
-    bool isSpacePressed() const { return keys.space; }
-
-    float getMouseDeltaX() const { return mouse.deltaX; }
-    float getMouseDeltaY() const { return mouse.deltaY; }
-    void resetMouseDeltas() { mouse.deltaX = 0.0f; mouse.deltaY = 0.0f; }
+    bool isKeyPressed(KeyCode key) const { return inputManager.isKeyPressed(key); }
+    bool isKeyHeld(KeyCode key) const { return inputManager.isKeyHeld(key); }
+    float getMouseDeltaX() const { return inputManager.getMouseDeltaX(); }
+    float getMouseDeltaY() const { return inputManager.getMouseDeltaY(); }
+    void resetMouseDeltas() { inputManager.resetMouseDeltas(); }
     void setCaptureMouse(bool capture);
     void centerCursor();
 
