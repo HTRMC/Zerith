@@ -119,7 +119,7 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (GetKeyState(VK_RMENU) & 0x8000) {
                         window->inputManager.updateKeyState(KeyCode::ALT_RIGHT, true);
                     }
-                    return DefWindowProc(hwnd, uMsg, wParam, lParam);  // Important: let Windows handle system keys
+                    return DefWindowProc(hwnd, uMsg, wParam, lParam);
                 }
 
                 // Handle Shift keys specifically
@@ -149,7 +149,7 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
                     if (!(GetKeyState(VK_RMENU) & 0x8000)) {
                         window->inputManager.updateKeyState(KeyCode::ALT_RIGHT, false);
                     }
-                    return DefWindowProc(hwnd, uMsg, wParam, lParam);  // Important: let Windows handle system keys
+                    return DefWindowProc(hwnd, uMsg, wParam, lParam);
                 }
 
                 // Handle Shift keys specifically
@@ -222,6 +222,12 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
             }
             return 0;
         }
+
+        case WM_SYSCOMMAND:
+            if ((wParam & 0xFFF0) == SC_KEYMENU) {
+                return 0; // Prevent Windows from handling the Alt key menu activation
+            }
+        break;
 
         case WM_DESTROY:
             PostQuitMessage(0);

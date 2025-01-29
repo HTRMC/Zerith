@@ -61,8 +61,8 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     std::chrono::high_resolution_clock::time_point startTime;
-    glm::vec3 cameraPos = glm::vec3(-1.0f, -1.0f, 1.0f);
-    glm::vec3 cameraFront = glm::normalize(glm::vec3(-1.0f, -1.0f, -1.0f));
+    glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 10.0f);
+    glm::vec3 cameraFront = glm::normalize(glm::vec3(1.0f, 1.0f, 1.0f));
     glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
     float cameraSpeed = 0.01f;
     // float yaw = -135.0f;   // Initial yaw for looking at center (-135 degrees)
