@@ -111,6 +111,17 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
                     return DefWindowProc(hwnd, uMsg, wParam, lParam);
                 }
 
+                // Handle Alt key specifically
+                if (wParam == VK_MENU) {
+                    if (GetKeyState(VK_LMENU) & 0x8000) {
+                        window->inputManager.updateKeyState(KeyCode::ALT_LEFT, true);
+                    }
+                    if (GetKeyState(VK_RMENU) & 0x8000) {
+                        window->inputManager.updateKeyState(KeyCode::ALT_RIGHT, true);
+                    }
+                    return DefWindowProc(hwnd, uMsg, wParam, lParam);  // Important: let Windows handle system keys
+                }
+
                 // Handle Shift keys specifically
                 if (wParam == VK_SHIFT) {
                     // Use GetKeyState to determine which shift key was pressed
@@ -130,6 +141,17 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         case WM_KEYUP:
         case WM_SYSKEYUP:
             if (window) {
+                // Handle Alt key specifically
+                if (wParam == VK_MENU) {
+                    if (!(GetKeyState(VK_LMENU) & 0x8000)) {
+                        window->inputManager.updateKeyState(KeyCode::ALT_LEFT, false);
+                    }
+                    if (!(GetKeyState(VK_RMENU) & 0x8000)) {
+                        window->inputManager.updateKeyState(KeyCode::ALT_RIGHT, false);
+                    }
+                    return DefWindowProc(hwnd, uMsg, wParam, lParam);  // Important: let Windows handle system keys
+                }
+
                 // Handle Shift keys specifically
                 if (wParam == VK_SHIFT) {
                     // Check both shift keys and update their states
