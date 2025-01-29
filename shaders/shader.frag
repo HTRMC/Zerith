@@ -16,6 +16,9 @@ void main() {
     vec3 lightColor = vec3(1.0, 1.0, 0.9);          // Slightly warm light
     float ambientStrength = 0.3;                     // Ambient light intensity
 
+    // Grass tint color (#91BD59)
+    vec3 grassTint = vec3(145.0/255.0, 189.0/255.0, 89.0/255.0);
+
     // Get base color from texture
     vec4 texColor;
 
@@ -25,11 +28,18 @@ void main() {
         vec4 baseColor = texture(texSampler, vec3(fragTexCoord, 2));
         // Get overlay texture
         vec4 overlayColor = texture(texSampler, vec3(fragTexCoord, 3));
+        overlayColor.rgb *= grassTint;
         // Pre-multiply alpha and blend
         vec4 blendedColor;
         blendedColor.rgb = mix(baseColor.rgb, overlayColor.rgb * overlayColor.a, overlayColor.a);
         blendedColor.a = baseColor.a;  // Keep base alpha
         texColor = blendedColor;
+    }
+    else if (fragTextureID == 1) {
+        // Get base grass top texture
+        vec4 baseColor = texture(texSampler, vec3(fragTexCoord, 1));
+        baseColor.rgb *= grassTint;
+        texColor = baseColor;
     } else {
         texColor = texture(texSampler, vec3(fragTexCoord, fragTextureID));
     }
