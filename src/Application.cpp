@@ -9,6 +9,7 @@
 #include "ChunkStorage.hpp"
 #include "Quad.hpp"
 #include "QuadInstance.hpp"
+#include "ShaderManager.hpp"
 
 #ifdef _WIN32
     #include <vulkan/vulkan_win32.h>
@@ -60,9 +61,18 @@ void Application::initVulkan() {
     setupDebugMessenger();
     pickPhysicalDevice();
     createLogicalDevice();
+    ShaderManager::getInstance().init(device);
     createSwapChain();
     createImageViews();
     createRenderPass();
+    debugRenderer = std::make_unique<DebugRenderer>(
+        device,
+        physicalDevice,
+        commandPool,
+        renderPass,
+        swapChainExtent.width,
+        swapChainExtent.height
+    );
     createDescriptorPool();
     createDescriptorSetLayout();
     createSkyDescriptorSetLayout();
@@ -252,6 +262,7 @@ void Application::mainLoop() {
 
         updateCamera();
         updateCameraRotation();
+        debugRenderer->update(deltaTime);
 
         try {
             drawFrame(currentFrame);
@@ -268,6 +279,10 @@ void Application::mainLoop() {
 
 void Application::cleanup() {
     vkDeviceWaitIdle(device);
+
+    ShaderManager::getInstance().cleanup();
+
+    debugRenderer.reset();
 
     vkDestroyBuffer(device, blockTypeBuffer, nullptr);
     vkFreeMemory(device, blockTypeBufferMemory, nullptr);
@@ -1112,6 +1127,8 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     // Draw all faces in one instanced call
     vkCmdDrawIndexedIndirect(commandBuffer, indirectBuffer, 0, 1, sizeof(VkDrawIndexedIndirectCommand));
 
+    debugRenderer->render(commandBuffer, currentViewProj);
+
     vkCmdEndRenderPass(commandBuffer);
 
     if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -1198,6 +1215,9 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
     // GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates
     // is inverted. Vulkan clip coordinates requires correcting for this.
     ubo.proj[1][1] *= -1;
+
+    // Store the combined view-projection matrix
+    currentViewProj = ubo.proj * ubo.view;
 
     // Add instance count
     ubo.instanceCount = instanceCount;
@@ -1397,6 +1417,13 @@ void Application::updateCamera() {
     }
     if (window.isKeyPressed(KeyCode::SHIFT_LEFT)) {
         cameraPos -= cameraUp * movementSpeed;
+    }
+
+    if (window.isKeyPressed(KeyCode::F3)) {
+        // Draw debug boxes around all chunks
+        for (const auto& chunkPos : chunkPositions) {
+            drawChunkDebugBox(chunkPos);
+        }
     }
 }
 
@@ -2241,4 +2268,11 @@ void Application::createIndirectBuffer() {
     // Cleanup staging buffer
     vkDestroyBuffer(device, stagingBuffer, nullptr);
     vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+void Application::drawChunkDebugBox(const ChunkStorage::ChunkPositionData& chunkPos) {
+    glm::vec3 min = chunkPos.position;
+    glm::vec3 max = min + glm::vec3(ChunkStorage::CHUNK_SIZE);
+    AABB chunkBox{min, max};
+    debugRenderer->drawBox(chunkBox, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)); // Red wireframe
 }

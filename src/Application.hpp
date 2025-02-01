@@ -14,6 +14,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "ChunkStorage.hpp"
+#include "DebugRenderer.hpp"
 #include "Subchunk.hpp"
 #include "Window.hpp"
 
@@ -104,6 +105,8 @@ private:
     std::vector<uint32_t> chunkIndices;
     VkBuffer blockTypeBuffer;
     VkDeviceMemory blockTypeBufferMemory;
+    std::unique_ptr<DebugRenderer> debugRenderer;
+    glm::mat4 currentViewProj;
 
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
@@ -224,6 +227,8 @@ private:
     void updateSkyColors(uint32_t currentFrame);
 
     void createIndirectBuffer();
+
+    void drawChunkDebugBox(const ChunkStorage::ChunkPositionData &chunkPos);
 
     bool checkValidationLayerSupport();
     void mainLoop();
