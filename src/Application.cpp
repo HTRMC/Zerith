@@ -1419,12 +1419,21 @@ void Application::updateCamera() {
         cameraPos -= cameraUp * movementSpeed;
     }
 
-    if (window.isKeyPressed(KeyCode::F3)) {
-        // Draw debug boxes around all chunks
-        for (const auto& chunkPos : chunkPositions) {
-            drawChunkDebugBox(chunkPos);
+    bool f3IsPressed = window.isKeyPressed(KeyCode::F3);
+    if (f3IsPressed && !f3WasPressed) {  // Only trigger on initial press
+        debugVisualizationEnabled = !debugVisualizationEnabled;  // Toggle state
+
+        if (debugVisualizationEnabled) {
+            // Draw debug boxes when enabled
+            for (const auto& chunkPos : chunkPositions) {
+                drawChunkDebugBox(chunkPos);
+            }
+        } else {
+            // Clear all debug boxes when disabled
+            debugRenderer->clearBoxes();
         }
     }
+    f3WasPressed = f3IsPressed;
 }
 
 void Application::updateCameraRotation() {

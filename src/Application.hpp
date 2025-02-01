@@ -107,6 +107,8 @@ private:
     VkDeviceMemory blockTypeBufferMemory;
     std::unique_ptr<DebugRenderer> debugRenderer;
     glm::mat4 currentViewProj;
+    bool debugVisualizationEnabled = false;
+    bool f3WasPressed = false;
 
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;

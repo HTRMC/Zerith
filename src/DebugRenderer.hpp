@@ -49,6 +49,11 @@ public:
     void update(float deltaTime);
     void render(VkCommandBuffer commandBuffer, const glm::mat4& viewProj);
 
+    void clearBoxes() {
+        boxes.clear();
+        needsUpdate = true;
+    }
+
 private:
     void createVertexBuffer();
     void createPipeline();
