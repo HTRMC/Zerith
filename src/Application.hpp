@@ -144,8 +144,8 @@ private:
     struct UniformBufferObject {
         glm::mat4 view;
         glm::mat4 proj;
-        uint32_t instanceCount;  // Added this
-        glm::vec3 padding;      // Add padding to maintain alignment
+        uint32_t instanceCount;
+        glm::vec3 padding;
     };
 
     struct QueueFamilyIndices {
