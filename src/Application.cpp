@@ -1396,27 +1396,57 @@ uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
 }
 
 void Application::updateCamera() {
+    // Handle F5 key press for perspective switching
+    bool f5IsPressed = window.isKeyPressed(KeyCode::F5);
+    static bool f5WasPressed = false;
+    if (f5IsPressed && !f5WasPressed) {
+        // Cycle through perspectives
+        switch (currentPerspective) {
+            case CameraPerspective::FirstPerson:
+                currentPerspective = CameraPerspective::ThirdPerson;
+            break;
+            case CameraPerspective::ThirdPerson:
+                currentPerspective = CameraPerspective::FirstPerson;
+            break;
+        }
+    }
+    f5WasPressed = f5IsPressed;
+
     float movementSpeed = baseMovementSpeed * deltaTime;
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
     glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
 
     if (window.isKeyPressed(KeyCode::W)) {
-        cameraPos += horizontalFront * movementSpeed;
+        playerPosition += horizontalFront * movementSpeed;
     }
     if (window.isKeyPressed(KeyCode::S)) {
-        cameraPos -= horizontalFront * movementSpeed;
+        playerPosition -= horizontalFront * movementSpeed;
     }
     if (window.isKeyPressed(KeyCode::A)) {
-        cameraPos -= horizontalRight * movementSpeed;
+        playerPosition -= horizontalRight * movementSpeed;
     }
     if (window.isKeyPressed(KeyCode::D)) {
-        cameraPos += horizontalRight * movementSpeed;
+        playerPosition += horizontalRight * movementSpeed;
     }
     if (window.isKeyPressed(KeyCode::SPACE)) {
-        cameraPos += cameraUp * movementSpeed;
+        playerPosition += cameraUp * movementSpeed;
     }
     if (window.isKeyPressed(KeyCode::SHIFT_LEFT)) {
-        cameraPos -= cameraUp * movementSpeed;
+        playerPosition -= cameraUp * movementSpeed;
+    }
+
+    // Update camera position based on perspective
+    switch (currentPerspective) {
+        case CameraPerspective::FirstPerson:
+            cameraPos = playerPosition;
+        break;
+
+        case CameraPerspective::ThirdPerson:
+            // Position camera behind and slightly above player
+                glm::vec3 offset = -cameraFront * thirdPersonDistance; // Back away from player
+        offset.z += 2.0f; // Raise camera slightly
+        cameraPos = playerPosition + offset;
+        break;
     }
 
     bool f3IsPressed = window.isKeyPressed(KeyCode::F3);

@@ -110,6 +110,16 @@ private:
     bool debugVisualizationEnabled = false;
     bool f3WasPressed = false;
 
+    enum class CameraPerspective {
+        FirstPerson,
+        ThirdPerson,
+        // TODO: Implement second person camera
+    };
+
+    CameraPerspective currentPerspective = CameraPerspective::FirstPerson;
+    float thirdPersonDistance = 5.0f; // Distance of camera from player in third person
+    glm::vec3 playerPosition = glm::vec3(0.0f, 0.0f, 10.0f); // Player's position
+
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
         uint32_t instanceCount;
