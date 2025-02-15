@@ -264,6 +264,17 @@ void Application::mainLoop() {
         updateCameraRotation();
         debugRenderer->update(deltaTime);
 
+        // Clear boxes at the start of each frame
+        debugRenderer->clearBoxes();
+
+        // Draw debug visualizations in order
+        if (chunkBordersEnabled) {
+            for (const auto& chunkPos : chunkPositions) {
+                drawChunkDebugBox(chunkPos);
+            }
+        }
+        drawPlayerBoundingBox();
+
         try {
             drawFrame(currentFrame);
         } catch (const std::runtime_error& e) {
@@ -1450,17 +1461,13 @@ void Application::updateCamera() {
     }
 
     bool f3IsPressed = window.isKeyPressed(KeyCode::F3);
-    if (f3IsPressed && !f3WasPressed) {  // Only trigger on initial press
-        debugVisualizationEnabled = !debugVisualizationEnabled;  // Toggle state
-
-        if (debugVisualizationEnabled) {
-            // Draw debug boxes when enabled
+    if (f3IsPressed && !f3WasPressed) {
+        chunkBordersEnabled = !chunkBordersEnabled;
+        debugRenderer->clearBoxes();
+        if (chunkBordersEnabled) {
             for (const auto& chunkPos : chunkPositions) {
                 drawChunkDebugBox(chunkPos);
             }
-        } else {
-            // Clear all debug boxes when disabled
-            debugRenderer->clearBoxes();
         }
     }
     f3WasPressed = f3IsPressed;
@@ -2314,4 +2321,17 @@ void Application::drawChunkDebugBox(const ChunkStorage::ChunkPositionData& chunk
     glm::vec3 max = min + glm::vec3(ChunkStorage::CHUNK_SIZE);
     AABB chunkBox{min, max};
     debugRenderer->drawBox(chunkBox, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f)); // Red wireframe
+}
+
+void Application::drawPlayerBoundingBox() {
+    if (!showPlayerBoundingBox) return;
+
+    // Calculate the box dimensions
+    float halfWidth = PLAYER_WIDTH / 2.0f;
+    glm::vec3 min = playerPosition - glm::vec3(halfWidth, halfWidth, 0.0f);
+    glm::vec3 max = playerPosition + glm::vec3(halfWidth, halfWidth, PLAYER_HEIGHT);
+
+    // Create AABB and draw it with white lines
+    AABB playerBox{min, max};
+    debugRenderer->drawBox(playerBox, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)); // White color (R,G,B,A)
 }
