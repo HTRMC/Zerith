@@ -1452,15 +1452,18 @@ void Application::updateCamera() {
     // Update camera position based on perspective
     switch (currentPerspective) {
         case CameraPerspective::FirstPerson:
-            cameraPos = playerPosition;
+            cameraPos = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f); // Add eye height offset
         break;
 
-        case CameraPerspective::ThirdPerson:
-            // Position camera behind and slightly above player
-                glm::vec3 offset = -cameraFront * thirdPersonDistance; // Back away from player
-        offset.z += 2.0f; // Raise camera slightly
-        cameraPos = playerPosition + offset;
-        break;
+        case CameraPerspective::ThirdPerson: {
+            // Calculate eye position
+            glm::vec3 eyePosition = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f);
+
+            // Position camera behind and slightly above player's eye
+            glm::vec3 offset = -cameraFront * thirdPersonDistance; // Back away from player
+            cameraPos = eyePosition + offset;
+            break;
+        }
     }
 }
 
