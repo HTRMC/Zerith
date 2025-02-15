@@ -108,8 +108,10 @@ private:
     std::unique_ptr<DebugRenderer> debugRenderer;
     glm::mat4 currentViewProj;
     bool chunkBordersEnabled = false;
-    bool playerBoundingBoxEnabled = true;
-    bool f3WasPressed = false;
+    bool playerBoundingBoxEnabled = false;
+    bool f3KeyPressed = false;
+    bool bKeyPressed = false;
+    bool gKeyPressed = false;
 
     enum class CameraPerspective {
         FirstPerson,
@@ -248,6 +250,8 @@ private:
     void drawChunkDebugBox(const ChunkStorage::ChunkPositionData &chunkPos);
 
     void drawPlayerBoundingBox();
+
+    void handleDebugToggles();
 
     bool checkValidationLayerSupport();
     void mainLoop();

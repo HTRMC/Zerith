@@ -269,11 +269,14 @@ void Application::mainLoop() {
 
         // Draw debug visualizations in order
         if (chunkBordersEnabled) {
-            for (const auto& chunkPos : chunkPositions) {
+            for (const auto &chunkPos : chunkPositions) {
                 drawChunkDebugBox(chunkPos);
             }
         }
         drawPlayerBoundingBox();
+
+        // Handle F3 + B and F3 + G key presses
+        handleDebugToggles();
 
         try {
             drawFrame(currentFrame);
@@ -1459,18 +1462,6 @@ void Application::updateCamera() {
         cameraPos = playerPosition + offset;
         break;
     }
-
-    bool f3IsPressed = window.isKeyPressed(KeyCode::F3);
-    if (f3IsPressed && !f3WasPressed) {
-        chunkBordersEnabled = !chunkBordersEnabled;
-        debugRenderer->clearBoxes();
-        if (chunkBordersEnabled) {
-            for (const auto& chunkPos : chunkPositions) {
-                drawChunkDebugBox(chunkPos);
-            }
-        }
-    }
-    f3WasPressed = f3IsPressed;
 }
 
 void Application::updateCameraRotation() {
@@ -2334,4 +2325,38 @@ void Application::drawPlayerBoundingBox() {
     // Create AABB and draw it with white lines
     AABB playerBox{min, max};
     debugRenderer->drawBox(playerBox, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)); // White color (R,G,B,A)
+}
+
+void Application::handleDebugToggles() {
+    bool currentF3State = window.isKeyPressed(KeyCode::F3);
+    bool currentBState = window.isKeyPressed(KeyCode::B);
+    bool currentGState = window.isKeyPressed(KeyCode::G);
+
+    // Handle F3 + B for player bounding box
+    if (currentF3State && currentBState && (!f3KeyPressed || !bKeyPressed)) {
+        showPlayerBoundingBox = !showPlayerBoundingBox;
+        f3KeyPressed = true;
+        bKeyPressed = true;
+    } else if (!currentF3State) {
+        f3KeyPressed = false;
+    } else if (!currentBState) {
+        bKeyPressed = false;
+    }
+
+    // Handle F3 + G for chunk borders
+    if (currentF3State && currentGState && (!f3KeyPressed || !gKeyPressed)) {
+        chunkBordersEnabled = !chunkBordersEnabled;
+        debugRenderer->clearBoxes();
+        if (chunkBordersEnabled) {
+            for (const auto& chunkPos : chunkPositions) {
+                drawChunkDebugBox(chunkPos);
+            }
+        }
+        f3KeyPressed = true;
+        gKeyPressed = true;
+    } else if (!currentF3State) {
+        f3KeyPressed = false;
+    } else if (!currentGState) {
+        gKeyPressed = false;
+    }
 }
