@@ -108,7 +108,6 @@ private:
     std::unique_ptr<DebugRenderer> debugRenderer;
     glm::mat4 currentViewProj;
     bool chunkBordersEnabled = false;
-    bool playerBoundingBoxEnabled = false;
     bool f3KeyPressed = false;
     bool bKeyPressed = false;
     bool gKeyPressed = false;
@@ -123,7 +122,7 @@ private:
     float thirdPersonDistance = 5.0f; // Distance of camera from player in third person
     glm::vec3 playerPosition = glm::vec3(0.0f, 0.0f, 10.0f); // Player's position
 
-    bool showPlayerBoundingBox = true;
+    bool showPlayerBoundingBox = false;
     const float PLAYER_HEIGHT = 1.8f;
     const float PLAYER_WIDTH = 0.6f;
 
