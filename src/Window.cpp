@@ -22,9 +22,13 @@ void Window::centerCursor() {
     GetClientRect(hwnd, &rect);
     POINT center = { (rect.right - rect.left) / 2, (rect.bottom - rect.top) / 2 };
     ClientToScreen(hwnd, &center);
+
+    isCenteringCursor = true;  // Set flag before centering
     SetCursorPos(center.x, center.y);
+    lastCursorPos = center;    // Store the centered position
     inputManager.setMousePosition(static_cast<float>(rect.right - rect.left) / 2,
                                 static_cast<float>(rect.bottom - rect.top) / 2);
+    isCenteringCursor = false; // Clear flag after centering
 }
 
 Window::Window(int width, int height) : width(width), height(height), inputManager() {
@@ -206,19 +210,29 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         case WM_MOUSEMOVE: {
             if (window) {
-                int x = GET_X_LPARAM(lParam);
-                int y = GET_Y_LPARAM(lParam);
-                float newX = static_cast<float>(x);
-                float newY = static_cast<float>(y);
-                float oldX = window->inputManager.getMouseX();
-                float oldY = window->inputManager.getMouseY();
+                // Get current cursor position
+                POINT currentPos;
+                GetCursorPos(&currentPos);
 
-                if (oldX != 0.0f || oldY != 0.0f) {
+                // Only process if this isn't from our own centering and there's actual movement
+                if (!window->isCenteringCursor &&
+                    (currentPos.x != window->lastCursorPos.x ||
+                     currentPos.y != window->lastCursorPos.y)) {
+
+                    POINT clientPos = currentPos;
+                    ScreenToClient(window->hwnd, &clientPos);
+
+                    float newX = static_cast<float>(clientPos.x);
+                    float newY = static_cast<float>(clientPos.y);
+                    float oldX = window->inputManager.getMouseX();
+                    float oldY = window->inputManager.getMouseY();
+
                     window->inputManager.setMouseDelta(newX - oldX, newY - oldY);
-                }
+                    window->inputManager.setMousePosition(newX, newY);
 
-                window->inputManager.setMousePosition(newX, newY);
-                window->centerCursor();
+                    window->lastCursorPos = currentPos;
+                    window->centerCursor();
+                     }
             }
             return 0;
         }
