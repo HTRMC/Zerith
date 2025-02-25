@@ -4,6 +4,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#include <algorithm>
 #include <array>
 
 #include "ChunkStorage.hpp"
@@ -51,6 +52,7 @@ Application::~Application() {
 
 void Application::run() {
     initVulkan();
+    initializePlayer();
     lastFrameTime = std::chrono::steady_clock::now();
     mainLoop();
 }
@@ -1409,6 +1411,81 @@ uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
     throw std::runtime_error("failed to find suitable memory type!");
 }
 
+void Application::updatePlayerPhysics() {
+    // Apply gravity regardless of ground state
+    playerVelocity.z += gravity * deltaTime;
+
+    // Check for ground contact directly with a ray cast
+    checkGroundContact();
+
+    // Apply friction when on ground
+    if (playerOnGround) {
+        playerVelocity.x *= glm::clamp(1.0f - (deltaTime * playerFriction), 0.0f, 1.0f);
+        playerVelocity.y *= glm::clamp(1.0f - (deltaTime * playerFriction), 0.0f, 1.0f);
+    }
+
+    // Handle jumping (Space bar)
+    if (window.isKeyPressed(KeyCode::SPACE) && playerOnGround) {
+        playerVelocity.z = jumpForce;
+        playerOnGround = false;
+    }
+
+    // Apply movement input to velocity
+    float movementSpeed = baseMovementSpeed * deltaTime;
+    glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
+    glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
+
+    // Calculate movement direction based on input
+    glm::vec3 moveDirection(0.0f);
+
+    if (window.isKeyPressed(KeyCode::W)) {
+        moveDirection += horizontalFront;
+    }
+    if (window.isKeyPressed(KeyCode::S)) {
+        moveDirection -= horizontalFront;
+    }
+    if (window.isKeyPressed(KeyCode::A)) {
+        moveDirection -= horizontalRight;
+    }
+    if (window.isKeyPressed(KeyCode::D)) {
+        moveDirection += horizontalRight;
+    }
+
+    // Normalize and apply movement
+    if (glm::length(moveDirection) > 0.0f) {
+        moveDirection = glm::normalize(moveDirection) * movementSpeed;
+
+        // Apply movement to velocity (with reduced influence when in air)
+        float controlInfluence = playerOnGround ? 1.0f : 0.2f;
+        playerVelocity.x = moveDirection.x * baseMovementSpeed * controlInfluence;
+        playerVelocity.y = moveDirection.y * baseMovementSpeed * controlInfluence;
+    }
+
+    // Apply velocity to position
+    playerPosition += playerVelocity * deltaTime;
+
+//    std::cout << "Player Position: (" << playerPosition.x << ", " << playerPosition.y << ", " << playerPosition.z << ")" << std::endl;
+
+    // Resolve collisions with blocks
+    resolveCollisions();
+
+    // Update camera position based on perspective
+    switch (currentPerspective) {
+        case CameraPerspective::FirstPerson:
+            cameraPos = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f); // Add eye height offset
+            break;
+        case CameraPerspective::ThirdPerson:
+        {
+            // Calculate eye position
+            glm::vec3 eyePosition = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f);
+            // Position camera behind and slightly above player's eye
+            glm::vec3 offset = -cameraFront * thirdPersonDistance; // Back away from player
+            cameraPos = eyePosition + offset;
+            break;
+        }
+    }
+}
+
 void Application::updateCamera() {
     // Handle F5 key press for perspective switching
     bool f5IsPressed = window.isKeyPressed(KeyCode::F5);
@@ -1426,45 +1503,7 @@ void Application::updateCamera() {
     }
     f5WasPressed = f5IsPressed;
 
-    float movementSpeed = baseMovementSpeed * deltaTime;
-    glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
-    glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
-
-    if (window.isKeyPressed(KeyCode::W)) {
-        playerPosition += horizontalFront * movementSpeed;
-    }
-    if (window.isKeyPressed(KeyCode::S)) {
-        playerPosition -= horizontalFront * movementSpeed;
-    }
-    if (window.isKeyPressed(KeyCode::A)) {
-        playerPosition -= horizontalRight * movementSpeed;
-    }
-    if (window.isKeyPressed(KeyCode::D)) {
-        playerPosition += horizontalRight * movementSpeed;
-    }
-    if (window.isKeyPressed(KeyCode::SPACE)) {
-        playerPosition += cameraUp * movementSpeed;
-    }
-    if (window.isKeyPressed(KeyCode::SHIFT_LEFT)) {
-        playerPosition -= cameraUp * movementSpeed;
-    }
-
-    // Update camera position based on perspective
-    switch (currentPerspective) {
-        case CameraPerspective::FirstPerson:
-            cameraPos = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f); // Add eye height offset
-        break;
-
-        case CameraPerspective::ThirdPerson: {
-            // Calculate eye position
-            glm::vec3 eyePosition = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f);
-
-            // Position camera behind and slightly above player's eye
-            glm::vec3 offset = -cameraFront * thirdPersonDistance; // Back away from player
-            cameraPos = eyePosition + offset;
-            break;
-        }
-    }
+    updatePlayerPhysics();
 }
 
 void Application::updateCameraRotation() {
@@ -2327,7 +2366,16 @@ void Application::drawPlayerBoundingBox() {
 
     // Create AABB and draw it with white lines
     AABB playerBox{min, max};
-    debugRenderer->drawBox(playerBox, glm::vec4(1.0f, 1.0f, 1.0f, 1.0f)); // White color (R,G,B,A)
+    glm::vec4 boxColor = playerOnGround ?
+                         glm::vec4(0.0f, 1.0f, 0.0f, 1.0f) : // Green when on ground
+                         glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);  // White when in air
+
+    debugRenderer->drawBox(playerBox, boxColor);
+
+//    if (glm::length(playerVelocity) > 0.1f) {
+//        glm::vec3 velocityEnd = playerPosition + playerVelocity * 0.5f; // Scale for visibility
+//        debugRenderer->drawLine(playerPosition, velocityEnd, glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+//    }
 }
 
 void Application::handleDebugToggles() {
@@ -2361,5 +2409,201 @@ void Application::handleDebugToggles() {
         f3KeyPressed = false;
     } else if (!currentGState) {
         gKeyPressed = false;
+    }
+}
+
+BlockType Application::getBlockTypeAt(const glm::vec3& worldPos) {
+    // Convert world position to block coordinates
+    int blockX = static_cast<int>(floor(worldPos.x));
+    int blockY = static_cast<int>(floor(worldPos.y));
+    int blockZ = static_cast<int>(floor(worldPos.z));
+
+    // Calculate chunk coordinates
+    const int chunkSize = ChunkStorage::CHUNK_SIZE;
+    int chunkX = floor(blockX / static_cast<float>(chunkSize));
+    int chunkY = floor(blockY / static_cast<float>(chunkSize));
+
+    // Convert to in-chunk coordinates
+    int localX = blockX - chunkX * chunkSize;
+    int localY = blockY - chunkY * chunkSize;
+    int localZ = blockZ;
+
+    // Adjust for negative coordinates
+    if (blockX < 0 && localX != 0) {
+        chunkX--;
+        localX = chunkSize + localX;
+    }
+    if (blockY < 0 && localY != 0) {
+        chunkY--;
+        localY = chunkSize + localY;
+    }
+
+    // Ensure coordinates are valid
+    if (localX < 0 || localX >= chunkSize ||
+        localY < 0 || localY >= chunkSize ||
+        localZ < 0 || localZ >= chunkSize) {
+        return BlockType::AIR;
+    }
+
+    // Find the chunk
+    for (size_t i = 0; i < chunkPositions.size(); i++) {
+        const auto& chunk = chunkPositions[i];
+        glm::vec3 chunkWorldPos = chunk.position;
+        int posChunkX = static_cast<int>(chunkWorldPos.x) / chunkSize;
+        int posChunkY = static_cast<int>(chunkWorldPos.y) / chunkSize;
+
+        if (posChunkX == chunkX && posChunkY == chunkY) {
+            // Simplified block type lookup
+            // In a real implementation, you would access your actual block data
+            // This is a simplified version to demonstrate the concept
+            if (localZ <= 0) {
+                return BlockType::BEDROCK;
+            }
+
+            // Simplified height-based terrain
+            ChunkStorage::BlockGrid blocks = ChunkStorage::generateTestChunk(chunkX, chunkY);
+            return blocks[localX][localY][localZ];
+        }
+    }
+
+    // If no chunk found, return air
+    return BlockType::AIR;
+}
+
+bool Application::isPositionSolid(const glm::vec3& worldPos) {
+    BlockType type = getBlockTypeAt(worldPos);
+    return type != BlockType::AIR && type != BlockType::WATER;
+}
+
+AABB Application::getBlockAABB(int x, int y, int z) {
+    // Convert block coordinates to world coordinates
+    glm::vec3 min = glm::vec3(x, y, z);
+    glm::vec3 max = min + glm::vec3(1.0f);
+
+    return AABB{min, max};
+}
+
+void Application::resolveCollisions() {
+    // Create player AABB
+    float halfWidth = PLAYER_WIDTH / 2.0f;
+    glm::vec3 playerMin = playerPosition - glm::vec3(halfWidth, halfWidth, 0.0f);
+    glm::vec3 playerMax = playerPosition + glm::vec3(halfWidth, halfWidth, PLAYER_HEIGHT);
+    AABB playerBox{playerMin, playerMax};
+
+    // Reset ground check
+    playerOnGround = false;
+
+    // Check blocks in player's vicinity
+    int minX = static_cast<int>(floor(playerMin.x - 1));
+    int maxX = static_cast<int>(floor(playerMax.x + 1));
+    int minY = static_cast<int>(floor(playerMin.y - 1));
+    int maxY = static_cast<int>(floor(playerMax.y + 1));
+    int minZ = static_cast<int>(floor(playerMin.z - 1));
+    int maxZ = static_cast<int>(floor(playerMax.z + 1));
+
+    for (int x = minX; x <= maxX; x++) {
+        for (int y = minY; y <= maxY; y++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                if (isPositionSolid(glm::vec3(x, y, z))) {
+                    AABB blockBox = getBlockAABB(x, y, z);
+
+                    if (playerBox.intersects_aabb(blockBox)) {
+                        // Calculate overlap on each axis
+                        float overlapX = std::min(playerBox.max.x - blockBox.min.x, blockBox.max.x - playerBox.min.x);
+                        float overlapY = std::min(playerBox.max.y - blockBox.min.y, blockBox.max.y - playerBox.min.y);
+                        float overlapZ = std::min(playerBox.max.z - blockBox.min.z, blockBox.max.z - playerBox.min.z);
+
+                        // Resolve with smallest overlap (most efficient resolution)
+                        if (overlapX < overlapY && overlapX < overlapZ) {
+                            // X-axis resolution
+                            if (playerPosition.x > blockBox.centre().x) {
+                                playerPosition.x += overlapX;
+                            } else {
+                                playerPosition.x -= overlapX;
+                            }
+                            // Stop X velocity on collision
+                            playerVelocity.x = 0;
+                        } else if (overlapY < overlapX && overlapY < overlapZ) {
+                            // Y-axis resolution
+                            if (playerPosition.y > blockBox.centre().y) {
+                                playerPosition.y += overlapY;
+                            } else {
+                                playerPosition.y -= overlapY;
+                            }
+                            // Stop Y velocity on collision
+                            playerVelocity.y = 0;
+                        } else {
+                            // Z-axis resolution
+                            if (playerPosition.z > blockBox.centre().z) {
+                                playerPosition.z += overlapZ;
+                                // Stop Z velocity on collision
+                                playerVelocity.z = 0;
+                            } else {
+                                playerPosition.z -= overlapZ;
+                                // Check if player is on ground
+                                if (playerVelocity.z < 0) {
+                                    playerOnGround = true;
+                                }
+                                // Stop Z velocity on collision
+                                playerVelocity.z = 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Application::initializePlayer() {
+    // Start the player at a reasonable height above the terrain
+    playerPosition = glm::vec3(0.0f, 0.0f, 20.0f); // Start above ground level
+    playerVelocity = glm::vec3(0.0f);
+    playerOnGround = false;
+
+    // Initialize camera
+    cameraPos = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f);
+    cameraFront = glm::normalize(glm::vec3(1.0f, 1.0f, 0.0f));
+    cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
+}
+
+void Application::checkGroundContact() {
+    // Reset ground state
+    playerOnGround = false;
+
+    // Define a small distance to check below the player
+    const float groundCheckDistance = 0.05f;
+
+    // Get the player's feet position
+    float halfWidth = PLAYER_WIDTH / 2.0f;
+
+    // Check multiple points along the player's base for more reliable detection
+    glm::vec3 checkPoints[5] = {
+            // Center point
+            glm::vec3(playerPosition.x, playerPosition.y, playerPosition.z),
+            // Four corners
+            glm::vec3(playerPosition.x - halfWidth + 0.1f, playerPosition.y - halfWidth + 0.1f, playerPosition.z),
+            glm::vec3(playerPosition.x + halfWidth - 0.1f, playerPosition.y - halfWidth + 0.1f, playerPosition.z),
+            glm::vec3(playerPosition.x - halfWidth + 0.1f, playerPosition.y + halfWidth - 0.1f, playerPosition.z),
+            glm::vec3(playerPosition.x + halfWidth - 0.1f, playerPosition.y + halfWidth - 0.1f, playerPosition.z)
+    };
+
+    // Check each point
+    for (int i = 0; i < 5; i++) {
+        glm::vec3 checkPos = checkPoints[i];
+
+        // Check if there's a block right below the player
+        glm::vec3 pointBelow = checkPos - glm::vec3(0.0f, 0.0f, groundCheckDistance);
+
+        // Convert to block coordinates
+        int blockX = static_cast<int>(floor(pointBelow.x));
+        int blockY = static_cast<int>(floor(pointBelow.y));
+        int blockZ = static_cast<int>(floor(pointBelow.z));
+
+        // Check if the block below is solid
+        if (isPositionSolid(glm::vec3(blockX, blockY, blockZ))) {
+            playerOnGround = true;
+            return;
+        }
     }
 }

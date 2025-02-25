@@ -4,6 +4,8 @@
 #ifdef _WIN32
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <Windows.h>
+#undef min
+#undef max
 #include <windowsx.h>
 #else
 #define VK_USE_PLATFORM_XCB_KHR

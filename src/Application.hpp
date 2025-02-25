@@ -126,6 +126,22 @@ private:
     const float PLAYER_HEIGHT = 1.8f;
     const float PLAYER_WIDTH = 0.6f;
 
+    // Physics properties
+    glm::vec3 playerVelocity = glm::vec3(0.0f);
+    const float gravity = -20.0f;
+    bool playerOnGround = false;
+    const float jumpForce = 8.0f;
+    const float playerFriction = 10.0f;
+
+    // Collision detection helpers
+    BlockType getBlockTypeAt(const glm::vec3& worldPos);
+    bool isPositionSolid(const glm::vec3& worldPos);
+    AABB getBlockAABB(int x, int y, int z);
+    void resolveCollisions();
+
+    // Movement method with physics
+    void updatePlayerPhysics();
+
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
         uint32_t instanceCount;
@@ -261,4 +277,8 @@ private:
         VkDebugUtilsMessageTypeFlagsEXT messageType,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
         void* pUserData);
+
+    void initializePlayer();
+
+    void checkGroundContact();
 };
