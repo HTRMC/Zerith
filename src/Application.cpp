@@ -2420,23 +2420,24 @@ BlockType Application::getBlockTypeAt(const glm::vec3& worldPos) {
 
     // Calculate chunk coordinates
     const int chunkSize = ChunkStorage::CHUNK_SIZE;
-    int chunkX = floor(blockX / static_cast<float>(chunkSize));
-    int chunkY = floor(blockY / static_cast<float>(chunkSize));
 
-    // Convert to in-chunk coordinates
+    // Fixed calculation for negative coordinates
+    // Integer division in C++ rounds towards zero, but we need floor division
+    int chunkX = (blockX < 0) ? ((blockX + 1 - chunkSize) / chunkSize) : (blockX / chunkSize);
+    int chunkY = (blockY < 0) ? ((blockY + 1 - chunkSize) / chunkSize) : (blockY / chunkSize);
+
+    // Calculate local coordinates within chunk
     int localX = blockX - chunkX * chunkSize;
     int localY = blockY - chunkY * chunkSize;
     int localZ = blockZ;
 
-    // Adjust for negative coordinates
-    if (blockX < 0 && localX != 0) {
-        chunkX--;
-        localX = chunkSize + localX;
-    }
-    if (blockY < 0 && localY != 0) {
-        chunkY--;
-        localY = chunkSize + localY;
-    }
+    // Verification step for debugging
+    if (localX < 0) localX += chunkSize;
+    if (localY < 0) localY += chunkSize;
+
+    // Ensure local coordinates are always in range [0, chunkSize)
+    localX = (localX + chunkSize) % chunkSize;
+    localY = (localY + chunkSize) % chunkSize;
 
     // Ensure coordinates are valid
     if (localX < 0 || localX >= chunkSize ||
