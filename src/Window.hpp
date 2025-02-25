@@ -25,6 +25,8 @@ private:
     int height;
     bool windowShouldClose = false;
     InputManager inputManager;
+    bool isCenteringCursor = false;
+    POINT lastCursorPos = {0, 0};
 
 public:
     Window(int width, int height);
