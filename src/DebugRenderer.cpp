@@ -6,11 +6,21 @@
 
 #include "ShaderManager.hpp"
 
-DebugRenderer::DebugRenderer(VkDevice device, VkPhysicalDevice physicalDevice,
-                           VkCommandPool commandPool, VkRenderPass renderPass,
-                           uint32_t windowWidth, uint32_t windowHeight)
-    : device(device), physicalDevice(physicalDevice), renderPass(renderPass),
-      width(windowWidth), height(windowHeight), needsUpdate(false) {
+DebugRenderer::DebugRenderer(
+        VkDevice device,
+        VkPhysicalDevice physicalDevice,
+        VkCommandPool commandPool,
+        VkRenderPass renderPass,
+        uint32_t windowWidth,
+        uint32_t windowHeight
+        )
+        : device(device),
+          physicalDevice(physicalDevice),
+          renderPass(renderPass),
+          width(windowWidth),
+          height(windowHeight),
+          needsUpdate(false),
+          descriptorSetLayout(VK_NULL_HANDLE), descriptorPool(VK_NULL_HANDLE) {
     createVertexBuffer();
     createPipeline();
 }
@@ -21,18 +31,23 @@ DebugRenderer::~DebugRenderer() {
         vkFreeMemory(device, vertexBufferMemory, nullptr);
         vkDestroyPipeline(device, pipeline, nullptr);
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        if (descriptorSetLayout != VK_NULL_HANDLE) {
+            vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+        }
+
+        if (descriptorPool != VK_NULL_HANDLE) {
+            vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        }
     }
 }
 
-void DebugRenderer::drawLine(const glm::vec3& start, const glm::vec3& end,
-                           const glm::vec4& color, float duration) {
+void DebugRenderer::drawLine(const glm::vec3 &start, const glm::vec3 &end,
+                             const glm::vec4 &color, float duration) {
     lines.push_back({start, end, color, duration, 0.0f});
     needsUpdate = true;
 }
 
-void DebugRenderer::drawBox(const AABB& box, const glm::vec4& color, float duration) {
+void DebugRenderer::drawBox(const AABB &box, const glm::vec4 &color, float duration) {
     if (boxes.size() >= MAX_BOXES) {
         return; // Skip if we've reached the maximum
     }
@@ -42,16 +57,16 @@ void DebugRenderer::drawBox(const AABB& box, const glm::vec4& color, float durat
 
 void DebugRenderer::update(float deltaTime) {
     // Update timers and remove expired debug elements
-    auto removeExpired = [deltaTime](auto& container) {
+    auto removeExpired = [deltaTime](auto &container) {
         container.erase(
-            std::remove_if(container.begin(), container.end(),
-                [deltaTime](auto& element) {
-                    if (element.duration <= 0.0f) return false;
-                    element.startTime += deltaTime;
-                    return element.startTime >= element.duration;
-                }
-            ),
-            container.end()
+                std::remove_if(container.begin(), container.end(),
+                               [deltaTime](auto &element) {
+                                   if (element.duration <= 0.0f) return false;
+                                   element.startTime += deltaTime;
+                                   return element.startTime >= element.duration;
+                               }
+                ),
+                container.end()
         );
     };
 
@@ -68,50 +83,59 @@ void DebugRenderer::updateBuffers() {
     vertices.clear();
 
     // Convert lines to vertices
-    for (const auto& line : lines) {
+    for (const auto &line: lines) {
         vertices.push_back({line.start, line.color});
         vertices.push_back({line.end, line.color});
     }
 
     // Convert boxes to vertices
-    for (const auto& box : boxes) {
+    for (const auto &box: boxes) {
         auto boxVertices = generateBoxVertices(box.aabb, box.color);
         vertices.insert(vertices.end(), boxVertices.begin(), boxVertices.end());
     }
 
     // Update vertex buffer
-    void* data;
+    void *data;
     vkMapMemory(device, vertexBufferMemory, 0, vertices.size() * sizeof(DebugVertex), 0, &data);
     memcpy(data, vertices.data(), vertices.size() * sizeof(DebugVertex));
     vkUnmapMemory(device, vertexBufferMemory);
 }
 
-std::vector<DebugVertex> DebugRenderer::generateBoxVertices(const AABB& box,
-                                                          const glm::vec4& color) {
+std::vector<DebugVertex> DebugRenderer::generateBoxVertices(const AABB &box,
+                                                            const glm::vec4 &color) {
     std::vector<DebugVertex> boxVertices;
     boxVertices.reserve(24); // 12 lines * 2 vertices per line
 
     // Define the 8 corners of the box
     std::vector<glm::vec3> corners = {
-        {box.min.x, box.min.y, box.min.z},
-        {box.max.x, box.min.y, box.min.z},
-        {box.min.x, box.max.y, box.min.z},
-        {box.max.x, box.max.y, box.min.z},
-        {box.min.x, box.min.y, box.max.z},
-        {box.max.x, box.min.y, box.max.z},
-        {box.min.x, box.max.y, box.max.z},
-        {box.max.x, box.max.y, box.max.z}
+            {box.min.x, box.min.y, box.min.z},
+            {box.max.x, box.min.y, box.min.z},
+            {box.min.x, box.max.y, box.min.z},
+            {box.max.x, box.max.y, box.min.z},
+            {box.min.x, box.min.y, box.max.z},
+            {box.max.x, box.min.y, box.max.z},
+            {box.min.x, box.max.y, box.max.z},
+            {box.max.x, box.max.y, box.max.z}
     };
 
     // Define the 12 lines that make up the box
     const std::vector<std::pair<int, int>> lines = {
-        {0,1}, {1,3}, {3,2}, {2,0}, // Bottom face
-        {4,5}, {5,7}, {7,6}, {6,4}, // Top face
-        {0,4}, {1,5}, {2,6}, {3,7}  // Vertical edges
+            {0, 1},
+            {1, 3},
+            {3, 2},
+            {2, 0}, // Bottom face
+            {4, 5},
+            {5, 7},
+            {7, 6},
+            {6, 4}, // Top face
+            {0, 4},
+            {1, 5},
+            {2, 6},
+            {3, 7}  // Vertical edges
     };
 
     // Generate vertices for each line
-    for (const auto& [start, end] : lines) {
+    for (const auto &[start, end]: lines) {
         boxVertices.push_back({corners[start], color});
         boxVertices.push_back({corners[end], color});
     }
@@ -148,7 +172,7 @@ void DebugRenderer::createVertexBuffer() {
     for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
         if ((memRequirements.memoryTypeBits & (1 << i)) &&
             (memProperties.memoryTypes[i].propertyFlags &
-            (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
+             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))) {
             memoryTypeIndex = i;
             break;
         }
@@ -206,8 +230,8 @@ void DebugRenderer::createPipeline() {
 
     // Dynamic states
     std::vector<VkDynamicState> dynamicStates = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
     };
     VkPipelineDynamicStateCreateInfo dynamicState{};
     dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
@@ -243,7 +267,7 @@ void DebugRenderer::createPipeline() {
     // Color blending
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_TRUE;
     colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
     colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -276,7 +300,7 @@ void DebugRenderer::createPipeline() {
 
     // THEN get shaders and create pipeline
     auto [vertShaderModule, fragShaderModule] = ShaderManager::getInstance().getShaderPair(
-        "debug.vert.spv", "debug.frag.spv");
+            "debug.vert.spv", "debug.frag.spv");
 
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -312,13 +336,9 @@ void DebugRenderer::createPipeline() {
     if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline) != VK_SUCCESS) {
         throw std::runtime_error("failed to create debug graphics pipeline!");
     }
-
-    // We can safely destroy shader modules once the pipeline is created
-    vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    vkDestroyShaderModule(device, vertShaderModule, nullptr);
 }
 
-void DebugRenderer::render(VkCommandBuffer commandBuffer, const glm::mat4& viewProj) {
+void DebugRenderer::render(VkCommandBuffer commandBuffer, const glm::mat4 &viewProj) {
     if (vertices.empty()) return;
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
@@ -345,7 +365,7 @@ void DebugRenderer::render(VkCommandBuffer commandBuffer, const glm::mat4& viewP
 
     // Push constants for view-projection matrix
     vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT,
-                      0, sizeof(glm::mat4), &viewProj);
+                       0, sizeof(glm::mat4), &viewProj);
 
     // Draw all debug primitives
     vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
