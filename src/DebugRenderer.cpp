@@ -95,10 +95,12 @@ void DebugRenderer::updateBuffers() {
     }
 
     // Update vertex buffer
-    void *data;
-    vkMapMemory(device, vertexBufferMemory, 0, vertices.size() * sizeof(DebugVertex), 0, &data);
-    memcpy(data, vertices.data(), vertices.size() * sizeof(DebugVertex));
-    vkUnmapMemory(device, vertexBufferMemory);
+    if (!vertices.empty()) {
+        void *data;
+        vkMapMemory(device, vertexBufferMemory, 0, vertices.size() * sizeof(DebugVertex), 0, &data);
+        memcpy(data, vertices.data(), vertices.size() * sizeof(DebugVertex));
+        vkUnmapMemory(device, vertexBufferMemory);
+    }
 }
 
 std::vector<DebugVertex> DebugRenderer::generateBoxVertices(const AABB &box,
