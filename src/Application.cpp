@@ -2,6 +2,7 @@
 #include "Application.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
+
 #include <stb_image.h>
 
 #include <algorithm>
@@ -13,32 +14,34 @@
 #include "ShaderManager.hpp"
 
 #ifdef _WIN32
-    #include <vulkan/vulkan_win32.h>
+
+#include <vulkan/vulkan_win32.h>
+
 #else
-    #include <vulkan/vulkan_xcb.h>
-    #include <unistd.h>
-    #include <linux/limits.h>
+#include <vulkan/vulkan_xcb.h>
+#include <unistd.h>
+#include <linux/limits.h>
 #endif
 
 Application::Application() : physicalDevice(VK_NULL_HANDLE)
 #ifdef _WIN32
-    , window(GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2)
+        , window(GetSystemMetrics(SM_CXSCREEN) / 2, GetSystemMetrics(SM_CYSCREEN) / 2)
 #else
-    , window([]{
-        xcb_connection_t* tmpConn = xcb_connect(nullptr, nullptr);
-        xcb_screen_t* tmpScreen = xcb_setup_roots_iterator(xcb_get_setup(tmpConn)).data;
-        int width = tmpScreen->width_in_pixels / 2;
-        int height = tmpScreen->height_in_pixels / 2;
-        xcb_disconnect(tmpConn);
-        return std::make_pair(width, height);
-    }().first, []{
-        xcb_connection_t* tmpConn = xcb_connect(nullptr, nullptr);
-        xcb_screen_t* tmpScreen = xcb_setup_roots_iterator(xcb_get_setup(tmpConn)).data;
-        int width = tmpScreen->width_in_pixels / 2;
-        int height = tmpScreen->height_in_pixels / 2;
-        xcb_disconnect(tmpConn);
-        return std::make_pair(width, height);
-    }().second)
+, window([]{
+    xcb_connection_t* tmpConn = xcb_connect(nullptr, nullptr);
+    xcb_screen_t* tmpScreen = xcb_setup_roots_iterator(xcb_get_setup(tmpConn)).data;
+    int width = tmpScreen->width_in_pixels / 2;
+    int height = tmpScreen->height_in_pixels / 2;
+    xcb_disconnect(tmpConn);
+    return std::make_pair(width, height);
+}().first, []{
+    xcb_connection_t* tmpConn = xcb_connect(nullptr, nullptr);
+    xcb_screen_t* tmpScreen = xcb_setup_roots_iterator(xcb_get_setup(tmpConn)).data;
+    int width = tmpScreen->width_in_pixels / 2;
+    int height = tmpScreen->height_in_pixels / 2;
+    xcb_disconnect(tmpConn);
+    return std::make_pair(width, height);
+}().second)
 #endif
 {
     appPath = getExecutablePath();
@@ -68,12 +71,12 @@ void Application::initVulkan() {
     createImageViews();
     createRenderPass();
     debugRenderer = std::make_unique<DebugRenderer>(
-        device,
-        physicalDevice,
-        commandPool,
-        renderPass,
-        swapChainExtent.width,
-        swapChainExtent.height
+            device,
+            physicalDevice,
+            commandPool,
+            renderPass,
+            swapChainExtent.width,
+            swapChainExtent.height
     );
     createDescriptorPool();
     createDescriptorSetLayout();
@@ -117,13 +120,13 @@ void Application::createInstance() {
         createInfo.ppEnabledLayerNames = validationLayers.data();
     }
 
-    std::vector<const char*> extensions = {
-        VK_KHR_SURFACE_EXTENSION_NAME,
-    #ifdef _WIN32
-        VK_KHR_WIN32_SURFACE_EXTENSION_NAME
-    #else
-        VK_KHR_XCB_SURFACE_EXTENSION_NAME
-    #endif
+    std::vector<const char *> extensions = {
+            VK_KHR_SURFACE_EXTENSION_NAME,
+#ifdef _WIN32
+            VK_KHR_WIN32_SURFACE_EXTENSION_NAME
+#else
+            VK_KHR_XCB_SURFACE_EXTENSION_NAME
+#endif
     };
 
     if (enableValidationLayers) {
@@ -139,10 +142,10 @@ void Application::createInstance() {
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Application::debugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData) {
+        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+        void *pUserData) {
 
     std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
     return VK_FALSE;
@@ -154,17 +157,17 @@ void Application::setupDebugMessenger() {
     VkDebugUtilsMessengerCreateInfoEXT createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     createInfo.messageSeverity =
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     createInfo.messageType =
-        VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+            VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+            VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     createInfo.pfnUserCallback = debugCallback;
 
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-        instance, "vkCreateDebugUtilsMessengerEXT");
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
+            instance, "vkCreateDebugUtilsMessengerEXT");
     if (func != nullptr) {
         func(instance, &createInfo, nullptr, &debugMessenger);
     }
@@ -182,7 +185,7 @@ void Application::pickPhysicalDevice() {
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
     int maxScore = 0;
-    for (const auto& device : devices) {
+    for (const auto &device: devices) {
         int score = rateDeviceSuitability(device);
         if (score > maxScore) {
             physicalDevice = device;
@@ -227,10 +230,10 @@ bool Application::checkValidationLayerSupport() {
     std::vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-    for (const char* layerName : validationLayers) {
+    for (const char *layerName: validationLayers) {
         bool layerFound = false;
 
-        for (const auto& layerProperties : availableLayers) {
+        for (const auto &layerProperties: availableLayers) {
             if (strcmp(layerName, layerProperties.layerName) == 0) {
                 layerFound = true;
                 break;
@@ -271,18 +274,50 @@ void Application::mainLoop() {
 
         // Draw debug visualizations in order
         if (chunkBordersEnabled) {
-            for (const auto &chunkPos : chunkPositions) {
+            for (const auto &chunkPos: chunkPositions) {
                 drawChunkDebugBox(chunkPos);
             }
         }
         drawPlayerBoundingBox();
 
+        glm::vec3 hitPosition;
+        BlockType hitBlockType;
+        glm::vec3 hitNormal;
+
+        // Update the target block (whether left mouse is pressed or not)
+        hasTargetBlock = raycastBlock(hitPosition, hitBlockType, hitNormal, 100.0f);
+        if (hasTargetBlock) {
+            targetBlockPos = hitPosition;
+
+            // Always draw black outline for targeted block
+            AABB blockBox = getBlockAABB(hitPosition.x, hitPosition.y, hitPosition.z);
+            debugRenderer->drawBox(blockBox, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 0.0f); // Black box with no expiration
+        }
+
+        // Handle left mouse click for interacting with the block
+        bool leftMouseIsPressed = window.isKeyPressed(KeyCode::MOUSE_LEFT);
+        static bool leftMouseWasPressed = false;
+        if (leftMouseIsPressed && !leftMouseWasPressed) {
+            if (hasTargetBlock) {
+                std::cout << "Looking at " << blockTypeToString(hitBlockType)
+                          << " at (" << targetBlockPos.x << ", "
+                          << targetBlockPos.y << ", "
+                          << targetBlockPos.z << ")" << std::endl;
+                std::cout.flush();
+            } else {
+                std::cout << "Not looking at any block (within range)" << std::endl;
+                std::cout.flush();
+            }
+        }
+        leftMouseWasPressed = leftMouseIsPressed;
+
         // Handle F3 + B and F3 + G key presses
         handleDebugToggles();
 
+
         try {
             drawFrame(currentFrame);
-        } catch (const std::runtime_error& e) {
+        } catch (const std::runtime_error &e) {
             std::cerr << "Error during frame rendering: " << e.what() << std::endl;
             break;
         }
@@ -354,13 +389,13 @@ void Application::cleanup() {
 
     vkDestroyCommandPool(device, commandPool, nullptr);
 
-    for (auto framebuffer : swapChainFramebuffers) {
+    for (auto framebuffer: swapChainFramebuffers) {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
     }
 
     if (enableValidationLayers) {
-        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-            instance, "vkDestroyDebugUtilsMessengerEXT");
+        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(
+                instance, "vkDestroyDebugUtilsMessengerEXT");
         if (func != nullptr) {
             func(instance, debugMessenger, nullptr);
         }
@@ -370,7 +405,7 @@ void Application::cleanup() {
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
     vkDestroyRenderPass(device, renderPass, nullptr);
 
-    for (auto imageView : swapChainImageViews) {
+    for (auto imageView: swapChainImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
     }
 
@@ -390,7 +425,7 @@ Application::QueueFamilyIndices Application::findQueueFamilies(VkPhysicalDevice 
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
     int i = 0;
-    for (const auto& queueFamily : queueFamilies) {
+    for (const auto &queueFamily: queueFamilies) {
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             indices.graphicsFamily = i;
         }
@@ -416,12 +451,12 @@ void Application::createLogicalDevice() {
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
     std::set<uint32_t> uniqueQueueFamilies = {
-        indices.graphicsFamily.value(),
-        indices.presentFamily.value()
+            indices.graphicsFamily.value(),
+            indices.presentFamily.value()
     };
 
     float queuePriority = 1.0f;
-    for (uint32_t queueFamily : uniqueQueueFamilies) {
+    for (uint32_t queueFamily: uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo{};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
@@ -441,8 +476,8 @@ void Application::createLogicalDevice() {
     createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.pEnabledFeatures = &deviceFeatures;
 
-    const std::vector<const char*> deviceExtensions = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    const std::vector<const char *> deviceExtensions = {
+            VK_KHR_SWAPCHAIN_EXTENSION_NAME
     };
 
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
@@ -563,8 +598,8 @@ Application::SwapChainSupportDetails Application::querySwapChainSupport(VkPhysic
     return details;
 }
 
-VkSurfaceFormatKHR Application::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
-    for (const auto& availableFormat : availableFormats) {
+VkSurfaceFormatKHR Application::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
+    for (const auto &availableFormat: availableFormats) {
         if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB &&
             availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return availableFormat;
@@ -574,8 +609,8 @@ VkSurfaceFormatKHR Application::chooseSwapSurfaceFormat(const std::vector<VkSurf
     return availableFormats[0];
 }
 
-VkPresentModeKHR Application::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
-    for (const auto& availablePresentMode : availablePresentModes) {
+VkPresentModeKHR Application::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes) {
+    for (const auto &availablePresentMode: availablePresentModes) {
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
             return availablePresentMode;
         }
@@ -584,34 +619,34 @@ VkPresentModeKHR Application::chooseSwapPresentMode(const std::vector<VkPresentM
     return VK_PRESENT_MODE_FIFO_KHR;
 }
 
-VkExtent2D Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+VkExtent2D Application::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
     if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
     }
 
     VkExtent2D actualExtent = {
-        static_cast<uint32_t>(window.getWidth()),
-        static_cast<uint32_t>(window.getHeight())
+            static_cast<uint32_t>(window.getWidth()),
+            static_cast<uint32_t>(window.getHeight())
     };
 
     actualExtent.width = std::clamp(actualExtent.width,
-        capabilities.minImageExtent.width,
-        capabilities.maxImageExtent.width);
+                                    capabilities.minImageExtent.width,
+                                    capabilities.maxImageExtent.width);
     actualExtent.height = std::clamp(actualExtent.height,
-        capabilities.minImageExtent.height,
-        capabilities.maxImageExtent.height);
+                                     capabilities.minImageExtent.height,
+                                     capabilities.maxImageExtent.height);
 
     return actualExtent;
 }
 
-std::vector<char> Application::readFile(const std::string& filename) {
+std::vector<char> Application::readFile(const std::string &filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
         throw std::runtime_error("failed to open file: " + filename);
     }
 
-    size_t fileSize = (size_t)file.tellg();
+    size_t fileSize = (size_t) file.tellg();
     std::vector<char> buffer(fileSize);
 
     file.seekg(0);
@@ -621,11 +656,11 @@ std::vector<char> Application::readFile(const std::string& filename) {
     return buffer;
 }
 
-VkShaderModule Application::createShaderModule(const std::vector<char>& code) {
+VkShaderModule Application::createShaderModule(const std::vector<char> &code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
 
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
@@ -637,14 +672,15 @@ VkShaderModule Application::createShaderModule(const std::vector<char>& code) {
 
 VkFormat Application::findDepthFormat() {
     return findSupportedFormat(
-        {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
+            {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT},
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT
     );
 }
 
-VkFormat Application::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
-    for (VkFormat format : candidates) {
+VkFormat Application::findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
+                                          VkFormatFeatureFlags features) {
+    for (VkFormat format: candidates) {
         VkFormatProperties props;
         vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
 
@@ -658,7 +694,8 @@ VkFormat Application::findSupportedFormat(const std::vector<VkFormat>& candidate
 }
 
 void Application::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
-    VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage& image, VkDeviceMemory& imageMemory) {
+                              VkImageUsageFlags usage, VkMemoryPropertyFlags properties, VkImage &image,
+                              VkDeviceMemory &imageMemory) {
 
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -717,8 +754,8 @@ VkImageView Application::createImageView(VkImage image, VkFormat format, VkImage
 void Application::createDepthResources() {
     VkFormat depthFormat = findDepthFormat();
     createImage(swapChainExtent.width, swapChainExtent.height, depthFormat,
-        VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
+                VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, depthImage, depthImageMemory);
     depthImageView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
@@ -762,9 +799,11 @@ void Application::createRenderPass() {
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask =
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     VkRenderPassCreateInfo renderPassInfo{};
@@ -859,8 +898,8 @@ void Application::createGraphicsPipeline() {
     VkViewport viewport{};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)swapChainExtent.width;
-    viewport.height = (float)swapChainExtent.height;
+    viewport.width = (float) swapChainExtent.width;
+    viewport.height = (float) swapChainExtent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
@@ -905,7 +944,7 @@ void Application::createGraphicsPipeline() {
     // Color blending state
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_TRUE;
     colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
     colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
@@ -969,8 +1008,8 @@ void Application::createFramebuffers() {
 
     for (size_t i = 0; i < swapChainImageViews.size(); i++) {
         std::array<VkImageView, 2> attachments = {
-            swapChainImageViews[i],
-            depthImageView
+                swapChainImageViews[i],
+                depthImageView
         };
 
         VkFramebufferCreateInfo framebufferInfo{};
@@ -1032,7 +1071,7 @@ void Application::createSyncObjects() {
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
             throw std::runtime_error("failed to create synchronization objects for a frame!");
-            }
+        }
     }
 }
 
@@ -1041,7 +1080,7 @@ void Application::drawFrame(size_t currentFrame) {
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
-        imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+                                            imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
 
     if (result == VK_ERROR_OUT_OF_DATE_KHR) {
         return;
@@ -1122,7 +1161,7 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     // Draw sky first
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, skyPipeline);
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        skyPipelineLayout, 0, 1, &skyDescriptorSets[currentFrame], 0, nullptr);
+                            skyPipelineLayout, 0, 1, &skyDescriptorSets[currentFrame], 0, nullptr);
     vkCmdDraw(commandBuffer, 6, 1, 0, 0);  // 6 vertices for fullscreen quad
 
     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
@@ -1133,12 +1172,12 @@ void Application::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t im
     vkCmdBindIndexBuffer(commandBuffer, indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-        pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
+                            pipelineLayout, 0, 1, &descriptorSets[currentFrame], 0, nullptr);
 
     // Base model matrix
     glm::mat4 model = glm::mat4(1.0f);
     vkCmdPushConstants(commandBuffer, pipelineLayout,
-        VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
+                       VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::mat4), &model);
 
     // Draw all faces in one instanced call
     vkCmdDrawIndexedIndirect(commandBuffer, indirectBuffer, 0, 1, sizeof(VkDrawIndexedIndirectCommand));
@@ -1208,8 +1247,8 @@ void Application::createUniformBuffers() {
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            uniformBuffers[i], uniformBuffersMemory[i]);
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     uniformBuffers[i], uniformBuffersMemory[i]);
     }
 }
 
@@ -1218,15 +1257,15 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
 
     // Create view matrix
     ubo.view = glm::lookAt(
-        cameraPos,                    // Camera position
-        cameraPos + cameraFront,      // Look at point
-        cameraUp                      // Up vector
+            cameraPos,                    // Camera position
+            cameraPos + cameraFront,      // Look at point
+            cameraUp                      // Up vector
     );
 
     // Create projection matrix
     ubo.proj = glm::perspective(glm::radians(45.0f),
-        static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height),
-        0.1f, 1000.0f);
+                                static_cast<float>(swapChainExtent.width) / static_cast<float>(swapChainExtent.height),
+                                0.1f, 1000.0f);
 
     // GLM was originally designed for OpenGL, where the Y coordinate of the clip coordinates
     // is inverted. Vulkan clip coordinates requires correcting for this.
@@ -1238,7 +1277,7 @@ void Application::updateUniformBuffer(uint32_t currentImage) {
     // Add instance count
     ubo.instanceCount = instanceCount;
 
-    void* data;
+    void *data;
     vkMapMemory(device, uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBuffersMemory[currentImage]);
@@ -1365,13 +1404,13 @@ void Application::createDescriptorSets() {
         descriptorWrites[5].pBufferInfo = &blockTypeBufferInfo;
 
         vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()),
-            descriptorWrites.data(), 0, nullptr);
+                               descriptorWrites.data(), 0, nullptr);
     }
 }
 
 void Application::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage,
-                             VkMemoryPropertyFlags properties, VkBuffer& buffer,
-                             VkDeviceMemory& bufferMemory) {
+                               VkMemoryPropertyFlags properties, VkBuffer &buffer,
+                               VkDeviceMemory &bufferMemory) {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     bufferInfo.size = size;
@@ -1405,7 +1444,7 @@ uint32_t Application::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags 
         if ((typeFilter & (1 << i)) &&
             (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
             return i;
-            }
+        }
     }
 
     throw std::runtime_error("failed to find suitable memory type!");
@@ -1474,8 +1513,7 @@ void Application::updatePlayerPhysics() {
         case CameraPerspective::FirstPerson:
             cameraPos = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f); // Add eye height offset
             break;
-        case CameraPerspective::ThirdPerson:
-        {
+        case CameraPerspective::ThirdPerson: {
             // Calculate eye position
             glm::vec3 eyePosition = playerPosition + glm::vec3(0.0f, 0.0f, 1.6f);
             // Position camera behind and slightly above player's eye
@@ -1495,10 +1533,10 @@ void Application::updateCamera() {
         switch (currentPerspective) {
             case CameraPerspective::FirstPerson:
                 currentPerspective = CameraPerspective::ThirdPerson;
-            break;
+                break;
             case CameraPerspective::ThirdPerson:
                 currentPerspective = CameraPerspective::FirstPerson;
-            break;
+                break;
         }
     }
     f5WasPressed = f5IsPressed;
@@ -1549,110 +1587,110 @@ void Application::createVertexBuffer() {
     VkBuffer vertexStagingBuffer;
     VkDeviceMemory vertexStagingBufferMemory;
     createBuffer(vertexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        vertexStagingBuffer, vertexStagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 vertexStagingBuffer, vertexStagingBufferMemory);
 
     // Copy vertex data
-    void* data;
+    void *data;
     vkMapMemory(device, vertexStagingBufferMemory, 0, vertexBufferSize, 0, &data);
-    memcpy(data, vertices.data(), (size_t)vertexBufferSize);
+    memcpy(data, vertices.data(), (size_t) vertexBufferSize);
     vkUnmapMemory(device, vertexStagingBufferMemory);
 
     // Create vertex buffer
     createBuffer(vertexBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        vertexBuffer, vertexBufferMemory);
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 vertexBuffer, vertexBufferMemory);
 
     // Create staging buffer for indices
     VkBuffer indexStagingBuffer;
     VkDeviceMemory indexStagingBufferMemory;
     createBuffer(indexBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        indexStagingBuffer, indexStagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 indexStagingBuffer, indexStagingBufferMemory);
 
     // Copy index data
     vkMapMemory(device, indexStagingBufferMemory, 0, indexBufferSize, 0, &data);
-    memcpy(data, indices.data(), (size_t)indexBufferSize);
+    memcpy(data, indices.data(), (size_t) indexBufferSize);
     vkUnmapMemory(device, indexStagingBufferMemory);
 
     // Create index buffer
     createBuffer(indexBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        indexBuffer, indexBufferMemory);
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 indexBuffer, indexBufferMemory);
 
     // Create instance data buffer
     createBuffer(instanceBufferSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        instanceBuffer, instanceBufferMemory);
+                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 instanceBuffer, instanceBufferMemory);
 
     // Create block type buffer
     VkBuffer blockTypeStagingBuffer;
     VkDeviceMemory blockTypeStagingBufferMemory;
     createBuffer(blockTypeBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        blockTypeStagingBuffer, blockTypeStagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 blockTypeStagingBuffer, blockTypeStagingBufferMemory);
 
     // Copy block type data
-    void* blockTypeData;
+    void *blockTypeData;
     vkMapMemory(device, blockTypeStagingBufferMemory, 0, blockTypeBufferSize, 0, &blockTypeData);
-    memcpy(blockTypeData, blockTypes.data(), (size_t)blockTypeBufferSize);
+    memcpy(blockTypeData, blockTypes.data(), (size_t) blockTypeBufferSize);
     vkUnmapMemory(device, blockTypeStagingBufferMemory);
 
     // Create final block type buffer
     createBuffer(blockTypeBufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        blockTypeBuffer, blockTypeBufferMemory);
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 blockTypeBuffer, blockTypeBufferMemory);
 
     // Create staging buffer for instance data
     VkBuffer instanceStagingBuffer;
     VkDeviceMemory instanceStagingBufferMemory;
     createBuffer(instanceBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        instanceStagingBuffer, instanceStagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 instanceStagingBuffer, instanceStagingBufferMemory);
 
     // Copy instance data
     vkMapMemory(device, instanceStagingBufferMemory, 0, instanceBufferSize, 0, &data);
-    memcpy(data, instances.data(), (size_t)instanceBufferSize);
+    memcpy(data, instances.data(), (size_t) instanceBufferSize);
     vkUnmapMemory(device, instanceStagingBufferMemory);
 
     // Create chunk positions buffer
     createBuffer(chunkPositionsBufferSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        chunkPositionsBuffer, chunkPositionsBufferMemory);
+                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 chunkPositionsBuffer, chunkPositionsBufferMemory);
 
     // Create staging buffer for chunk positions
     VkBuffer chunkPositionsStagingBuffer;
     VkDeviceMemory chunkPositionsStagingBufferMemory;
     createBuffer(chunkPositionsBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        chunkPositionsStagingBuffer, chunkPositionsStagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 chunkPositionsStagingBuffer, chunkPositionsStagingBufferMemory);
 
     // Copy chunk positions data
     vkMapMemory(device, chunkPositionsStagingBufferMemory, 0, chunkPositionsBufferSize, 0, &data);
-    memcpy(data, chunkPositions.data(), (size_t)chunkPositionsBufferSize);
+    memcpy(data, chunkPositions.data(), (size_t) chunkPositionsBufferSize);
     vkUnmapMemory(device, chunkPositionsStagingBufferMemory);
 
     // Create chunk indices buffer
     createBuffer(chunkIndicesBufferSize,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        chunkIndicesBuffer, chunkIndicesBufferMemory);
+                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 chunkIndicesBuffer, chunkIndicesBufferMemory);
 
     // Create staging buffer for chunk indices
     VkBuffer chunkIndicesStagingBuffer;
     VkDeviceMemory chunkIndicesStagingBufferMemory;
     createBuffer(chunkIndicesBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        chunkIndicesStagingBuffer, chunkIndicesStagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 chunkIndicesStagingBuffer, chunkIndicesStagingBufferMemory);
 
     // Copy chunk indices data
     vkMapMemory(device, chunkIndicesStagingBufferMemory, 0, chunkIndicesBufferSize, 0, &data);
-    memcpy(data, chunkIndices.data(), (size_t)chunkIndicesBufferSize);
+    memcpy(data, chunkIndices.data(), (size_t) chunkIndicesBufferSize);
     vkUnmapMemory(device, chunkIndicesStagingBufferMemory);
 
     // Copy buffers
@@ -1713,17 +1751,17 @@ void Application::copyBuffer(VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSiz
 
 void Application::createTextureImage() {
     const std::vector<std::string> textureFiles = {
-        "/resources/dirt.png",                      // Index 0
-        "/resources/grass_block_top.png",           // Index 1
-        "/resources/grass_block_side.png",          // Index 2
-        "/resources/grass_block_side_overlay.png",  // Index 3
-        "/resources/stone.png",                     // Index 4
-        "/resources/missing.png"                    // Index 5
+            "/resources/dirt.png",                      // Index 0
+            "/resources/grass_block_top.png",           // Index 1
+            "/resources/grass_block_side.png",          // Index 2
+            "/resources/grass_block_side_overlay.png",  // Index 3
+            "/resources/stone.png",                     // Index 4
+            "/resources/missing.png"                    // Index 5
     };
 
     int texWidth, texHeight, texChannels;
     std::string firstTexturePath = appPath + textureFiles[0];
-    stbi_uc* pixels = stbi_load(firstTexturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    stbi_uc *pixels = stbi_load(firstTexturePath.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
@@ -1736,10 +1774,10 @@ void Application::createTextureImage() {
     VkDeviceMemory stagingBufferMemory;
 
     createBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer, stagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingBufferMemory);
 
-    void* data;
+    void *data;
     vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
 
     memcpy(data, pixels, layerSize);
@@ -1758,7 +1796,7 @@ void Application::createTextureImage() {
             }
         }
 
-        memcpy(static_cast<char*>(data) + i * layerSize, pixels, layerSize);
+        memcpy(static_cast<char *>(data) + i * layerSize, pixels, layerSize);
         stbi_image_free(pixels);
     }
 
@@ -1792,7 +1830,7 @@ void Application::createTextureImage() {
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memRequirements.size;
     allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+                                               VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     if (vkAllocateMemory(device, &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) {
         throw std::runtime_error("failed to allocate texture image memory!");
@@ -1802,8 +1840,8 @@ void Application::createTextureImage() {
 
     // Transition image layout for copying
     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB,
-        VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        textureFiles.size());
+                          VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                          textureFiles.size());
 
     // Copy buffer to image array
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
@@ -1820,24 +1858,24 @@ void Application::createTextureImage() {
         copyRegion.imageSubresource.layerCount = 1;
         copyRegion.imageOffset = {0, 0, 0};
         copyRegion.imageExtent = {
-            static_cast<uint32_t>(texWidth),
-            static_cast<uint32_t>(texHeight),
-            1
+                static_cast<uint32_t>(texWidth),
+                static_cast<uint32_t>(texHeight),
+                1
         };
         copyRegions.push_back(copyRegion);
     }
 
     vkCmdCopyBufferToImage(commandBuffer, stagingBuffer, textureImage,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        static_cast<uint32_t>(copyRegions.size()),
-        copyRegions.data());
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                           static_cast<uint32_t>(copyRegions.size()),
+                           copyRegions.data());
 
     endSingleTimeCommands(commandBuffer);
 
     // Transition to shader reading
     transitionImageLayout(textureImage, VK_FORMAT_R8G8B8A8_SRGB,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        textureFiles.size());
+                          VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                          textureFiles.size());
 
     // Cleanup staging buffer
     vkDestroyBuffer(device, stagingBuffer, nullptr);
@@ -1891,7 +1929,7 @@ void Application::createTextureSampler() {
 }
 
 void Application::transitionImageLayout(VkImage image, VkFormat format,
-    VkImageLayout oldLayout, VkImageLayout newLayout) {
+                                        VkImageLayout oldLayout, VkImageLayout newLayout) {
 
     VkCommandBuffer commandBuffer;
     VkCommandBufferAllocateInfo allocInfo{};
@@ -1943,12 +1981,12 @@ void Application::transitionImageLayout(VkImage image, VkFormat format,
     }
 
     vkCmdPipelineBarrier(
-        commandBuffer,
-        sourceStage, destinationStage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
+            commandBuffer,
+            sourceStage, destinationStage,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
     );
 
     vkEndCommandBuffer(commandBuffer);
@@ -1992,7 +2030,7 @@ void Application::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t wid
     region.imageExtent = {width, height, 1};
 
     vkCmdCopyBufferToImage(commandBuffer, buffer, image,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
     vkEndCommandBuffer(commandBuffer);
 
@@ -2041,7 +2079,7 @@ void Application::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
 }
 
 void Application::transitionImageLayout(VkImage image, VkFormat format,
-    VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount) {
+                                        VkImageLayout oldLayout, VkImageLayout newLayout, uint32_t layerCount) {
 
     VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
@@ -2080,12 +2118,12 @@ void Application::transitionImageLayout(VkImage image, VkFormat format,
     }
 
     vkCmdPipelineBarrier(
-        commandBuffer,
-        sourceStage, destinationStage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
+            commandBuffer,
+            sourceStage, destinationStage,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
     );
 
     endSingleTimeCommands(commandBuffer);
@@ -2174,7 +2212,7 @@ void Application::createSkyPipeline() {
     // Color blending
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
     colorBlendAttachment.blendEnable = VK_FALSE;
 
     VkPipelineColorBlendStateCreateInfo colorBlending{};
@@ -2247,11 +2285,11 @@ void Application::createSkyColorsBuffer() {
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         createBuffer(
-            bufferSize,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            skyColorsBuffers[i],
-            skyColorsBuffersMemory[i]
+                bufferSize,
+                VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                skyColorsBuffers[i],
+                skyColorsBuffersMemory[i]
         );
 
         // Map the memory persistently
@@ -2259,9 +2297,9 @@ void Application::createSkyColorsBuffer() {
 
         // Initialize with default sky colors and identity view matrix
         SkyUBO defaultColors{
-            glm::mat4(1.0f),                      // Identity view matrix
-            glm::vec4(0.0f, 0.5f, 1.0f, 1.0f),   // Top color: light blue
-            glm::vec4(0.5f, 0.7f, 1.0f, 1.0f)    // Bottom color: slightly lighter blue
+                glm::mat4(1.0f),                      // Identity view matrix
+                glm::vec4(0.0f, 0.5f, 1.0f, 1.0f),   // Top color: light blue
+                glm::vec4(0.5f, 0.7f, 1.0f, 1.0f)    // Bottom color: slightly lighter blue
         };
         memcpy(skyColorsMapped[i], &defaultColors, sizeof(SkyUBO));
     }
@@ -2302,9 +2340,9 @@ void Application::createSkyColorsBuffer() {
 void Application::updateSkyColors(uint32_t currentFrame) {
     SkyUBO skyUBO{};
     skyUBO.view = glm::lookAt(
-        glm::vec3(0.0f), // Camera position for sky (always at origin)
-        cameraFront,      // Look direction
-        cameraUp         // Up vector
+            glm::vec3(0.0f), // Camera position for sky (always at origin)
+            cameraFront,      // Look direction
+            cameraUp         // Up vector
     );
     skyUBO.topColor = glm::vec4(0.4706f, 0.6549f, 1.0f, 1.0f);    // Top sky color (#78a7ff)
     skyUBO.bottomColor = glm::vec4(0.7529f, 0.8471f, 1.0f, 1.0f); // Bottom sky color (#c0d8ff)
@@ -2326,20 +2364,20 @@ void Application::createIndirectBuffer() {
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
     createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer, stagingBufferMemory);
+                 VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                 stagingBuffer, stagingBufferMemory);
 
     // Copy data to staging buffer
-    void* data;
+    void *data;
     vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
     memcpy(data, &indirectCmd, bufferSize);
     vkUnmapMemory(device, stagingBufferMemory);
 
     // Create indirect buffer
     createBuffer(bufferSize,
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        indirectBuffer, indirectBufferMemory);
+                 VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,
+                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                 indirectBuffer, indirectBufferMemory);
 
     // Copy data from staging buffer to indirect buffer
     copyBuffer(stagingBuffer, indirectBuffer, bufferSize);
@@ -2349,7 +2387,7 @@ void Application::createIndirectBuffer() {
     vkFreeMemory(device, stagingBufferMemory, nullptr);
 }
 
-void Application::drawChunkDebugBox(const ChunkStorage::ChunkPositionData& chunkPos) {
+void Application::drawChunkDebugBox(const ChunkStorage::ChunkPositionData &chunkPos) {
     glm::vec3 min = chunkPos.position;
     glm::vec3 max = min + glm::vec3(ChunkStorage::CHUNK_SIZE);
     AABB chunkBox{min, max};
@@ -2399,7 +2437,7 @@ void Application::handleDebugToggles() {
         chunkBordersEnabled = !chunkBordersEnabled;
         debugRenderer->clearBoxes();
         if (chunkBordersEnabled) {
-            for (const auto& chunkPos : chunkPositions) {
+            for (const auto &chunkPos: chunkPositions) {
                 drawChunkDebugBox(chunkPos);
             }
         }
@@ -2412,7 +2450,7 @@ void Application::handleDebugToggles() {
     }
 }
 
-BlockType Application::getBlockTypeAt(const glm::vec3& worldPos) {
+BlockType Application::getBlockTypeAt(const glm::vec3 &worldPos) {
     // Convert world position to block coordinates
     int blockX = static_cast<int>(floor(worldPos.x));
     int blockY = static_cast<int>(floor(worldPos.y));
@@ -2448,7 +2486,7 @@ BlockType Application::getBlockTypeAt(const glm::vec3& worldPos) {
 
     // Find the chunk
     for (size_t i = 0; i < chunkPositions.size(); i++) {
-        const auto& chunk = chunkPositions[i];
+        const auto &chunk = chunkPositions[i];
         glm::vec3 chunkWorldPos = chunk.position;
         int posChunkX = static_cast<int>(chunkWorldPos.x) / chunkSize;
         int posChunkY = static_cast<int>(chunkWorldPos.y) / chunkSize;
@@ -2471,7 +2509,7 @@ BlockType Application::getBlockTypeAt(const glm::vec3& worldPos) {
     return BlockType::AIR;
 }
 
-bool Application::isPositionSolid(const glm::vec3& worldPos) {
+bool Application::isPositionSolid(const glm::vec3 &worldPos) {
     BlockType type = getBlockTypeAt(worldPos);
     return type != BlockType::AIR && type != BlockType::WATER;
 }
@@ -2606,5 +2644,129 @@ void Application::checkGroundContact() {
             playerOnGround = true;
             return;
         }
+    }
+}
+
+bool
+Application::raycastBlock(glm::vec3 &outHitPosition, BlockType &outBlockType, glm::vec3 &outNormal, float maxDistance) {
+    // Ray origin (camera position)
+    glm::vec3 origin = cameraPos;
+
+    // Ray direction (camera front vector, normalized)
+    glm::vec3 direction = glm::normalize(cameraFront);
+
+    // Voxel traversal using DDA (Digital Differential Analyzer) algorithm
+    // Initialize starting voxel (block coordinates)
+    int blockX = static_cast<int>(floor(origin.x));
+    int blockY = static_cast<int>(floor(origin.y));
+    int blockZ = static_cast<int>(floor(origin.z));
+
+    // Calculate ray length when it crosses cell boundaries
+    // deltaT is the distance the ray needs to travel to move one unit in each dimension
+    float deltaDistX = (direction.x != 0.0f) ? std::abs(1.0f / direction.x) : FLT_MAX;
+    float deltaDistY = (direction.y != 0.0f) ? std::abs(1.0f / direction.y) : FLT_MAX;
+    float deltaDistZ = (direction.z != 0.0f) ? std::abs(1.0f / direction.z) : FLT_MAX;
+
+    // Current length of ray from origin to block boundary
+    float tMaxX, tMaxY, tMaxZ;
+
+    // Direction to step in (+1 or -1)
+    int stepX, stepY, stepZ;
+
+    // Initialize step direction and initial tMax values
+    if (direction.x < 0.0f) {
+        stepX = -1;
+        tMaxX = (origin.x - blockX) * deltaDistX;
+    } else {
+        stepX = 1;
+        tMaxX = (blockX + 1.0f - origin.x) * deltaDistX;
+    }
+
+    if (direction.y < 0.0f) {
+        stepY = -1;
+        tMaxY = (origin.y - blockY) * deltaDistY;
+    } else {
+        stepY = 1;
+        tMaxY = (blockY + 1.0f - origin.y) * deltaDistY;
+    }
+
+    if (direction.z < 0.0f) {
+        stepZ = -1;
+        tMaxZ = (origin.z - blockZ) * deltaDistZ;
+    } else {
+        stepZ = 1;
+        tMaxZ = (blockZ + 1.0f - origin.z) * deltaDistZ;
+    }
+
+    // Perform ray marching with early termination
+    float currentDistance = 0.0f;
+    int faceIndex = -1; // 0 = X, 1 = Y, 2 = Z
+
+    // Maximum number of steps (safety measure)
+    const int MAX_STEPS = 100;
+    int steps = 0;
+
+    while (currentDistance < maxDistance && steps < MAX_STEPS) {
+        // Step to the next voxel
+        if (tMaxX < tMaxY && tMaxX < tMaxZ) {
+            currentDistance = tMaxX;
+            blockX += stepX;
+            tMaxX += deltaDistX;
+            faceIndex = 0;
+        } else if (tMaxY < tMaxZ) {
+            currentDistance = tMaxY;
+            blockY += stepY;
+            tMaxY += deltaDistY;
+            faceIndex = 1;
+        } else {
+            currentDistance = tMaxZ;
+            blockZ += stepZ;
+            tMaxZ += deltaDistZ;
+            faceIndex = 2;
+        }
+
+        // Check if the current block is solid
+        BlockType blockType = getBlockTypeAt({blockX, blockY, blockZ});
+        if (blockType != BlockType::AIR) {
+            // Set hit information
+            outHitPosition = glm::vec3(blockX, blockY, blockZ);
+            outBlockType = blockType;
+
+            // Calculate hit normal based on the face we entered from
+            outNormal = glm::vec3(0.0f);
+            if (faceIndex == 0) { // X face
+                outNormal.x = -stepX;
+            } else if (faceIndex == 1) { // Y face
+                outNormal.y = -stepY;
+            } else { // Z face
+                outNormal.z = -stepZ;
+            }
+
+            return true;
+        }
+
+        steps++;
+    }
+
+    // No hit found within max distance
+    return false;
+}
+
+std::string Application::blockTypeToString(BlockType type) {
+    switch (type) {
+        case BlockType::AIR:
+            return "Air";
+        case BlockType::STONE:
+            return "Stone";
+        case BlockType::GRASS_BLOCK:
+            return "Grass Block";
+        case BlockType::DIRT:
+            return "Dirt";
+        case BlockType::BEDROCK:
+            return "Bedrock";
+        case BlockType::WATER:
+            return "Water";
+        default:
+            return "Unknown Block";
     }
 }

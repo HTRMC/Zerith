@@ -142,6 +142,12 @@ private:
     // Movement method with physics
     void updatePlayerPhysics();
 
+    bool raycastBlock(glm::vec3& outHitPosition, BlockType& outBlockType, glm::vec3& outNormal, float maxDistance = 5.0f);
+    std::string blockTypeToString(BlockType type);
+
+    bool hasTargetBlock = false;
+    glm::vec3 targetBlockPos;
+
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
         uint32_t instanceCount;
