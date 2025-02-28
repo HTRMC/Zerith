@@ -1470,7 +1470,6 @@ void Application::updatePlayerPhysics() {
     }
 
     // Apply movement input to velocity
-    float movementSpeed = baseMovementSpeed * deltaTime;
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
     glm::vec3 horizontalRight = glm::normalize(glm::cross(horizontalFront, cameraUp));
 
@@ -1492,12 +1491,15 @@ void Application::updatePlayerPhysics() {
 
     // Normalize and apply movement
     if (glm::length(moveDirection) > 0.0f) {
-        moveDirection = glm::normalize(moveDirection) * movementSpeed;
+        moveDirection = glm::normalize(moveDirection);
 
         // Apply movement to velocity (with reduced influence when in air)
-        float controlInfluence = playerOnGround ? 1.0f : 0.2f;
-        playerVelocity.x = moveDirection.x * baseMovementSpeed * controlInfluence;
-        playerVelocity.y = moveDirection.y * baseMovementSpeed * controlInfluence;
+        float controlInfluence = playerOnGround ? 1.0f : 0.5f;
+
+        glm::vec3 targetVelocity = moveDirection * baseMovementSpeed * controlInfluence;
+
+        playerVelocity.x = targetVelocity.x;
+        playerVelocity.y = targetVelocity.y;
     }
 
     // Apply velocity to position
