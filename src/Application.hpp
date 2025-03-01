@@ -148,6 +148,16 @@ private:
     bool hasTargetBlock = false;
     glm::vec3 targetBlockPos;
 
+    // Block modification methods
+    void breakBlock(const glm::vec3& position);
+    void updateModifiedBlocks();
+
+    // Storage for modified block data
+    std::unordered_map<std::string, BlockType> modifiedBlocks;
+    std::string getBlockKey(int x, int y, int z) const;
+
+    bool needsRebuild = false;
+
     struct VkDrawIndexedIndirectCommand {
         uint32_t indexCount;
         uint32_t instanceCount;

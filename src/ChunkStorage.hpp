@@ -2,6 +2,9 @@
 #include <vector>
 #include <array>
 #include <cstdint>
+#include <unordered_map>
+#include <string>
+#include <sstream>
 
 #include "BlockType.hpp"
 #include "PerlinNoise.hpp"
@@ -61,148 +64,148 @@ public:
     }
 
     // Generate instance data for all visible faces in the chunk
-static std::vector<uint32_t> generateVisibleFaces(const BlockGrid &blocks, std::vector<uint32_t> &outBlockTypes) {
-    std::vector<uint32_t> instances;
-    outBlockTypes.clear();
+    static std::vector<uint32_t> generateVisibleFaces(const BlockGrid &blocks, std::vector<uint32_t> &outBlockTypes) {
+        std::vector<uint32_t> instances;
+        outBlockTypes.clear();
 
-    std::vector<std::vector<std::vector<bool>>> processed(
-        CHUNK_SIZE, std::vector<std::vector<bool>>(
-            CHUNK_SIZE, std::vector<bool>(CHUNK_SIZE, false)));
+        std::vector<std::vector<std::vector<bool> > > processed(
+            CHUNK_SIZE, std::vector<std::vector<bool> >(
+                CHUNK_SIZE, std::vector<bool>(CHUNK_SIZE, false)));
 
-    for (int faceIndex = 0; faceIndex < 6; faceIndex++) {
-        FaceType face = static_cast<FaceType>(faceIndex);
+        for (int faceIndex = 0; faceIndex < 6; faceIndex++) {
+            FaceType face = static_cast<FaceType>(faceIndex);
 
-        // Reset processed flags
-        for (int x = 0; x < CHUNK_SIZE; x++)
-            for (int y = 0; y < CHUNK_SIZE; y++)
-                for (int z = 0; z < CHUNK_SIZE; z++)
-                    processed[x][y][z] = false;
+            // Reset processed flags
+            for (int x = 0; x < CHUNK_SIZE; x++)
+                for (int y = 0; y < CHUNK_SIZE; y++)
+                    for (int z = 0; z < CHUNK_SIZE; z++)
+                        processed[x][y][z] = false;
 
-        for (int z = 0; z < CHUNK_SIZE; z++) {
-            for (int y = 0; y < CHUNK_SIZE; y++) {
-                for (int x = 0; x < CHUNK_SIZE; x++) {
-                    if (processed[x][y][z] || !shouldCreateFace(blocks, x, y, z, face))
-                        continue;
+            for (int z = 0; z < CHUNK_SIZE; z++) {
+                for (int y = 0; y < CHUNK_SIZE; y++) {
+                    for (int x = 0; x < CHUNK_SIZE; x++) {
+                        if (processed[x][y][z] || !shouldCreateFace(blocks, x, y, z, face))
+                            continue;
 
-                    BlockType currentType = blocks[x][y][z];
-                    uint32_t maxWidth = 1, maxHeight = 1;
+                        BlockType currentType = blocks[x][y][z];
+                        uint32_t maxWidth = 1, maxHeight = 1;
 
-                    // Determine merge directions based on face orientation
-                    switch (face) {
-                        case FaceType::XPositive:
-                        case FaceType::XNegative: {
-                            // Merge along Y and Z
-                            while (y + maxWidth < CHUNK_SIZE &&
-                                   !processed[x][y + maxWidth][z] &&
-                                   blocks[x][y + maxWidth][z] == currentType &&
-                                   shouldCreateFace(blocks, x, y + maxWidth, z, face)) {
-                                maxWidth++;
-                            }
-
-                            bool canExtend = true;
-                            while (z + maxHeight < CHUNK_SIZE && canExtend) {
-                                for (uint32_t w = 0; w < maxWidth; w++) {
-                                    if (processed[x][y + w][z + maxHeight] ||
-                                        blocks[x][y + w][z + maxHeight] != currentType ||
-                                        !shouldCreateFace(blocks, x, y + w, z + maxHeight, face)) {
-                                        canExtend = false;
-                                        break;
-                                    }
+                        // Determine merge directions based on face orientation
+                        switch (face) {
+                            case FaceType::XPositive:
+                            case FaceType::XNegative: {
+                                // Merge along Y and Z
+                                while (y + maxWidth < CHUNK_SIZE &&
+                                       !processed[x][y + maxWidth][z] &&
+                                       blocks[x][y + maxWidth][z] == currentType &&
+                                       shouldCreateFace(blocks, x, y + maxWidth, z, face)) {
+                                    maxWidth++;
                                 }
-                                if (canExtend) maxHeight++;
+
+                                bool canExtend = true;
+                                while (z + maxHeight < CHUNK_SIZE && canExtend) {
+                                    for (uint32_t w = 0; w < maxWidth; w++) {
+                                        if (processed[x][y + w][z + maxHeight] ||
+                                            blocks[x][y + w][z + maxHeight] != currentType ||
+                                            !shouldCreateFace(blocks, x, y + w, z + maxHeight, face)) {
+                                            canExtend = false;
+                                            break;
+                                        }
+                                    }
+                                    if (canExtend) maxHeight++;
+                                }
+                                break;
                             }
-                            break;
+
+                            case FaceType::YPositive:
+                            case FaceType::YNegative: {
+                                // Merge along X and Z
+                                while (x + maxWidth < CHUNK_SIZE &&
+                                       !processed[x + maxWidth][y][z] &&
+                                       blocks[x + maxWidth][y][z] == currentType &&
+                                       shouldCreateFace(blocks, x + maxWidth, y, z, face)) {
+                                    maxWidth++;
+                                }
+
+                                bool canExtend = true;
+                                while (z + maxHeight < CHUNK_SIZE && canExtend) {
+                                    for (uint32_t w = 0; w < maxWidth; w++) {
+                                        if (processed[x + w][y][z + maxHeight] ||
+                                            blocks[x + w][y][z + maxHeight] != currentType ||
+                                            !shouldCreateFace(blocks, x + w, y, z + maxHeight, face)) {
+                                            canExtend = false;
+                                            break;
+                                        }
+                                    }
+                                    if (canExtend) maxHeight++;
+                                }
+                                break;
+                            }
+
+                            case FaceType::ZPositive:
+                            case FaceType::ZNegative: {
+                                // Original logic for top/bottom faces (merge along X and Y)
+                                while (x + maxWidth < CHUNK_SIZE &&
+                                       !processed[x + maxWidth][y][z] &&
+                                       blocks[x + maxWidth][y][z] == currentType &&
+                                       shouldCreateFace(blocks, x + maxWidth, y, z, face)) {
+                                    maxWidth++;
+                                }
+
+                                bool canExtend = true;
+                                while (y + maxHeight < CHUNK_SIZE && canExtend) {
+                                    for (uint32_t w = 0; w < maxWidth; w++) {
+                                        if (processed[x + w][y + maxHeight][z] ||
+                                            blocks[x + w][y + maxHeight][z] != currentType ||
+                                            !shouldCreateFace(blocks, x + w, y + maxHeight, z, face)) {
+                                            canExtend = false;
+                                            break;
+                                        }
+                                    }
+                                    if (canExtend) maxHeight++;
+                                }
+                                break;
+                            }
                         }
 
-                        case FaceType::YPositive:
-                        case FaceType::YNegative: {
-                            // Merge along X and Z
-                            while (x + maxWidth < CHUNK_SIZE &&
-                                   !processed[x + maxWidth][y][z] &&
-                                   blocks[x + maxWidth][y][z] == currentType &&
-                                   shouldCreateFace(blocks, x + maxWidth, y, z, face)) {
-                                maxWidth++;
-                            }
-
-                            bool canExtend = true;
-                            while (z + maxHeight < CHUNK_SIZE && canExtend) {
-                                for (uint32_t w = 0; w < maxWidth; w++) {
-                                    if (processed[x + w][y][z + maxHeight] ||
-                                        blocks[x + w][y][z + maxHeight] != currentType ||
-                                        !shouldCreateFace(blocks, x + w, y, z + maxHeight, face)) {
-                                        canExtend = false;
+                        // Mark processed blocks
+                        for (uint32_t dh = 0; dh < maxHeight; dh++) {
+                            for (uint32_t dw = 0; dw < maxWidth; dw++) {
+                                switch (face) {
+                                    case FaceType::XPositive:
+                                    case FaceType::XNegative:
+                                        processed[x][y + dw][z + dh] = true;
                                         break;
-                                    }
+                                    case FaceType::YPositive:
+                                    case FaceType::YNegative:
+                                        processed[x + dw][y][z + dh] = true;
+                                        break;
+                                    case FaceType::ZPositive:
+                                    case FaceType::ZNegative:
+                                        processed[x + dw][y + dh][z] = true;
+                                        break;
                                 }
-                                if (canExtend) maxHeight++;
                             }
-                            break;
                         }
 
-                        case FaceType::ZPositive:
-                        case FaceType::ZNegative: {
-                            // Original logic for top/bottom faces (merge along X and Y)
-                            while (x + maxWidth < CHUNK_SIZE &&
-                                   !processed[x + maxWidth][y][z] &&
-                                   blocks[x + maxWidth][y][z] == currentType &&
-                                   shouldCreateFace(blocks, x + maxWidth, y, z, face)) {
-                                maxWidth++;
-                            }
+                        InstanceData data{
+                            face,
+                            static_cast<uint32_t>(x),
+                            static_cast<uint32_t>(y),
+                            static_cast<uint32_t>(z),
+                            maxWidth - 1,
+                            maxHeight - 1
+                        };
 
-                            bool canExtend = true;
-                            while (y + maxHeight < CHUNK_SIZE && canExtend) {
-                                for (uint32_t w = 0; w < maxWidth; w++) {
-                                    if (processed[x + w][y + maxHeight][z] ||
-                                        blocks[x + w][y + maxHeight][z] != currentType ||
-                                        !shouldCreateFace(blocks, x + w, y + maxHeight, z, face)) {
-                                        canExtend = false;
-                                        break;
-                                    }
-                                }
-                                if (canExtend) maxHeight++;
-                            }
-                            break;
-                        }
+                        instances.push_back(packInstanceData(data));
+                        outBlockTypes.push_back(static_cast<uint32_t>(currentType));
                     }
-
-                    // Mark processed blocks
-                    for (uint32_t dh = 0; dh < maxHeight; dh++) {
-                        for (uint32_t dw = 0; dw < maxWidth; dw++) {
-                            switch (face) {
-                                case FaceType::XPositive:
-                                case FaceType::XNegative:
-                                    processed[x][y + dw][z + dh] = true;
-                                    break;
-                                case FaceType::YPositive:
-                                case FaceType::YNegative:
-                                    processed[x + dw][y][z + dh] = true;
-                                    break;
-                                case FaceType::ZPositive:
-                                case FaceType::ZNegative:
-                                    processed[x + dw][y + dh][z] = true;
-                                    break;
-                            }
-                        }
-                    }
-
-                    InstanceData data{
-                        face,
-                        static_cast<uint32_t>(x),
-                        static_cast<uint32_t>(y),
-                        static_cast<uint32_t>(z),
-                        maxWidth - 1,
-                        maxHeight - 1
-                    };
-
-                    instances.push_back(packInstanceData(data));
-                    outBlockTypes.push_back(static_cast<uint32_t>(currentType));
                 }
             }
         }
-    }
 
-    return instances;
-}
+        return instances;
+    }
 
     // Generate a test chunk with some blocks
     static BlockGrid generateTestChunk(int chunkX, int chunkY) {
@@ -259,10 +262,56 @@ static std::vector<uint32_t> generateVisibleFaces(const BlockGrid &blocks, std::
         return blocks;
     }
 
+    static BlockGrid generateChunkWithModifications(int chunkX, int chunkY,
+                                                    const std::unordered_map<std::string, BlockType> &modifiedBlocks) {
+        // First generate the standard terrain
+        BlockGrid blocks = generateTestChunk(chunkX, chunkY);
+
+        // Apply modifications
+        for (const auto &[key, type]: modifiedBlocks) {
+            // Parse the key back into coordinates
+            std::istringstream iss(key);
+            std::string xStr, yStr, zStr;
+
+            std::getline(iss, xStr, ',');
+            std::getline(iss, yStr, ',');
+            std::getline(iss, zStr, ',');
+
+            int worldX = std::stoi(xStr);
+            int worldY = std::stoi(yStr);
+            int worldZ = std::stoi(zStr);
+
+            // Check if this block is in this chunk
+            int blockChunkX = (worldX < 0) ? ((worldX + 1 - CHUNK_SIZE) / CHUNK_SIZE) : (worldX / CHUNK_SIZE);
+            int blockChunkY = (worldY < 0) ? ((worldY + 1 - CHUNK_SIZE) / CHUNK_SIZE) : (worldY / CHUNK_SIZE);
+
+            if (blockChunkX == chunkX && blockChunkY == chunkY) {
+                // Calculate local coordinates
+                int localX = worldX - chunkX * CHUNK_SIZE;
+                int localY = worldY - chunkY * CHUNK_SIZE;
+                int localZ = worldZ;
+
+                // Fix local coordinates for negative values
+                if (localX < 0) localX += CHUNK_SIZE;
+                if (localY < 0) localY += CHUNK_SIZE;
+
+                // Ensure coordinates are valid before modifying
+                if (localX >= 0 && localX < CHUNK_SIZE &&
+                    localY >= 0 && localY < CHUNK_SIZE &&
+                    localZ >= 0 && localZ < CHUNK_SIZE) {
+                    blocks[localX][localY][localZ] = type;
+                }
+            }
+        }
+
+        return blocks;
+    }
+
     static std::vector<uint32_t> generateMultiChunk(
         std::vector<ChunkPositionData> &chunkPositions,
         std::vector<uint32_t> &chunkIndices,
-        std::vector<uint32_t> &outBlockTypes) {
+        std::vector<uint32_t> &outBlockTypes,
+        const std::unordered_map<std::string, BlockType> &modifiedBlocks = {}) {
         std::vector<uint32_t> allInstances;
         chunkPositions.clear();
         chunkIndices.clear();
@@ -280,7 +329,7 @@ static std::vector<uint32_t> generateVisibleFaces(const BlockGrid &blocks, std::
         // First pass: generate all chunks and calculate total size
         for (int x = 0; x < CHUNKS_PER_ROW; x++) {
             for (int y = 0; y < CHUNKS_PER_ROW; y++) {
-                auto chunk = generateTestChunk(x + START_OFFSET, y + START_OFFSET);
+                auto chunk = generateChunkWithModifications(x + START_OFFSET, y + START_OFFSET, modifiedBlocks);
                 std::vector<uint32_t> chunkBlockTypes;
                 auto instances = generateVisibleFaces(chunk, chunkBlockTypes);
 

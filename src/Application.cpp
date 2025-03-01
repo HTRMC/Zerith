@@ -294,26 +294,32 @@ void Application::mainLoop() {
             debugRenderer->drawBox(blockBox, glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 0.0f); // Black box with no expiration
         }
 
-        // Handle left mouse click for interacting with the block
+        // Handle left mouse click for breaking blocks
         bool leftMouseIsPressed = window.isKeyPressed(KeyCode::MOUSE_LEFT);
         static bool leftMouseWasPressed = false;
+
         if (leftMouseIsPressed && !leftMouseWasPressed) {
             if (hasTargetBlock) {
-                std::cout << "Looking at " << blockTypeToString(hitBlockType)
+                std::cout << "Breaking " << blockTypeToString(hitBlockType)
                           << " at (" << targetBlockPos.x << ", "
                           << targetBlockPos.y << ", "
                           << targetBlockPos.z << ")" << std::endl;
-                std::cout.flush();
+
+                // Break the block that's being looked at
+                breakBlock(targetBlockPos);
             } else {
                 std::cout << "Not looking at any block (within range)" << std::endl;
-                std::cout.flush();
             }
         }
         leftMouseWasPressed = leftMouseIsPressed;
 
+        // Check if we need to update the rendering after block modifications
+        if (needsRebuild) {
+            updateModifiedBlocks();
+        }
+
         // Handle F3 + B and F3 + G key presses
         handleDebugToggles();
-
 
         try {
             drawFrame(currentFrame);
@@ -1573,7 +1579,7 @@ void Application::createVertexBuffer() {
 
     // Generate chunk data and get visible faces for multiple chunks
     std::vector<uint32_t> blockTypes;
-    auto instances = ChunkStorage::generateMultiChunk(chunkPositions, chunkIndices, blockTypes);
+    auto instances = ChunkStorage::generateMultiChunk(chunkPositions, chunkIndices, blockTypes, modifiedBlocks);
 
     vertexCount = static_cast<uint32_t>(indices.size());
     instanceCount = static_cast<uint32_t>(instances.size());
@@ -2458,6 +2464,14 @@ BlockType Application::getBlockTypeAt(const glm::vec3 &worldPos) {
     int blockY = static_cast<int>(floor(worldPos.y));
     int blockZ = static_cast<int>(floor(worldPos.z));
 
+    // Check if this block has been modified
+    std::string blockKey = getBlockKey(blockX, blockY, blockZ);
+    auto it = modifiedBlocks.find(blockKey);
+    if (it != modifiedBlocks.end()) {
+        return it->second;
+    }
+
+    // If not modified, proceed with original logic
     // Calculate chunk coordinates
     const int chunkSize = ChunkStorage::CHUNK_SIZE;
 
@@ -2771,4 +2785,60 @@ std::string Application::blockTypeToString(BlockType type) {
         default:
             return "Unknown Block";
     }
+}
+
+std::string Application::getBlockKey(int x, int y, int z) const {
+    return std::to_string(x) + "," + std::to_string(y) + "," + std::to_string(z);
+}
+
+void Application::breakBlock(const glm::vec3& position) {
+    // Convert world position to block coordinates
+    int blockX = static_cast<int>(floor(position.x));
+    int blockY = static_cast<int>(floor(position.y));
+    int blockZ = static_cast<int>(floor(position.z));
+
+    // Don't allow breaking blocks at or below z=0 (bedrock layer)
+    if (blockZ <= 0) {
+        std::cout << "Cannot break bedrock!" << std::endl;
+        return;
+    }
+
+    // Create a key for this block position
+    std::string blockKey = getBlockKey(blockX, blockY, blockZ);
+
+    // Store the modified block state in our map (set to AIR for breaking)
+    modifiedBlocks[blockKey] = BlockType::AIR;
+
+    std::cout << "Block broken at (" << blockX << ", " << blockY << ", " << blockZ << ")" << std::endl;
+
+    // Flag that we need to update our vertex buffers
+    needsRebuild = true;
+}
+
+// Method to rebuild the vertex buffers when blocks have changed
+void Application::updateModifiedBlocks() {
+    if (!needsRebuild) {
+        return;
+    }
+
+    // Clean up old buffers
+    vkDeviceWaitIdle(device);
+    vkDestroyBuffer(device, vertexBuffer, nullptr);
+    vkFreeMemory(device, vertexBufferMemory, nullptr);
+    vkDestroyBuffer(device, indexBuffer, nullptr);
+    vkFreeMemory(device, indexBufferMemory, nullptr);
+    vkDestroyBuffer(device, instanceBuffer, nullptr);
+    vkFreeMemory(device, instanceBufferMemory, nullptr);
+    vkDestroyBuffer(device, blockTypeBuffer, nullptr);
+    vkFreeMemory(device, blockTypeBufferMemory, nullptr);
+
+    // Recreate vertex buffer with updated block data
+    createVertexBuffer();
+
+    // Also recreate indirect buffer with new instance count
+    vkDestroyBuffer(device, indirectBuffer, nullptr);
+    vkFreeMemory(device, indirectBufferMemory, nullptr);
+    createIndirectBuffer();
+
+    needsRebuild = false;
 }
