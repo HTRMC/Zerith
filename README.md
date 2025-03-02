@@ -1,9 +1,9 @@
 # Zerith
 
-![License](https://img.shields.io/badge/license-MIT-blue)
-![C++](https://img.shields.io/badge/C%2B%2B-23-blue)
-![Vulkan](https://img.shields.io/badge/Vulkan-1.4-red)
-![Status](https://img.shields.io/badge/status-in%20development-yellow)
+![License](https://img.shields.io/badge/License-All\_Rights\_Reserved-blue?style=flat-square&logoColor=white)
+![C++](https://img.shields.io/badge/C%2B%2B-23-red?style=flat-square&logo=cplusplus&logoColor=white)
+![Vulkan](https://img.shields.io/badge/Vulkan-1.4-purple?style=flat-square&logo=vulkan&logoColor=white)
+![Status](https://img.shields.io/badge/Status-In\_Development-green?style=flat-square&logoColor=white)
 
 A 3D voxel-based game engine built with Vulkan. Starting as a Minecraft-inspired foundation, Zerith aims to evolve into a unique game with custom mechanics, world-building, and visual aesthetics.
 
