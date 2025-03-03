@@ -146,154 +146,145 @@ void ModelLoader::processElement(Element& element, ModelData& modelData, size_t 
 }
 
 void ModelLoader::createElementGeometry(const Element& element, ModelData& modelData) {
-    // Get the current vertex count (offset for indices)
-    uint16_t baseVertex = static_cast<uint16_t>(modelData.vertices.size());
-    
-    // Create colors based on element's color or face colors
+    // Use the element color as a default
     glm::vec3 defaultColor = parseColor(element.color);
-    
-    // Create a cube from the element's bounds
-    // Define the 8 corners of the cube
-    std::vector<glm::vec3> corners = {
-        {element.from.x, element.from.y, element.from.z}, // 0: bottom-left-front
-        {element.to.x, element.from.y, element.from.z},   // 1: bottom-right-front
-        {element.to.x, element.to.y, element.from.z},     // 2: top-right-front
-        {element.from.x, element.to.y, element.from.z},   // 3: top-left-front
-        {element.from.x, element.from.y, element.to.z},   // 4: bottom-left-back
-        {element.to.x, element.from.y, element.to.z},     // 5: bottom-right-back
-        {element.to.x, element.to.y, element.to.z},       // 6: top-right-back
-        {element.from.x, element.to.y, element.to.z}      // 7: top-left-back
-    };
-    
-    // Add vertices for each corner of the cube
-    for (const auto& corner : corners) {
-        Vertex vertex;
-        vertex.pos = corner;
-        vertex.color = defaultColor;
-        modelData.vertices.push_back(vertex);
-    }
-    
-    // Add indices for each face (2 triangles per face)
-    // Check if the face is defined in the element and use its specific color if available
-    
-    // Front face (z = min)
-    if (element.faces.find("north") != element.faces.end()) {
-        glm::vec3 color = element.faces.at("north").texture != "#missing" ? 
-                          parseColor(element.color) : defaultColor;
-        
-        // Update vertex colors for this face
-        modelData.vertices[baseVertex + 0].color = color;
-        modelData.vertices[baseVertex + 1].color = color;
-        modelData.vertices[baseVertex + 2].color = color;
-        modelData.vertices[baseVertex + 3].color = color;
-        
-        // Add indices
-        modelData.indices.push_back(baseVertex + 0);
-        modelData.indices.push_back(baseVertex + 1);
-        modelData.indices.push_back(baseVertex + 2);
-        modelData.indices.push_back(baseVertex + 2);
-        modelData.indices.push_back(baseVertex + 3);
-        modelData.indices.push_back(baseVertex + 0);
-    }
-    
-    // Right face (x = max)
-    if (element.faces.find("east") != element.faces.end()) {
-        glm::vec3 color = element.faces.at("east").texture != "#missing" ? 
-                          parseColor(element.color) : defaultColor;
-        
-        // Update vertex colors for this face
-        modelData.vertices[baseVertex + 1].color = color;
-        modelData.vertices[baseVertex + 5].color = color;
-        modelData.vertices[baseVertex + 6].color = color;
-        modelData.vertices[baseVertex + 2].color = color;
-        
-        // Add indices
-        modelData.indices.push_back(baseVertex + 1);
-        modelData.indices.push_back(baseVertex + 5);
-        modelData.indices.push_back(baseVertex + 6);
-        modelData.indices.push_back(baseVertex + 6);
-        modelData.indices.push_back(baseVertex + 2);
-        modelData.indices.push_back(baseVertex + 1);
-    }
-    
-    // Back face (z = max)
+
+    // The element.from and element.to are already converted.
+    // Define the bounds:
+    float x_min = element.from.x;
+    float x_max = element.to.x;
+    // Engine Y (forward/back): comes from BlockBench Z values.
+    float y_min = element.from.y;  // Back face (north)
+    float y_max = element.to.y;    // Front face (south)
+    // Engine Z (vertical): comes from BlockBench Y values.
+    float z_min = element.from.z;  // Bottom face (down)
+    float z_max = element.to.z;    // Top face (up)
+
+    // --- FRONT FACE (BlockBench "south" → Engine front, Y = max) ---
     if (element.faces.find("south") != element.faces.end()) {
-        glm::vec3 color = element.faces.at("south").texture != "#missing" ? 
-                          parseColor(element.color) : defaultColor;
-        
-        // Update vertex colors for this face
-        modelData.vertices[baseVertex + 5].color = color;
-        modelData.vertices[baseVertex + 4].color = color;
-        modelData.vertices[baseVertex + 7].color = color;
-        modelData.vertices[baseVertex + 6].color = color;
-        
-        // Add indices
-        modelData.indices.push_back(baseVertex + 5);
-        modelData.indices.push_back(baseVertex + 4);
-        modelData.indices.push_back(baseVertex + 7);
-        modelData.indices.push_back(baseVertex + 7);
-        modelData.indices.push_back(baseVertex + 6);
-        modelData.indices.push_back(baseVertex + 5);
+        glm::vec3 faceColor = parseColor(element.faces.at("south").texture != "#missing" ? element.color : element.color);
+        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor };
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor };
+        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor };
+        Vertex frontTopLeft     = { { x_min, y_max, z_max }, faceColor };
+        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        modelData.vertices.insert(modelData.vertices.end(), {
+            frontBottomLeft, frontBottomRight, frontTopRight, frontTopLeft
+        });
+        modelData.indices.insert(modelData.indices.end(), {
+            static_cast<uint16_t>(base),
+            static_cast<uint16_t>(base + 1),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base)
+        });
     }
-    
-    // Left face (x = min)
+
+    // --- BACK FACE (BlockBench "north" → Engine back, Y = min) ---
+    if (element.faces.find("north") != element.faces.end()) {
+        glm::vec3 faceColor = parseColor(element.faces.at("north").texture != "#missing" ? element.color : element.color);
+        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor };
+        Vertex backBottomRight = { { x_max, y_min, z_min }, faceColor };
+        Vertex backTopRight    = { { x_max, y_min, z_max }, faceColor };
+        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor };
+        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        modelData.vertices.insert(modelData.vertices.end(), {
+            backBottomLeft, backBottomRight, backTopRight, backTopLeft
+        });
+        // Reverse winding order for proper face orientation:
+        modelData.indices.insert(modelData.indices.end(), {
+            static_cast<uint16_t>(base + 1),
+            static_cast<uint16_t>(base),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 1)
+        });
+    }
+
+    // --- RIGHT FACE (BlockBench "east" → Engine right, X = max) ---
+    if (element.faces.find("east") != element.faces.end()) {
+        glm::vec3 faceColor = parseColor(element.faces.at("east").texture != "#missing" ? element.color : element.color);
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor };
+        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor };
+        Vertex backTopRight     = { { x_max, y_min, z_max }, faceColor };
+        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor };
+        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        modelData.vertices.insert(modelData.vertices.end(), {
+            frontBottomRight, backBottomRight, backTopRight, frontTopRight
+        });
+        modelData.indices.insert(modelData.indices.end(), {
+            static_cast<uint16_t>(base),
+            static_cast<uint16_t>(base + 1),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base)
+        });
+    }
+
+    // --- LEFT FACE (BlockBench "west" → Engine left, X = min) ---
     if (element.faces.find("west") != element.faces.end()) {
-        glm::vec3 color = element.faces.at("west").texture != "#missing" ? 
-                          parseColor(element.color) : defaultColor;
-        
-        // Update vertex colors for this face
-        modelData.vertices[baseVertex + 4].color = color;
-        modelData.vertices[baseVertex + 0].color = color;
-        modelData.vertices[baseVertex + 3].color = color;
-        modelData.vertices[baseVertex + 7].color = color;
-        
-        // Add indices
-        modelData.indices.push_back(baseVertex + 4);
-        modelData.indices.push_back(baseVertex + 0);
-        modelData.indices.push_back(baseVertex + 3);
-        modelData.indices.push_back(baseVertex + 3);
-        modelData.indices.push_back(baseVertex + 7);
-        modelData.indices.push_back(baseVertex + 4);
+        glm::vec3 faceColor = parseColor(element.faces.at("west").texture != "#missing" ? element.color : element.color);
+        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor };
+        Vertex frontBottomLeft = { { x_min, y_max, z_min }, faceColor };
+        Vertex frontTopLeft    = { { x_min, y_max, z_max }, faceColor };
+        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor };
+        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        modelData.vertices.insert(modelData.vertices.end(), {
+            backBottomLeft, frontBottomLeft, frontTopLeft, backTopLeft
+        });
+        modelData.indices.insert(modelData.indices.end(), {
+            static_cast<uint16_t>(base),
+            static_cast<uint16_t>(base + 1),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base)
+        });
     }
-    
-    // Top face (y = max)
+
+    // --- TOP FACE (BlockBench "up" → Engine top, Z = max) ---
     if (element.faces.find("up") != element.faces.end()) {
-        glm::vec3 color = element.faces.at("up").texture != "#missing" ? 
-                          parseColor(element.color) : defaultColor;
-        
-        // Update vertex colors for this face
-        modelData.vertices[baseVertex + 3].color = color;
-        modelData.vertices[baseVertex + 2].color = color;
-        modelData.vertices[baseVertex + 6].color = color;
-        modelData.vertices[baseVertex + 7].color = color;
-        
-        // Add indices
-        modelData.indices.push_back(baseVertex + 3);
-        modelData.indices.push_back(baseVertex + 2);
-        modelData.indices.push_back(baseVertex + 6);
-        modelData.indices.push_back(baseVertex + 6);
-        modelData.indices.push_back(baseVertex + 7);
-        modelData.indices.push_back(baseVertex + 3);
+        glm::vec3 faceColor = parseColor(element.faces.at("up").texture != "#missing" ? element.color : element.color);
+        Vertex frontTopLeft  = { { x_min, y_max, z_max }, faceColor };
+        Vertex frontTopRight = { { x_max, y_max, z_max }, faceColor };
+        Vertex backTopRight  = { { x_max, y_min, z_max }, faceColor };
+        Vertex backTopLeft   = { { x_min, y_min, z_max }, faceColor };
+        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        modelData.vertices.insert(modelData.vertices.end(), {
+            frontTopLeft, frontTopRight, backTopRight, backTopLeft
+        });
+        modelData.indices.insert(modelData.indices.end(), {
+            static_cast<uint16_t>(base),
+            static_cast<uint16_t>(base + 1),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base)
+        });
     }
-    
-    // Bottom face (y = min)
+
+    // --- BOTTOM FACE (BlockBench "down" → Engine bottom, Z = min) ---
     if (element.faces.find("down") != element.faces.end()) {
-        glm::vec3 color = element.faces.at("down").texture != "#missing" ? 
-                          parseColor(element.color) : defaultColor;
-        
-        // Update vertex colors for this face
-        modelData.vertices[baseVertex + 4].color = color;
-        modelData.vertices[baseVertex + 5].color = color;
-        modelData.vertices[baseVertex + 1].color = color;
-        modelData.vertices[baseVertex + 0].color = color;
-        
-        // Add indices
-        modelData.indices.push_back(baseVertex + 4);
-        modelData.indices.push_back(baseVertex + 5);
-        modelData.indices.push_back(baseVertex + 1);
-        modelData.indices.push_back(baseVertex + 1);
-        modelData.indices.push_back(baseVertex + 0);
-        modelData.indices.push_back(baseVertex + 4);
+        glm::vec3 faceColor = parseColor(element.faces.at("down").texture != "#missing" ? element.color : element.color);
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor };
+        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor };
+        Vertex backBottomLeft   = { { x_min, y_min, z_min }, faceColor };
+        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor };
+        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        modelData.vertices.insert(modelData.vertices.end(), {
+            frontBottomRight, frontBottomLeft, backBottomLeft, backBottomRight
+        });
+        modelData.indices.insert(modelData.indices.end(), {
+            static_cast<uint16_t>(base),
+            static_cast<uint16_t>(base + 1),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 2),
+            static_cast<uint16_t>(base + 3),
+            static_cast<uint16_t>(base)
+        });
     }
 }
 
