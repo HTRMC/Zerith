@@ -218,6 +218,46 @@ private:
                     VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
                     VkImage& image, VkDeviceMemory& imageMemory);
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+
+    // Camera properties
+    glm::vec3 cameraPos = glm::vec3(1.5f, 1.5f, 1.5f);
+    glm::vec3 cameraFront = glm::vec3(-0.5f, -0.5f, -0.5f); // Normalized in constructor
+    glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
+    float cameraSpeed = 2.0f;
+
+    // Input handling
+    struct KeyState {
+        bool w = false;
+        bool a = false;
+        bool s = false;
+        bool d = false;
+        bool space = false;
+        bool shift = false;
+    } keys;
+
+    float deltaTime = 0.0f; // Time between frames
+    float lastFrameTime = 0.0f; // Time of last frame
+
+    // Process key input (add to private methods)
+    void processInput();
+    void updateCamera();
+
+    static VulkanApp* appInstance;
+
+    // Mouse handling
+    struct MouseState {
+        bool firstMouse = true;
+        float lastX = WIDTH / 2.0f;
+        float lastY = HEIGHT / 2.0f;
+        float yaw = -90.0f;   // Yaw is initialized to -90 to make initial direction face along negative z-axis
+        float pitch = 0.0f;
+        bool captured = false;
+    } mouseState;
+
+    // Function to process mouse input
+    void processMouseInput(int x, int y);
+    void updateCameraDirection();
+    void toggleMouseCapture();
 };
 
 // Debug messenger callback function

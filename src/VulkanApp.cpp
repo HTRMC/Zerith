@@ -1,6 +1,7 @@
 #include "VulkanApp.hpp"
 
 #include <Windows.h>
+#include <windowsx.h>
 #include <iostream>
 #include <stdexcept>
 #include <vector>
@@ -11,6 +12,8 @@
 #include <array>
 #include <chrono>
 #include <cstring>
+
+VulkanApp* VulkanApp::appInstance = nullptr;
 
 // Debug callback function
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
@@ -56,6 +59,53 @@ LRESULT CALLBACK VulkanApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         case WM_CLOSE:
             PostQuitMessage(0);
             return 0;
+        case WM_KEYDOWN:
+            if (appInstance) {
+                switch (wParam) {
+                    case 'W': appInstance->keys.w = true; break;
+                    case 'A': appInstance->keys.a = true; break;
+                    case 'S': appInstance->keys.s = true; break;
+                    case 'D': appInstance->keys.d = true; break;
+                    case VK_SPACE: appInstance->keys.space = true; break;
+                    case VK_SHIFT: appInstance->keys.shift = true; break;
+                    case VK_ESCAPE:
+                        if (appInstance->mouseState.captured) {
+                            appInstance->toggleMouseCapture();
+                        }
+                    break;
+                }
+            }
+            return 0;
+        case WM_KEYUP:
+            if (appInstance) {
+                switch (wParam) {
+                    case 'W': appInstance->keys.w = false; break;
+                    case 'A': appInstance->keys.a = false; break;
+                    case 'S': appInstance->keys.s = false; break;
+                    case 'D': appInstance->keys.d = false; break;
+                    case VK_SPACE: appInstance->keys.space = false; break;
+                    case VK_SHIFT: appInstance->keys.shift = false; break;
+                }
+            }
+            return 0;
+        case WM_RBUTTONDOWN:
+            if (appInstance) {
+                // Only toggle if not already captured
+                if (!appInstance->mouseState.captured) {
+                    appInstance->toggleMouseCapture();
+                }
+            }
+            return 0;
+        case WM_RBUTTONUP:
+            // Optional: handle right button release if needed
+            return 0;
+        case WM_MOUSEMOVE:
+            if (appInstance && appInstance->mouseState.captured) {
+                int xPos = GET_X_LPARAM(lParam);
+                int yPos = GET_Y_LPARAM(lParam);
+                appInstance->processMouseInput(xPos, yPos);
+            }
+            return 0;
         default:
             return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
@@ -63,6 +113,19 @@ LRESULT CALLBACK VulkanApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
 
 // Main run function
 void VulkanApp::run() {
+    // Set the static application instance for window procedure
+    appInstance = this;
+
+    // Normalize camera front vector
+    cameraFront = glm::normalize(cameraFront);
+
+    // Initialize the mouse state
+    mouseState.yaw = -90.0f; // Start looking along negative Z axis
+    mouseState.pitch = 0.0f;
+
+    // Initialize time
+    lastFrameTime = static_cast<float>(GetTickCount64()) / 1000.0f;
+
     initWindow();
     initVulkan();
     mainLoop();
@@ -713,6 +776,7 @@ void VulkanApp::mainLoop() {
         }
 
         if (running) {
+            processInput();
             drawFrame();
         }
     }
@@ -1380,13 +1444,18 @@ void VulkanApp::createDescriptorSets() {
 void VulkanApp::updateUniformBuffer() {
     UniformBufferObject ubo{};
 
-    ubo.model = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+    // Static model rotation
+    static float rotation = 0.0f;
+    rotation += deltaTime * 0.5f; // Slow rotation for visual interest
+
+    // Update model matrix (rotation around z-axis)
+    ubo.model = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(0.0f, 0.0f, 1.0f));
 
     // Position the camera
     ubo.view = glm::lookAt(
-        glm::vec3(1.5f, 1.5f, 1.5f),   // Camera position
-        glm::vec3(0.0f, 0.0f, 0.0f),   // Look at center
-        glm::vec3(0.0f, 0.0f, 1.0f)    // Up vector
+        cameraPos,           // Camera position
+        cameraPos + cameraFront, // Look at position
+        cameraUp             // Up vector
     );
 
     // Perspective projection
@@ -1501,4 +1570,154 @@ VkImageView VulkanApp::createImageView(VkImage image, VkFormat format, VkImageAs
     }
 
     return imageView;
+}
+
+// Process camera movement based on key states
+void VulkanApp::processInput() {
+    // Calculate delta time for smooth movement
+    float currentTime = static_cast<float>(GetTickCount64()) / 1000.0f;
+    deltaTime = currentTime - lastFrameTime;
+    lastFrameTime = currentTime;
+
+    // Update camera position based on input
+    updateCamera();
+}
+
+// Update camera position based on user input
+void VulkanApp::updateCamera() {
+    float velocity = cameraSpeed * deltaTime;
+
+    // Create a horizontal front vector by zeroing out the vertical component
+    glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
+
+    // If the camera is looking straight up or down, horizontalFront might be zero
+    // In that case, use the previous non-zero horizontalFront or a default direction
+    if (glm::length(horizontalFront) < 0.1f) {
+        // Use the right vector crossed with the world up to get a forward direction
+        glm::vec3 worldUp = glm::vec3(0.0f, 0.0f, 1.0f);
+        glm::vec3 right = glm::cross(cameraFront, worldUp);
+        horizontalFront = glm::normalize(glm::cross(worldUp, right));
+    }
+
+    // Calculate right vector for horizontal movement
+    glm::vec3 right = glm::normalize(glm::cross(horizontalFront, glm::vec3(0.0f, 0.0f, 1.0f)));
+
+    // Forward/backward movement (along horizontal plane)
+    if (keys.w)
+        cameraPos += horizontalFront * velocity;
+    if (keys.s)
+        cameraPos -= horizontalFront * velocity;
+
+    // Left/right movement (along horizontal plane)
+    if (keys.a)
+        cameraPos -= right * velocity;
+    if (keys.d)
+        cameraPos += right * velocity;
+
+    // Vertical movement only (along world up axis)
+    if (keys.space)
+        cameraPos += glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+    if (keys.shift)
+        cameraPos -= glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+}
+
+// Toggle mouse capture state
+void VulkanApp::toggleMouseCapture() {
+    mouseState.captured = !mouseState.captured;
+
+    if (mouseState.captured) {
+        // Hide cursor and capture it
+        ShowCursor(FALSE);
+
+        // Get current cursor position
+        POINT point;
+        GetCursorPos(&point);
+        ScreenToClient(window, &point);
+
+        // Set initial position
+        mouseState.lastX = static_cast<float>(point.x);
+        mouseState.lastY = static_cast<float>(point.y);
+        mouseState.firstMouse = true;
+
+        // Clip cursor to window
+        RECT rect;
+        GetClientRect(window, &rect);
+        ClientToScreen(window, reinterpret_cast<POINT*>(&rect.left));
+        ClientToScreen(window, reinterpret_cast<POINT*>(&rect.right));
+        ClipCursor(&rect);
+    } else {
+        // Show cursor and release it
+        ShowCursor(TRUE);
+        ClipCursor(NULL);
+    }
+}
+
+// Process mouse movement for camera rotation
+void VulkanApp::processMouseInput(int x, int y) {
+    if (mouseState.firstMouse) {
+        mouseState.lastX = static_cast<float>(x);
+        mouseState.lastY = static_cast<float>(y);
+        mouseState.firstMouse = false;
+        return;
+    }
+
+    // Calculate mouse movement deltas
+    float xOffset = static_cast<float>(x) - mouseState.lastX;
+    float yOffset = mouseState.lastY - static_cast<float>(y); // Reversed: y-coordinates go from bottom to top
+
+    mouseState.lastX = static_cast<float>(x);
+    mouseState.lastY = static_cast<float>(y);
+
+    // Adjust sensitivity
+    float sensitivity = 0.1f;
+    xOffset *= sensitivity;
+    yOffset *= sensitivity;
+
+    // Update camera angles
+    mouseState.yaw -= xOffset;
+    mouseState.pitch += yOffset;
+
+    // Clamp pitch to avoid flipping
+    if (mouseState.pitch > 89.0f)
+        mouseState.pitch = 89.0f;
+    if (mouseState.pitch < -89.0f)
+        mouseState.pitch = -89.0f;
+
+    // Update camera direction based on new angles
+    updateCameraDirection();
+
+    // If cursor reaches edge of window, reset to center
+    RECT rect;
+    GetClientRect(window, &rect);
+    int windowWidth = rect.right - rect.left;
+    int windowHeight = rect.bottom - rect.top;
+
+    // Check if cursor is near the edge
+    bool resetCursor = false;
+    if (x <= 1 || x >= windowWidth - 1 || y <= 1 || y >= windowHeight - 1) {
+        resetCursor = true;
+    }
+
+    if (resetCursor) {
+        POINT center = {windowWidth / 2, windowHeight / 2};
+        ClientToScreen(window, &center);
+        SetCursorPos(center.x, center.y);
+        mouseState.lastX = static_cast<float>(windowWidth / 2);
+        mouseState.lastY = static_cast<float>(windowHeight / 2);
+    }
+}
+
+// Update camera direction based on yaw and pitch
+void VulkanApp::updateCameraDirection() {
+    // Calculate new direction vector (modified for Z-up system)
+    glm::vec3 direction;
+    // X component uses sin(yaw) instead of cos(yaw)
+    direction.x = sin(glm::radians(mouseState.yaw)) * cos(glm::radians(mouseState.pitch));
+    // Y component uses cos(yaw) with negative sign
+    direction.y = -cos(glm::radians(mouseState.yaw)) * cos(glm::radians(mouseState.pitch));
+    // Z component takes the sin(pitch)
+    direction.z = sin(glm::radians(mouseState.pitch));
+
+    // Update camera front vector with normalized direction
+    cameraFront = glm::normalize(direction);
 }
