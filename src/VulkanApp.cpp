@@ -196,8 +196,18 @@ void VulkanApp::initVulkan() {
     createDepthResources();
     createFramebuffers();
     createCommandPool();
-    createVertexBuffer();
-    createIndexBuffer();
+
+    // Load the BlockBench model
+    if (!loadBlockBenchModel("resources/stairs.json")) {
+        std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
+        createVertexBuffer();
+        createIndexBuffer();
+    } else {
+        // Create vertex and index buffers from the loaded model
+        createVertexBufferFromModel();
+        createIndexBufferFromModel();
+    }
+
     createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
@@ -741,8 +751,11 @@ void VulkanApp::createCommandBuffers() {
         vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
                                 &descriptorSet, 0, nullptr);
 
-        // Draw the cube (36 indices, 1 instance, no offsets)
-        vkCmdDrawIndexed(commandBuffers[i], 36, 1, 0, 0, 0);
+        // Determine the number of indices to draw
+        uint32_t indexCount = currentModel.loaded ? static_cast<uint32_t>(currentModel.indices.size()) : 36;
+
+        // Draw the model (with the appropriate number of indices, 1 instance, no offsets)
+        vkCmdDrawIndexed(commandBuffers[i], indexCount, 1, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -1467,11 +1480,7 @@ void VulkanApp::updateUniformBuffer() {
     UniformBufferObject ubo{};
 
     // Static model rotation
-    static float rotation = 0.0f;
-    rotation += deltaTime * 0.5f; // Slow rotation for visual interest
-
-    // Update model matrix (rotation around z-axis)
-    ubo.model = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.model = glm::mat4(1.0f);
 
     // Position the camera
     ubo.view = glm::lookAt(
@@ -1839,4 +1848,166 @@ float VulkanApp::processGamepadStickValue(SHORT value, float deadzone) {
 
     // Adjust for deadzone and normalize to still get full range
     return (result - (result > 0 ? deadzone : -deadzone)) / (1.0f - deadzone);
+}
+
+// Load a BlockBench model from a JSON file
+bool VulkanApp::loadBlockBenchModel(const std::string& filename) {
+    std::cout << "Loading BlockBench model: " << filename << std::endl;
+
+    // Try to load the model
+    auto modelOpt = modelLoader.loadModel(filename);
+
+    if (!modelOpt.has_value()) {
+        std::cerr << "Failed to load model from " << filename << std::endl;
+        return false;
+    }
+
+    // Store the loaded model
+    currentModel = modelOpt.value();
+    std::cout << "Model loaded successfully. Vertices: " << currentModel.vertices.size()
+              << ", Indices: " << currentModel.indices.size() << std::endl;
+
+    return true;
+}
+
+// Create vertex buffer from the loaded model
+void VulkanApp::createVertexBufferFromModel() {
+    if (!currentModel.loaded) {
+        throw std::runtime_error("Attempted to create vertex buffer without a loaded model");
+    }
+
+    VkDeviceSize bufferSize = sizeof(currentModel.vertices[0]) * currentModel.vertices.size();
+
+    // Create a staging buffer (host visible)
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create staging buffer!");
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &stagingBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate staging buffer memory!");
+    }
+
+    vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
+
+    // Copy vertex data to the staging buffer
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, currentModel.vertices.data(), (size_t)bufferSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create the actual vertex buffer (device local)
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &vertexBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create vertex buffer!");
+    }
+
+    vkGetBufferMemoryRequirements(device, vertexBuffer, &memRequirements);
+
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &vertexBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate vertex buffer memory!");
+    }
+
+    vkBindBufferMemory(device, vertexBuffer, vertexBufferMemory, 0);
+
+    // Copy from staging buffer to vertex buffer
+    copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+    // Cleanup staging buffer
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
+}
+
+// Create index buffer from the loaded model
+void VulkanApp::createIndexBufferFromModel() {
+    if (!currentModel.loaded) {
+        throw std::runtime_error("Attempted to create index buffer without a loaded model");
+    }
+
+    VkDeviceSize bufferSize = sizeof(currentModel.indices[0]) * currentModel.indices.size();
+
+    // Create staging buffer
+    VkBuffer stagingBuffer;
+    VkDeviceMemory stagingBufferMemory;
+
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size = bufferSize;
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create staging buffer!");
+    }
+
+    VkMemoryRequirements memRequirements;
+    vkGetBufferMemoryRequirements(device, stagingBuffer, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &stagingBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate staging buffer memory!");
+    }
+
+    vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
+
+    // Copy index data to the staging buffer
+    void* data;
+    vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
+    memcpy(data, currentModel.indices.data(), (size_t)bufferSize);
+    vkUnmapMemory(device, stagingBufferMemory);
+
+    // Create the actual index buffer
+    bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+    if (vkCreateBuffer(device, &bufferInfo, nullptr, &indexBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create index buffer!");
+    }
+
+    vkGetBufferMemoryRequirements(device, indexBuffer, &memRequirements);
+
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
+                                             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &indexBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate index buffer memory!");
+    }
+
+    vkBindBufferMemory(device, indexBuffer, indexBufferMemory, 0);
+
+    // Copy from staging buffer to index buffer
+    copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+    // Cleanup staging buffer
+    vkDestroyBuffer(device, stagingBuffer, nullptr);
+    vkFreeMemory(device, stagingBufferMemory, nullptr);
 }

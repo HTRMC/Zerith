@@ -10,6 +10,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <Xinput.h>
+#include "ModelLoader.hpp"
 
 // Window dimensions
 const uint32_t WIDTH = 800;
@@ -192,7 +193,16 @@ private:
         glm::mat4 proj;
     };
 
-    // New methods
+    // Model data
+    ModelData currentModel;
+    ModelLoader modelLoader;
+
+    // New methods for model loading
+    bool loadBlockBenchModel(const std::string& filename);
+    void createVertexBufferFromModel();
+    void createIndexBufferFromModel();
+
+    // Previous methods
     void createVertexBuffer();
     void createIndexBuffer();
     void createUniformBuffers();
