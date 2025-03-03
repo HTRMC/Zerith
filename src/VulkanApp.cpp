@@ -13,15 +13,14 @@
 #include <chrono>
 #include <cstring>
 
-VulkanApp* VulkanApp::appInstance = nullptr;
+VulkanApp *VulkanApp::appInstance = nullptr;
 
 // Debug callback function
 VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData) {
-
+    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+    void *pUserData) {
     std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
     return VK_FALSE;
 }
@@ -29,10 +28,9 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 // Create debug utils messenger extension function
 VkResult CreateDebugUtilsMessengerEXT(
     VkInstance instance,
-    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-    const VkAllocationCallbacks* pAllocator,
-    VkDebugUtilsMessengerEXT* pDebugMessenger) {
-
+    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator,
+    VkDebugUtilsMessengerEXT *pDebugMessenger) {
     auto func = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
     if (func != nullptr) {
         return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
@@ -45,9 +43,9 @@ VkResult CreateDebugUtilsMessengerEXT(
 void DestroyDebugUtilsMessengerEXT(
     VkInstance instance,
     VkDebugUtilsMessengerEXT debugMessenger,
-    const VkAllocationCallbacks* pAllocator) {
-
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+    const VkAllocationCallbacks *pAllocator) {
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)
+            vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
     if (func != nullptr) {
         func(instance, debugMessenger, pAllocator);
     }
@@ -62,29 +60,41 @@ LRESULT CALLBACK VulkanApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         case WM_KEYDOWN:
             if (appInstance) {
                 switch (wParam) {
-                    case 'W': appInstance->keys.w = true; break;
-                    case 'A': appInstance->keys.a = true; break;
-                    case 'S': appInstance->keys.s = true; break;
-                    case 'D': appInstance->keys.d = true; break;
-                    case VK_SPACE: appInstance->keys.space = true; break;
-                    case VK_SHIFT: appInstance->keys.shift = true; break;
+                    case 'W': appInstance->keys.w = true;
+                        break;
+                    case 'A': appInstance->keys.a = true;
+                        break;
+                    case 'S': appInstance->keys.s = true;
+                        break;
+                    case 'D': appInstance->keys.d = true;
+                        break;
+                    case VK_SPACE: appInstance->keys.space = true;
+                        break;
+                    case VK_SHIFT: appInstance->keys.shift = true;
+                        break;
                     case VK_ESCAPE:
                         if (appInstance->mouseState.captured) {
                             appInstance->toggleMouseCapture();
                         }
-                    break;
+                        break;
                 }
             }
             return 0;
         case WM_KEYUP:
             if (appInstance) {
                 switch (wParam) {
-                    case 'W': appInstance->keys.w = false; break;
-                    case 'A': appInstance->keys.a = false; break;
-                    case 'S': appInstance->keys.s = false; break;
-                    case 'D': appInstance->keys.d = false; break;
-                    case VK_SPACE: appInstance->keys.space = false; break;
-                    case VK_SHIFT: appInstance->keys.shift = false; break;
+                    case 'W': appInstance->keys.w = false;
+                        break;
+                    case 'A': appInstance->keys.a = false;
+                        break;
+                    case 'S': appInstance->keys.s = false;
+                        break;
+                    case 'D': appInstance->keys.d = false;
+                        break;
+                    case VK_SPACE: appInstance->keys.space = false;
+                        break;
+                    case VK_SHIFT: appInstance->keys.shift = false;
+                        break;
                 }
             }
             return 0;
@@ -227,7 +237,7 @@ void VulkanApp::createInstance() {
         createInfo.ppEnabledLayerNames = validationLayers.data();
 
         populateDebugMessengerCreateInfo(debugCreateInfo);
-        createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
+        createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *) &debugCreateInfo;
     } else {
         createInfo.enabledLayerCount = 0;
         createInfo.pNext = nullptr;
@@ -275,7 +285,7 @@ void VulkanApp::pickPhysicalDevice() {
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
-    for (const auto& device : devices) {
+    for (const auto &device: devices) {
         if (isDeviceSuitable(device)) {
             physicalDevice = device;
             break;
@@ -298,7 +308,7 @@ void VulkanApp::createLogicalDevice() {
     };
 
     float queuePriority = 1.0f;
-    for (uint32_t queueFamily : uniqueQueueFamilies) {
+    for (uint32_t queueFamily: uniqueQueueFamilies) {
         VkDeviceQueueCreateInfo queueCreateInfo{};
         queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queueCreateInfo.queueFamilyIndex = queueFamily;
@@ -470,9 +480,11 @@ void VulkanApp::createRenderPass() {
     VkSubpassDependency dependency{};
     dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
-    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                              VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.srcAccessMask = 0;
-    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT |
+                              VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
     dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
     // Render pass
@@ -590,7 +602,8 @@ void VulkanApp::createGraphicsPipeline() {
 
         // Color blend state
         VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         colorBlendAttachment.blendEnable = VK_FALSE;
 
         VkPipelineColorBlendStateCreateInfo colorBlending{};
@@ -603,7 +616,7 @@ void VulkanApp::createGraphicsPipeline() {
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;  // Add our descriptor set layout
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; // Add our descriptor set layout
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create pipeline layout!");
@@ -619,20 +632,21 @@ void VulkanApp::createGraphicsPipeline() {
         pipelineInfo.pViewportState = &viewportState;
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState = &multisampling;
-        pipelineInfo.pDepthStencilState = &depthStencil;  // Add depth stencil state
+        pipelineInfo.pDepthStencilState = &depthStencil; // Add depth stencil state
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.layout = pipelineLayout;
         pipelineInfo.renderPass = renderPass;
         pipelineInfo.subpass = 0;
 
-        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) != VK_SUCCESS) {
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline) !=
+            VK_SUCCESS) {
             throw std::runtime_error("Failed to create graphics pipeline!");
         }
 
         // Cleanup shader modules
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << "Error in createGraphicsPipeline: " << e.what() << std::endl;
         throw;
     }
@@ -707,8 +721,8 @@ void VulkanApp::createCommandBuffers() {
 
         // Clear values for color and depth
         std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};  // Black background
-        clearValues[1].depthStencil = {1.0f, 0};             // Far depth value
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Black background
+        clearValues[1].depthStencil = {1.0f, 0}; // Far depth value
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
@@ -724,7 +738,8 @@ void VulkanApp::createCommandBuffers() {
         vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
         // Bind descriptor sets
-        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                                &descriptorSet, 0, nullptr);
 
         // Draw the cube (36 indices, 1 instance, no offsets)
         vkCmdDrawIndexed(commandBuffers[i], 36, 1, 0, 0, 0);
@@ -754,7 +769,6 @@ void VulkanApp::createSyncObjects() {
         if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
             vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
             vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
-
             throw std::runtime_error("Failed to create synchronization objects for a frame!");
         }
     }
@@ -789,7 +803,8 @@ void VulkanApp::drawFrame() {
     vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
     uint32_t imageIndex;
-    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+    VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame],
+                                            VK_NULL_HANDLE, &imageIndex);
 
     if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to acquire swap chain image!");
@@ -850,7 +865,7 @@ void VulkanApp::cleanup() {
     vkDestroyCommandPool(device, commandPool, nullptr);
 
     // Clean up framebuffers
-    for (auto framebuffer : swapChainFramebuffers) {
+    for (auto framebuffer: swapChainFramebuffers) {
         vkDestroyFramebuffer(device, framebuffer, nullptr);
     }
 
@@ -860,7 +875,7 @@ void VulkanApp::cleanup() {
     vkDestroyRenderPass(device, renderPass, nullptr);
 
     // Clean up image views
-    for (auto imageView : swapChainImageViews) {
+    for (auto imageView: swapChainImageViews) {
         vkDestroyImageView(device, imageView, nullptr);
     }
 
@@ -910,10 +925,10 @@ bool VulkanApp::checkValidationLayerSupport() {
     std::vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-    for (const char* layerName : validationLayers) {
+    for (const char *layerName: validationLayers) {
         bool layerFound = false;
 
-        for (const auto& layerProperties : availableLayers) {
+        for (const auto &layerProperties: availableLayers) {
             if (strcmp(layerName, layerProperties.layerName) == 0) {
                 layerFound = true;
                 break;
@@ -929,8 +944,8 @@ bool VulkanApp::checkValidationLayerSupport() {
 }
 
 // Get required extensions
-std::vector<const char*> VulkanApp::getRequiredExtensions() {
-    std::vector<const char*> extensions = {
+std::vector<const char *> VulkanApp::getRequiredExtensions() {
+    std::vector<const char *> extensions = {
         VK_KHR_SURFACE_EXTENSION_NAME,
         VK_KHR_WIN32_SURFACE_EXTENSION_NAME
     };
@@ -943,11 +958,15 @@ std::vector<const char*> VulkanApp::getRequiredExtensions() {
 }
 
 // Populate debug messenger create info
-void VulkanApp::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT& createInfo) {
+void VulkanApp::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
     createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+                                 VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+                                 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     createInfo.pfnUserCallback = debugCallback;
 }
 
@@ -977,7 +996,7 @@ QueueFamilyIndices VulkanApp::findQueueFamilies(VkPhysicalDevice device) {
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
 
     int i = 0;
-    for (const auto& queueFamily : queueFamilies) {
+    for (const auto &queueFamily: queueFamilies) {
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
             indices.graphicsFamily = i;
         }
@@ -1009,7 +1028,7 @@ bool VulkanApp::checkDeviceExtensionSupport(VkPhysicalDevice device) {
 
     std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
 
-    for (const auto& extension : availableExtensions) {
+    for (const auto &extension: availableExtensions) {
         requiredExtensions.erase(extension.extensionName);
     }
 
@@ -1042,9 +1061,10 @@ SwapChainSupportDetails VulkanApp::querySwapChainSupport(VkPhysicalDevice device
 }
 
 // Choose swap surface format
-VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats) {
-    for (const auto& availableFormat : availableFormats) {
-        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR> &availableFormats) {
+    for (const auto &availableFormat: availableFormats) {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace ==
+            VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
             return availableFormat;
         }
     }
@@ -1053,8 +1073,8 @@ VkSurfaceFormatKHR VulkanApp::chooseSwapSurfaceFormat(const std::vector<VkSurfac
 }
 
 // Choose swap present mode
-VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) {
-    for (const auto& availablePresentMode : availablePresentModes) {
+VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentModeKHR> &availablePresentModes) {
+    for (const auto &availablePresentMode: availablePresentModes) {
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
             return availablePresentMode;
         }
@@ -1064,7 +1084,7 @@ VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentMod
 }
 
 // Choose swap extent
-VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
+VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
     if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
     } else {
@@ -1076,19 +1096,21 @@ VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
             static_cast<uint32_t>(rect.bottom - rect.top)
         };
 
-        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width,
+                                        capabilities.maxImageExtent.width);
+        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height,
+                                         capabilities.maxImageExtent.height);
 
         return actualExtent;
     }
 }
 
 // Create shader module
-VkShaderModule VulkanApp::createShaderModule(const std::vector<char>& code) {
+VkShaderModule VulkanApp::createShaderModule(const std::vector<char> &code) {
     VkShaderModuleCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size();
-    createInfo.pCode = reinterpret_cast<const uint32_t*>(code.data());
+    createInfo.pCode = reinterpret_cast<const uint32_t *>(code.data());
 
     VkShaderModule shaderModule;
     if (vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
@@ -1099,7 +1121,7 @@ VkShaderModule VulkanApp::createShaderModule(const std::vector<char>& code) {
 }
 
 // Read file helper
-std::vector<char> VulkanApp::readFile(const std::string& filename) {
+std::vector<char> VulkanApp::readFile(const std::string &filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
@@ -1121,16 +1143,16 @@ void VulkanApp::createVertexBuffer() {
     // Define the vertices of our cube
     std::vector<Vertex> vertices = {
         // Front face (z = 0.5)
-        {{-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}},  // 0: bottom-left, red
-        {{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},   // 1: bottom-right, green
-        {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},    // 2: top-right, blue
-        {{-0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}},   // 3: top-left, white
+        {{-0.5f, -0.5f, 0.5f}, {1.0f, 0.0f, 0.0f}}, // 0: bottom-left, red
+        {{0.5f, -0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}}, // 1: bottom-right, green
+        {{0.5f, 0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}, // 2: top-right, blue
+        {{-0.5f, 0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}, // 3: top-left, white
 
         // Back face (z = -0.5)
         {{-0.5f, -0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}}, // 4: bottom-left, yellow
-        {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}},  // 5: bottom-right, magenta
-        {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}},   // 6: top-right, cyan
-        {{-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}}   // 7: top-left, gray
+        {{0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 1.0f}}, // 5: bottom-right, magenta
+        {{0.5f, 0.5f, -0.5f}, {0.0f, 1.0f, 1.0f}}, // 6: top-right, cyan
+        {{-0.5f, 0.5f, -0.5f}, {0.5f, 0.5f, 0.5f}} // 7: top-left, gray
     };
 
     VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
@@ -1166,9 +1188,9 @@ void VulkanApp::createVertexBuffer() {
     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     // Copy vertex data to the staging buffer
-    void* data;
+    void *data;
     vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, vertices.data(), (size_t)bufferSize);
+    memcpy(data, vertices.data(), (size_t) bufferSize);
     vkUnmapMemory(device, stagingBufferMemory);
 
     // Create the actual vertex buffer (device local)
@@ -1249,9 +1271,9 @@ void VulkanApp::createIndexBuffer() {
     vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
 
     // Copy index data to the staging buffer
-    void* data;
+    void *data;
     vkMapMemory(device, stagingBufferMemory, 0, bufferSize, 0, &data);
-    memcpy(data, indices.data(), (size_t)bufferSize);
+    memcpy(data, indices.data(), (size_t) bufferSize);
     vkUnmapMemory(device, stagingBufferMemory);
 
     // Create the actual index buffer
@@ -1453,20 +1475,20 @@ void VulkanApp::updateUniformBuffer() {
 
     // Position the camera
     ubo.view = glm::lookAt(
-        cameraPos,           // Camera position
+        cameraPos, // Camera position
         cameraPos + cameraFront, // Look at position
-        cameraUp             // Up vector
+        cameraUp // Up vector
     );
 
     // Perspective projection
-    float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
+    float aspectRatio = swapChainExtent.width / (float) swapChainExtent.height;
     ubo.proj = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
 
     // Vulkan has Y flipped compared to OpenGL, so we need to flip it back
     ubo.proj[1][1] *= -1;
 
     // Copy the UBO data to the uniform buffer
-    void* data;
+    void *data;
     vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBufferMemory);
@@ -1493,8 +1515,9 @@ VkFormat VulkanApp::findDepthFormat() {
 }
 
 // Find supported format from candidates
-VkFormat VulkanApp::findSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features) {
-    for (VkFormat format : candidates) {
+VkFormat VulkanApp::findSupportedFormat(const std::vector<VkFormat> &candidates, VkImageTiling tiling,
+                                        VkFormatFeatureFlags features) {
+    for (VkFormat format: candidates) {
         VkFormatProperties props;
         vkGetPhysicalDeviceFormatProperties(physicalDevice, format, &props);
 
@@ -1515,8 +1538,8 @@ bool VulkanApp::hasStencilComponent(VkFormat format) {
 
 // Create image
 void VulkanApp::createImage(uint32_t width, uint32_t height, VkFormat format, VkImageTiling tiling,
-                           VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
-                           VkImage& image, VkDeviceMemory& imageMemory) {
+                            VkImageUsageFlags usage, VkMemoryPropertyFlags properties,
+                            VkImage &image, VkDeviceMemory &imageMemory) {
     VkImageCreateInfo imageInfo{};
     imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     imageInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -1579,6 +1602,9 @@ void VulkanApp::processInput() {
     deltaTime = currentTime - lastFrameTime;
     lastFrameTime = currentTime;
 
+    // Update gamepad state
+    updateGamepadInput();
+
     // Update camera position based on input
     updateCamera();
 }
@@ -1602,6 +1628,7 @@ void VulkanApp::updateCamera() {
     // Calculate right vector for horizontal movement
     glm::vec3 right = glm::normalize(glm::cross(horizontalFront, glm::vec3(0.0f, 0.0f, 1.0f)));
 
+    // === Keyboard movement ===
     // Forward/backward movement (along horizontal plane)
     if (keys.w)
         cameraPos += horizontalFront * velocity;
@@ -1619,6 +1646,40 @@ void VulkanApp::updateCamera() {
         cameraPos += glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
     if (keys.shift)
         cameraPos -= glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+
+    // === Gamepad movement ===
+    if (gamepadState.connected) {
+        // Left stick - movement
+        if (fabs(gamepadState.leftStickY) > 0.0f)
+            cameraPos += horizontalFront * velocity * gamepadState.leftStickY;
+        if (fabs(gamepadState.leftStickX) > 0.0f)
+            cameraPos += right * velocity * gamepadState.leftStickX;
+
+        // Bottom button (A/X) for flying up
+        if (gamepadState.bottomButton)
+            cameraPos += glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+
+        // Right stick button for flying down
+        if (gamepadState.rightStickButton)
+            cameraPos -= glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+
+        // Right stick - camera rotation
+        if (fabs(gamepadState.rightStickX) > 0.0f || fabs(gamepadState.rightStickY) > 0.0f) {
+            // Adjust camera rotation based on right stick
+            float rotationSpeed = 0.1f; // Significantly reduce the rotation speed
+            mouseState.yaw -= gamepadState.rightStickX * rotationSpeed; // Horizontal camera rotation
+            mouseState.pitch += gamepadState.rightStickY * rotationSpeed; // Vertical camera rotation
+
+            // Clamp pitch to avoid flipping
+            if (mouseState.pitch > 89.0f)
+                mouseState.pitch = 89.0f;
+            if (mouseState.pitch < -89.0f)
+                mouseState.pitch = -89.0f;
+
+            // Update camera direction based on new angles
+            updateCameraDirection();
+        }
+    }
 }
 
 // Toggle mouse capture state
@@ -1642,8 +1703,8 @@ void VulkanApp::toggleMouseCapture() {
         // Clip cursor to window
         RECT rect;
         GetClientRect(window, &rect);
-        ClientToScreen(window, reinterpret_cast<POINT*>(&rect.left));
-        ClientToScreen(window, reinterpret_cast<POINT*>(&rect.right));
+        ClientToScreen(window, reinterpret_cast<POINT *>(&rect.left));
+        ClientToScreen(window, reinterpret_cast<POINT *>(&rect.right));
         ClipCursor(&rect);
     } else {
         // Show cursor and release it
@@ -1720,4 +1781,62 @@ void VulkanApp::updateCameraDirection() {
 
     // Update camera front vector with normalized direction
     cameraFront = glm::normalize(direction);
+}
+
+// Update the gamepad input state
+void VulkanApp::updateGamepadInput() {
+    XINPUT_STATE state;
+    ZeroMemory(&state, sizeof(XINPUT_STATE));
+
+    // Get the state of the gamepad (only checking controller 0 for simplicity)
+    DWORD result = XInputGetState(0, &state);
+
+    if (result == ERROR_SUCCESS) {
+        // Controller is connected
+        gamepadState.connected = true;
+
+        // Process left stick values (movement)
+        gamepadState.leftStickX = processGamepadStickValue(state.Gamepad.sThumbLX, 0.15f);
+        gamepadState.leftStickY = processGamepadStickValue(state.Gamepad.sThumbLY, 0.15f);
+
+        // Process right stick values (camera rotation)
+        gamepadState.rightStickX = processGamepadStickValue(state.Gamepad.sThumbRX, 0.20f);
+        gamepadState.rightStickY = processGamepadStickValue(state.Gamepad.sThumbRY, 0.20f);
+
+        // Process triggers (vertical movement - up/down)
+        gamepadState.leftTrigger = static_cast<float>(state.Gamepad.bLeftTrigger) / 255.0f;
+        gamepadState.rightTrigger = static_cast<float>(state.Gamepad.bRightTrigger) / 255.0f;
+
+        // Check button states for vertical movement
+        // Right Thumb (RS) button for flying down
+        gamepadState.rightStickButton = (state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) != 0;
+
+        // Bottom button (A on Xbox, X on PlayStation) for flying up
+        gamepadState.bottomButton = (state.Gamepad.wButtons & XINPUT_GAMEPAD_A) != 0;
+    } else {
+        // Controller is not connected
+        gamepadState.connected = false;
+        gamepadState.leftStickX = 0.0f;
+        gamepadState.leftStickY = 0.0f;
+        gamepadState.rightStickX = 0.0f;
+        gamepadState.rightStickY = 0.0f;
+        gamepadState.leftTrigger = 0.0f;
+        gamepadState.rightTrigger = 0.0f;
+        gamepadState.rightStickButton = false;
+        gamepadState.bottomButton = false;
+    }
+}
+
+// Process gamepad stick values with deadzone
+float VulkanApp::processGamepadStickValue(SHORT value, float deadzone) {
+    // Convert to float in range [-1, 1]
+    float result = static_cast<float>(value) / 32768.0f;
+
+    // Apply deadzone
+    if (fabs(result) < deadzone) {
+        return 0.0f;
+    }
+
+    // Adjust for deadzone and normalize to still get full range
+    return (result - (result > 0 ? deadzone : -deadzone)) / (1.0f - deadzone);
 }

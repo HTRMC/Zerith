@@ -30,6 +30,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${Vulkan_LIBRARIES}
     glm::glm
+    XInput
 )
 
 # Copy shaders directory to build directory

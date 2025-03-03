@@ -9,6 +9,7 @@
 #include <array>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <Xinput.h>
 
 // Window dimensions
 const uint32_t WIDTH = 800;
@@ -258,6 +259,23 @@ private:
     void processMouseInput(int x, int y);
     void updateCameraDirection();
     void toggleMouseCapture();
+
+    // Gamepad state
+    struct GamepadState {
+        bool connected = false;
+        float leftStickX = 0.0f;
+        float leftStickY = 0.0f;
+        float rightStickX = 0.0f;
+        float rightStickY = 0.0f;
+        float leftTrigger = 0.0f;
+        float rightTrigger = 0.0f;
+        bool rightStickButton = false;
+        bool bottomButton = false;
+    } gamepadState;
+
+    // Gamepad methods
+    void updateGamepadInput();
+    float processGamepadStickValue(SHORT value, float deadzone);
 };
 
 // Debug messenger callback function
