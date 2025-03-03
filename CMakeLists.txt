@@ -6,6 +6,9 @@ set(CMAKE_CXX_STANDARD 23)
 # Find Vulkan package
 find_package(Vulkan REQUIRED)
 
+# Find GLM package
+find_package(glm REQUIRED)
+
 # Source files
 set(SOURCES
         src/main.cpp
@@ -24,7 +27,10 @@ add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
 
 # Link libraries
-target_link_libraries(${PROJECT_NAME} PRIVATE ${Vulkan_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${Vulkan_LIBRARIES}
+    glm::glm
+)
 
 # Copy shaders directory to build directory
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
