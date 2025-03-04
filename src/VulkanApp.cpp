@@ -201,7 +201,7 @@ void VulkanApp::initVulkan() {
     textureLoader.init(device, physicalDevice, commandPool, graphicsQueue);
 
     // Load the BlockBench model
-    if (!loadBlockBenchModel("resources/models/stone.json")) {
+    if (!loadBlockBenchModel("resources/models/oak_stairs.json")) {
         std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
         createVertexBuffer();
         createIndexBuffer();
@@ -1913,6 +1913,12 @@ bool VulkanApp::loadBlockBenchModel(const std::string &filename) {
     std::cout << "Model loaded successfully. Vertices: " << currentModel.vertices.size()
             << ", Indices: " << currentModel.indices.size() << std::endl;
 
+    // Log all resolved texture mappings
+    std::cout << "Model texture mappings:" << std::endl;
+    for (const auto& [key, path] : currentModel.textureMap) {
+        std::cout << "  " << key << " -> " << path << std::endl;
+    }
+
     return true;
 }
 
@@ -2059,14 +2065,36 @@ void VulkanApp::createIndexBufferFromModel() {
 }
 
 uint32_t VulkanApp::loadModelTextures() {
+    uint32_t textureId = textureLoader.getDefaultTextureId();
+
     // If we have a texture map in the model
     if (!currentModel.textureMap.empty()) {
-        // Find the main texture (usually named "0")
-        auto it = currentModel.textureMap.find("0");
-        if (it != currentModel.textureMap.end()) {
-            // Load the texture
-            return textureLoader.loadTexture(it->second);
+        // Try loading textures in order of preference:
+        // 1. 'all' texture (used for all faces)
+        // 2. 'side' texture (commonly used)
+        // 3. Any of bottom/top/north/south/east/west
+        // 4. First texture in the map as fallback
+
+        const std::array<std::string, 8> preferredTextures = {
+            "all", "side", "bottom", "top", "north", "south", "east", "west"
+        };
+
+        for (const auto& texName : preferredTextures) {
+            auto it = currentModel.textureMap.find(texName);
+            if (it != currentModel.textureMap.end()) {
+                textureId = textureLoader.loadTexture(it->second);
+                std::cout << "Using texture for model: " << it->first << " -> " << it->second << std::endl;
+                return textureId;
+            }
         }
+
+        // Fall back to the first texture in the map
+        auto it = currentModel.textureMap.begin();
+        textureId = textureLoader.loadTexture(it->second);
+        std::cout << "Using fallback texture for model: " << it->first << " -> " << it->second << std::endl;
+    } else {
+        std::cout << "Model has no textures, using default texture" << std::endl;
     }
-    return textureLoader.getDefaultTextureId();
+
+    return textureId;
 }

@@ -33,8 +33,9 @@ struct ModelData {
     bool loaded = false;
     std::string name;
     std::vector<Element> elements;
-    uint32_t textureId = 0;  // Add texture ID
+    uint32_t textureId = 0;
     std::unordered_map<std::string, std::string> textureMap;  // Map texture references to real paths
+    std::unordered_map<std::string, std::string> textureReferences;  // For resolving #references
 };
 
 class ModelLoader {
@@ -46,6 +47,15 @@ public:
     std::optional<ModelData> loadModel(const std::string& filename);
 
 private:
+    // Process a model file, handling inheritance and texture references
+    bool processModelFile(const std::string& filename, ModelData& modelData);
+
+    // Resolve all texture references in the model
+    void resolveTextureReferences(ModelData& modelData);
+
+    // Recursively resolve a single texture reference
+    bool resolveTextureReference(const std::string& key, const std::string& refName, ModelData& modelData);
+
     // Convert BlockBench coordinates to our coordinate system
     glm::vec3 convertCoordinates(const glm::vec3& bbCoords);
     
