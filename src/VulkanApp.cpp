@@ -741,7 +741,7 @@ void VulkanApp::createCommandBuffers() {
 
         // Clear values for color and depth
         std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}}; // Black background
+        clearValues[0].color = {{0.149f, 0.549f, 0.894f, 1.0f}}; // Blue background
         clearValues[1].depthStencil = {1.0f, 0}; // Far depth value
 
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
