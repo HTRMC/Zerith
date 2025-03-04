@@ -27,12 +27,15 @@ static std::string resolveResourcePath(const std::string& path) {
     // Replace namespace separator
     size_t colonPos = resolvedPath.find(':');
     if (colonPos != std::string::npos) {
-        resolvedPath = resolvedPath.substr(colonPos + 1);
-    }
+        // Extract namespace and the rest of the path
+        std::string namespace_ = resolvedPath.substr(0, colonPos);
+        std::string resourcePath = resolvedPath.substr(colonPos + 1);
 
-    // Prepend resources directory if not already there
-    if (resolvedPath.find("resources/") != 0) {
-        resolvedPath = "resources/" + resolvedPath;
+        // Format as assets/namespace/models/resourcePath
+        resolvedPath = "assets/" + namespace_ + "/models/" + resourcePath;
+    } else {
+        // If no namespace, assume "minecraft" namespace
+        resolvedPath = "assets/minecraft/models/" + resolvedPath;
     }
 
     return resolvedPath;
@@ -40,13 +43,21 @@ static std::string resolveResourcePath(const std::string& path) {
 
 std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
     try {
+        // Handle the filename - if it doesn't start with "assets/", assume a simple path like "block/oak_stairs"
+        std::string fullPath = filename;
+        if (filename.find("assets/") != 0) {
+            // Handle paths like "block/oak_stairs" or "minecraft:block/oak_stairs"
+            fullPath = resolveResourcePath(filename) + ".json";
+            std::cout << "Resolved model path: " << filename << " -> " << fullPath << std::endl;
+        }
+
         // Create model data
         ModelData modelData;
         modelData.name = filename;
 
         // Process the model file and its inherited properties
-        if (!processModelFile(filename, modelData)) {
-            std::cerr << "Failed to process model file: " << filename << std::endl;
+        if (!processModelFile(fullPath, modelData)) {
+            std::cerr << "Failed to process model file: " << fullPath << std::endl;
             return std::nullopt;
         }
 
@@ -82,6 +93,14 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
     // Read the file
     std::string jsonContent;
     try {
+        std::cout << "Attempting to load model file: " << filename << std::endl;
+
+        // Check if file exists
+        if (!fs::exists(filename)) {
+            std::cerr << "Model file does not exist: " << filename << std::endl;
+            return false;
+        }
+
         jsonContent = readFileToString(filename);
     } catch (const std::exception& e) {
         std::cerr << "Failed to read model file " << filename << ": " << e.what() << std::endl;
@@ -145,9 +164,20 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
                     std::cout << "Texture reference: " << key << " -> #" << texturePath.substr(1) << std::endl;
                 } else {
                     // This is a direct texture path
-                    texturePath = resolveResourcePath(texturePath) + ".png";
-                    modelData.textureMap[key] = texturePath;
-                    std::cout << "Texture mapping: " << key << " -> " << texturePath << std::endl;
+                    std::string namespace_ = "minecraft"; // Default namespace
+                    std::string texPath = texturePath;
+
+                    // Check if path has namespace
+                    size_t colonPos = texturePath.find(':');
+                    if (colonPos != std::string::npos) {
+                        namespace_ = texturePath.substr(0, colonPos);
+                        texPath = texturePath.substr(colonPos + 1);
+                    }
+
+                    // Format as assets/namespace/textures/path.png
+                    std::string fullTexturePath = "assets/" + namespace_ + "/textures/" + texPath + ".png";
+                    modelData.textureMap[key] = fullTexturePath;
+                    std::cout << "Texture mapping: " << key << " -> " << fullTexturePath << std::endl;
                 }
             }
         }

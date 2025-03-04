@@ -201,7 +201,7 @@ void VulkanApp::initVulkan() {
     textureLoader.init(device, physicalDevice, commandPool, graphicsQueue);
 
     // Load the BlockBench model
-    if (!loadBlockBenchModel("resources/models/oak_stairs.json")) {
+        if (!loadBlockBenchModel("assets/minecraft/models/block/oak_stairs.json")) {
         std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
         createVertexBuffer();
         createIndexBuffer();
@@ -1900,8 +1900,24 @@ float VulkanApp::processGamepadStickValue(SHORT value, float deadzone) {
 bool VulkanApp::loadBlockBenchModel(const std::string &filename) {
     std::cout << "Loading BlockBench model: " << filename << std::endl;
 
+    // Format the model path based on the new directory structure
+    std::string modelPath;
+    if (filename.find("assets/") == 0) {
+        // Full path already provided
+        modelPath = filename;
+    } else if (filename.find("minecraft:") == 0) {
+        // Namespaced path
+        modelPath = "assets/" + filename.substr(0, filename.find(":")) +
+                   "/models/" + filename.substr(filename.find(":") + 1) + ".json";
+    } else {
+        // Simple path, assume minecraft namespace
+        modelPath = "assets/minecraft/models/" + filename + ".json";
+    }
+
+    std::cout << "Resolved model path: " << modelPath << std::endl;
+
     // Try to load the model
-    auto modelOpt = modelLoader.loadModel(filename);
+    auto modelOpt = modelLoader.loadModel(modelPath);
 
     if (!modelOpt.has_value()) {
         std::cerr << "Failed to load model from " << filename << std::endl;
