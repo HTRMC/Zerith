@@ -17,6 +17,7 @@ struct Face {
     std::vector<uint16_t> indices;
     glm::vec3 color;
     std::string texture;
+    std::vector<glm::vec2> uvs;
 };
 
 struct Element {
@@ -32,6 +33,8 @@ struct ModelData {
     bool loaded = false;
     std::string name;
     std::vector<Element> elements;
+    uint32_t textureId = 0;  // Add texture ID
+    std::unordered_map<std::string, std::string> textureMap;  // Map texture references to real paths
 };
 
 class ModelLoader {

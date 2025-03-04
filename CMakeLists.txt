@@ -12,24 +12,23 @@ find_package(glm REQUIRED)
 # Find nlohmann_json package
 find_package(nlohmann_json REQUIRED)
 
+# Find stb package
+find_package(Stb REQUIRED)
+
 # Source files
-set(SOURCES
-        src/main.cpp
-        src/VulkanApp.cpp
-        src/ModelLoader.cpp
-)
+file(GLOB SOURCES src/*.cpp)
 
 # Header files
-set(HEADERS
-        src/VulkanApp.hpp
-        src/ModelLoader.hpp
-)
+file(GLOB HEADERS src/*.hpp)
 
 # Add executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
 # Include directories
-target_include_directories(${PROJECT_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${Vulkan_INCLUDE_DIRS}
+    ${Stb_INCLUDE_DIR}
+)
 
 # Link libraries
 target_link_libraries(${PROJECT_NAME} PRIVATE

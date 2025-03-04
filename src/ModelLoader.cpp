@@ -28,6 +28,17 @@ std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
         ModelData modelData;
         modelData.name = filename;
         
+        // Extract texture information
+        if (modelJson.contains("textures") && modelJson["textures"].is_object()) {
+            for (auto& [key, value] : modelJson["textures"].items()) {
+                if (value.is_string()) {
+                    std::string texturePath = "resources/" + value.get<std::string>() + ".png";
+                    modelData.textureMap[key] = texturePath;
+                    std::cout << "Texture mapping: " << key << " -> " << texturePath << std::endl;
+                }
+            }
+        }
+
         // Check if the model has elements
         if (!modelJson.contains("elements") || !modelJson["elements"].is_array()) {
             std::cerr << "Model file does not contain elements array" << std::endl;
@@ -163,10 +174,24 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
     // --- FRONT FACE (BlockBench "south" → Engine front, Y = max) ---
     if (element.faces.find("south") != element.faces.end()) {
         glm::vec3 faceColor = parseColor(element.faces.at("south").texture != "#missing" ? element.color : element.color);
-        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor };
-        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor };
-        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor };
-        Vertex frontTopLeft     = { { x_min, y_max, z_max }, faceColor };
+        // Get UVs or use default
+        std::vector<glm::vec2> uvs;
+        if (element.faces.at("south").uvs.size() == 4) {
+            uvs = element.faces.at("south").uvs;
+        } else {
+            // Default UVs
+            uvs = {
+                {0.0f, 1.0f}, // Bottom-left
+                {1.0f, 1.0f}, // Bottom-right
+                {1.0f, 0.0f}, // Top-right
+                {0.0f, 0.0f}  // Top-left
+            };
+        }
+
+        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor, uvs[0] };
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[1] };
+        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[2] };
+        Vertex frontTopLeft     = { { x_min, y_max, z_max }, faceColor, uvs[3] };
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontBottomLeft, frontBottomRight, frontTopRight, frontTopLeft
@@ -184,10 +209,24 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
     // --- BACK FACE (BlockBench "north" → Engine back, Y = min) ---
     if (element.faces.find("north") != element.faces.end()) {
         glm::vec3 faceColor = parseColor(element.faces.at("north").texture != "#missing" ? element.color : element.color);
-        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor };
-        Vertex backBottomRight = { { x_max, y_min, z_min }, faceColor };
-        Vertex backTopRight    = { { x_max, y_min, z_max }, faceColor };
-        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor };
+        // Get UVs or use default
+        std::vector<glm::vec2> uvs;
+        if (element.faces.at("north").uvs.size() == 4) {
+            uvs = element.faces.at("north").uvs;
+        } else {
+            // Default UVs
+            uvs = {
+                {1.0f, 1.0f}, // Bottom-left (reversed for back face)
+                {0.0f, 1.0f}, // Bottom-right (reversed for back face)
+                {0.0f, 0.0f}, // Top-right (reversed for back face)
+                {1.0f, 0.0f}  // Top-left (reversed for back face)
+            };
+        }
+
+        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor, uvs[0] };
+        Vertex backBottomRight = { { x_max, y_min, z_min }, faceColor, uvs[1] };
+        Vertex backTopRight    = { { x_max, y_min, z_max }, faceColor, uvs[2] };
+        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3] };
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             backBottomLeft, backBottomRight, backTopRight, backTopLeft
@@ -206,10 +245,24 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
     // --- RIGHT FACE (BlockBench "east" → Engine right, X = max) ---
     if (element.faces.find("east") != element.faces.end()) {
         glm::vec3 faceColor = parseColor(element.faces.at("east").texture != "#missing" ? element.color : element.color);
-        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor };
-        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor };
-        Vertex backTopRight     = { { x_max, y_min, z_max }, faceColor };
-        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor };
+        // Get UVs or use default
+        std::vector<glm::vec2> uvs;
+        if (element.faces.at("east").uvs.size() == 4) {
+            uvs = element.faces.at("east").uvs;
+        } else {
+            // Default UVs
+            uvs = {
+                {0.0f, 1.0f}, // Bottom-left
+                {1.0f, 1.0f}, // Bottom-right
+                {1.0f, 0.0f}, // Top-right
+                {0.0f, 0.0f}  // Top-left
+            };
+        }
+
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[0] };
+        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[1] };
+        Vertex backTopRight     = { { x_max, y_min, z_max }, faceColor, uvs[2] };
+        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[3] };
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontBottomRight, backBottomRight, backTopRight, frontTopRight
@@ -227,10 +280,24 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
     // --- LEFT FACE (BlockBench "west" → Engine left, X = min) ---
     if (element.faces.find("west") != element.faces.end()) {
         glm::vec3 faceColor = parseColor(element.faces.at("west").texture != "#missing" ? element.color : element.color);
-        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor };
-        Vertex frontBottomLeft = { { x_min, y_max, z_min }, faceColor };
-        Vertex frontTopLeft    = { { x_min, y_max, z_max }, faceColor };
-        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor };
+        // Get UVs or use default
+        std::vector<glm::vec2> uvs;
+        if (element.faces.at("west").uvs.size() == 4) {
+            uvs = element.faces.at("west").uvs;
+        } else {
+            // Default UVs
+            uvs = {
+                {1.0f, 1.0f}, // Bottom-left (reversed for left face)
+                {0.0f, 1.0f}, // Bottom-right (reversed for left face)
+                {0.0f, 0.0f}, // Top-right (reversed for left face)
+                {1.0f, 0.0f}  // Top-left (reversed for left face)
+            };
+        }
+
+        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor, uvs[0] };
+        Vertex frontBottomLeft = { { x_min, y_max, z_min }, faceColor, uvs[1] };
+        Vertex frontTopLeft    = { { x_min, y_max, z_max }, faceColor, uvs[2] };
+        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3] };
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             backBottomLeft, frontBottomLeft, frontTopLeft, backTopLeft
@@ -248,10 +315,24 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
     // --- TOP FACE (BlockBench "up" → Engine top, Z = max) ---
     if (element.faces.find("up") != element.faces.end()) {
         glm::vec3 faceColor = parseColor(element.faces.at("up").texture != "#missing" ? element.color : element.color);
-        Vertex frontTopLeft  = { { x_min, y_max, z_max }, faceColor };
-        Vertex frontTopRight = { { x_max, y_max, z_max }, faceColor };
-        Vertex backTopRight  = { { x_max, y_min, z_max }, faceColor };
-        Vertex backTopLeft   = { { x_min, y_min, z_max }, faceColor };
+        // Get UVs or use default
+        std::vector<glm::vec2> uvs;
+        if (element.faces.at("up").uvs.size() == 4) {
+            uvs = element.faces.at("up").uvs;
+        } else {
+            // Default UVs
+            uvs = {
+                {0.0f, 0.0f}, // Top-left
+                {1.0f, 0.0f}, // Top-right
+                {1.0f, 1.0f}, // Bottom-right
+                {0.0f, 1.0f}  // Bottom-left
+            };
+        }
+
+        Vertex frontTopLeft  = { { x_min, y_max, z_max }, faceColor, uvs[0] };
+        Vertex frontTopRight = { { x_max, y_max, z_max }, faceColor, uvs[1] };
+        Vertex backTopRight  = { { x_max, y_min, z_max }, faceColor, uvs[2] };
+        Vertex backTopLeft   = { { x_min, y_min, z_max }, faceColor, uvs[3] };
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontTopLeft, frontTopRight, backTopRight, backTopLeft
@@ -269,10 +350,24 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
     // --- BOTTOM FACE (BlockBench "down" → Engine bottom, Z = min) ---
     if (element.faces.find("down") != element.faces.end()) {
         glm::vec3 faceColor = parseColor(element.faces.at("down").texture != "#missing" ? element.color : element.color);
-        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor };
-        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor };
-        Vertex backBottomLeft   = { { x_min, y_min, z_min }, faceColor };
-        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor };
+        // Get UVs or use default
+        std::vector<glm::vec2> uvs;
+        if (element.faces.at("down").uvs.size() == 4) {
+            uvs = element.faces.at("down").uvs;
+        } else {
+            // Default UVs
+            uvs = {
+                {1.0f, 0.0f}, // Bottom-right (flipped for bottom face)
+                {0.0f, 0.0f}, // Bottom-left (flipped for bottom face)
+                {0.0f, 1.0f}, // Top-left (flipped for bottom face)
+                {1.0f, 1.0f}  // Top-right (flipped for bottom face)
+            };
+        }
+
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[0] };
+        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor, uvs[1] };
+        Vertex backBottomLeft   = { { x_min, y_min, z_min }, faceColor, uvs[2] };
+        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[3] };
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontBottomRight, frontBottomLeft, backBottomLeft, backBottomRight
