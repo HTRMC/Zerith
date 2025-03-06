@@ -299,22 +299,24 @@ std::vector<glm::vec2> ModelLoader::parseUVs(const nlohmann::json& uvJson) {
     std::vector<glm::vec2> result;
     if (uvJson.size() == 4) {
         // BlockBench UVs are typically [x1, y1, x2, y2]
-        float u1 = uvJson[0];
-        float v1 = uvJson[1];
-        float u2 = uvJson[2];
-        float v2 = uvJson[3];
+        float minU = uvJson[0] / 16.0f;
+        float minV = uvJson[1] / 16.0f;
+        float maxU = uvJson[2] / 16.0f;
+        float maxV = uvJson[3] / 16.0f;
 
-        // Normalize UVs to 0-1 range
-        u1 /= 16.0f;
-        v1 /= 16.0f;
-        u2 /= 16.0f;
-        v2 /= 16.0f;
+        // Since we're using stbi_set_flip_vertically_on_load(true),
+        // we need to adapt the UVs accordingly:
+        float tempMinV = 1.0f - maxV;
+        float tempMaxV = 1.0f - minV;
+        minV = tempMinV;
+        maxV = tempMaxV;
 
-        // Add corners in clockwise order
-        result.push_back({u1, v1}); // Bottom-left
-        result.push_back({u2, v1}); // Bottom-right
-        result.push_back({u2, v2}); // Top-right
-        result.push_back({u1, v2}); // Top-left
+        // Add corners in clockwise order for proper face orientation
+        // This may need adjustment depending on your face construction
+        result.push_back({minU, minV}); // Bottom-left
+        result.push_back({maxU, minV}); // Bottom-right
+        result.push_back({maxU, maxV}); // Top-right
+        result.push_back({minU, maxV}); // Top-left
     }
     return result;
 }

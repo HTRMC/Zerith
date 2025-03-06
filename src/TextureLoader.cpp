@@ -80,7 +80,7 @@ void TextureLoader::createTextureSampler() {
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.anisotropyEnable = VK_TRUE;
-    
+
     VkPhysicalDeviceProperties properties{};
     vkGetPhysicalDeviceProperties(physicalDevice, &properties);
     samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
@@ -224,6 +224,7 @@ void TextureLoader::createDefaultTexture() {
 void TextureLoader::createTextureImage(const std::string& filename, Texture& texture) {
     // Load image with stb_image
     int texWidth, texHeight, texChannels;
+    stbi_set_flip_vertically_on_load(true);
     stbi_uc* pixels = stbi_load(filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 bytes per pixel for RGBA
     

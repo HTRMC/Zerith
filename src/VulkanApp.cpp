@@ -201,7 +201,7 @@ void VulkanApp::initVulkan() {
     textureLoader.init(device, physicalDevice, commandPool, graphicsQueue);
 
     // Load the BlockBench model
-        if (!loadBlockBenchModel("assets/minecraft/models/block/oak_stairs.json")) {
+        if (!loadBlockBenchModel("assets/minecraft/models/block/torch.json")) {
         std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
         createVertexBuffer();
         createIndexBuffer();
