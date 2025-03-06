@@ -299,10 +299,10 @@ std::vector<glm::vec2> ModelLoader::parseUVs(const nlohmann::json& uvJson) {
     std::vector<glm::vec2> result;
     if (uvJson.size() == 4) {
         // BlockBench UVs are typically [x1, y1, x2, y2]
-        float minU = uvJson[0] / 16.0f;
-        float minV = uvJson[1] / 16.0f;
-        float maxU = uvJson[2] / 16.0f;
-        float maxV = uvJson[3] / 16.0f;
+        float minU = uvJson[0].get<float>() / 16.0f;
+        float minV = uvJson[1].get<float>() / 16.0f;
+        float maxU = uvJson[2].get<float>() / 16.0f;
+        float maxV = uvJson[3].get<float>() / 16.0f;
 
         // Since we're using stbi_set_flip_vertically_on_load(true),
         // we need to adapt the UVs accordingly:
