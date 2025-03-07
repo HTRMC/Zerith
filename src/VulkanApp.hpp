@@ -139,6 +139,9 @@ private:
     std::vector<VkFence> inFlightFences;
     uint32_t currentFrame = 0;
 
+    // Window resize tracking
+    bool framebufferResized = false;
+
     // Maximum frames in flight
     const int MAX_FRAMES_IN_FLIGHT = 2;
 
@@ -161,6 +164,10 @@ private:
     void createCommandPool();
     void createCommandBuffers();
     void createSyncObjects();
+
+    // Swap chain recreation
+    void cleanupSwapChain();
+    void recreateSwapChain();
 
     // Helper functions
     bool checkValidationLayerSupport();

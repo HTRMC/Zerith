@@ -57,6 +57,11 @@ LRESULT CALLBACK VulkanApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
         case WM_CLOSE:
             PostQuitMessage(0);
             return 0;
+        case WM_SIZE:
+            if (appInstance && wParam != SIZE_MINIMIZED) {
+                appInstance->framebufferResized = true;
+            }
+            return 0;
         case WM_KEYDOWN:
             if (appInstance) {
                 switch (wParam) {
@@ -164,8 +169,8 @@ void VulkanApp::initWindow() {
     window = CreateWindowEx(
         0,
         "ZerithVulkanWindow",
-        "Zerith Vulkan Cube",
-        WS_OVERLAPPEDWINDOW,
+        "Zerith Vulkan Engine",
+        WS_OVERLAPPEDWINDOW, // This window style is resizable
         CW_USEDEFAULT, CW_USEDEFAULT,
         rect.right - rect.left, rect.bottom - rect.top,
         nullptr,
@@ -179,6 +184,14 @@ void VulkanApp::initWindow() {
     }
 
     ShowWindow(window, SW_SHOW);
+
+    // Make sure we start with a valid client area size
+    RECT clientRect;
+    GetClientRect(window, &clientRect);
+    if (clientRect.right == 0 || clientRect.bottom == 0) {
+        // Enforce minimum window size if needed
+        SetWindowPos(window, NULL, 0, 0, 800, 600, SWP_NOMOVE | SWP_NOZORDER);
+    }
 }
 
 // Initialize Vulkan
@@ -201,7 +214,7 @@ void VulkanApp::initVulkan() {
     textureLoader.init(device, physicalDevice, commandPool, graphicsQueue);
 
     // Load the BlockBench model
-        if (!loadBlockBenchModel("assets/minecraft/models/block/torch.json")) {
+        if (!loadBlockBenchModel("assets/minecraft/models/block/stone.json")) {
         std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
         createVertexBuffer();
         createIndexBuffer();
@@ -827,9 +840,13 @@ void VulkanApp::drawFrame() {
 
     uint32_t imageIndex;
     VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame],
-                                            VK_NULL_HANDLE, &imageIndex);
+                                           VK_NULL_HANDLE, &imageIndex);
 
-    if (result != VK_SUCCESS) {
+    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        // Swap chain is out of date (e.g., window was resized)
+        recreateSwapChain();
+        return;
+    } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swap chain image!");
     }
 
@@ -867,7 +884,14 @@ void VulkanApp::drawFrame() {
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &imageIndex;
 
-    vkQueuePresentKHR(presentQueue, &presentInfo);
+    result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        framebufferResized = false;
+        recreateSwapChain();
+    } else if (result != VK_SUCCESS) {
+        throw std::runtime_error("Failed to present swap chain image!");
+    }
 
     currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
@@ -876,6 +900,9 @@ void VulkanApp::drawFrame() {
 void VulkanApp::cleanup() {
     // Wait for the device to be idle before cleaning up
     vkDeviceWaitIdle(device);
+
+    // Clean up swap chain resources
+    cleanupSwapChain();
 
     textureLoader.cleanup();
 
@@ -1109,7 +1136,7 @@ VkPresentModeKHR VulkanApp::chooseSwapPresentMode(const std::vector<VkPresentMod
 }
 
 // Choose swap extent
-VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilities) {
+VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) {
     if (capabilities.currentExtent.width != UINT32_MAX) {
         return capabilities.currentExtent;
     } else {
@@ -1122,9 +1149,9 @@ VkExtent2D VulkanApp::chooseSwapExtent(const VkSurfaceCapabilitiesKHR &capabilit
         };
 
         actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width,
-                                        capabilities.maxImageExtent.width);
+                                       capabilities.maxImageExtent.width);
         actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height,
-                                         capabilities.maxImageExtent.height);
+                                        capabilities.maxImageExtent.height);
 
         return actualExtent;
     }
@@ -1535,15 +1562,15 @@ void VulkanApp::updateUniformBuffer() {
         cameraUp // Up vector
     );
 
-    // Perspective projection
-    float aspectRatio = swapChainExtent.width / (float) swapChainExtent.height;
+    // Perspective projection - update aspect ratio based on current swap chain extent
+    float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
     ubo.proj = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
 
     // Vulkan has Y flipped compared to OpenGL, so we need to flip it back
     ubo.proj[1][1] *= -1;
 
     // Copy the UBO data to the uniform buffer
-    void *data;
+    void* data;
     vkMapMemory(device, uniformBufferMemory, 0, sizeof(ubo), 0, &data);
     memcpy(data, &ubo, sizeof(ubo));
     vkUnmapMemory(device, uniformBufferMemory);
@@ -2113,4 +2140,74 @@ uint32_t VulkanApp::loadModelTextures() {
     }
 
     return textureId;
+}
+
+// Cleanup swap chain resources
+void VulkanApp::cleanupSwapChain() {
+    // Clean up depth resources
+    vkDestroyImageView(device, depthImageView, nullptr);
+    vkDestroyImage(device, depthImage, nullptr);
+    vkFreeMemory(device, depthImageMemory, nullptr);
+
+    // Clean up framebuffers
+    for (auto framebuffer : swapChainFramebuffers) {
+        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    }
+
+    // Free command buffers
+    vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
+
+    // Clean up pipeline
+    vkDestroyPipeline(device, graphicsPipeline, nullptr);
+    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+    vkDestroyRenderPass(device, renderPass, nullptr);
+
+    // Clean up image views
+    for (auto imageView : swapChainImageViews) {
+        vkDestroyImageView(device, imageView, nullptr);
+    }
+
+    // Clean up swap chain
+    vkDestroySwapchainKHR(device, swapChain, nullptr);
+}
+
+// Recreate swap chain and dependent resources
+void VulkanApp::recreateSwapChain() {
+    // Handle minimization
+    int width = 0, height = 0;
+    while (width == 0 || height == 0) {
+        RECT rect;
+        GetClientRect(window, &rect);
+        width = rect.right - rect.left;
+        height = rect.bottom - rect.top;
+
+        // Wait for window to be restored if minimized
+        MSG msg;
+        while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+            if (msg.message == WM_QUIT) {
+                return;  // Exit if we get a quit message
+            }
+        }
+        Sleep(100);  // Sleep to avoid busy waiting
+    }
+
+    // Wait for the device to be idle before recreating resources
+    vkDeviceWaitIdle(device);
+
+    // Clean up old swap chain and dependent resources
+    cleanupSwapChain();
+
+    // Recreate swap chain and dependent resources
+    createSwapChain();
+    createImageViews();
+    createRenderPass();
+    createGraphicsPipeline();
+    createDepthResources();
+    createFramebuffers();
+    createCommandBuffers();
+
+    // Reset the resize flag
+    framebufferResized = false;
 }
