@@ -96,41 +96,41 @@ public:
 
 private:
     // Window handle
-    HWND window;
-    HINSTANCE hInstance;
+    HWND window = NULL;
+    HINSTANCE hInstance = NULL;
 
     // Vulkan instance and debug
-    VkInstance instance;
-    VkDebugUtilsMessengerEXT debugMessenger;
+    VkInstance instance = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
 
     // Physical device and logical device
     VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-    VkDevice device;
+    VkDevice device = VK_NULL_HANDLE;
 
     // Queues
-    VkQueue graphicsQueue;
-    VkQueue presentQueue;
+    VkQueue graphicsQueue = VK_NULL_HANDLE;
+    VkQueue presentQueue = VK_NULL_HANDLE;
 
     // Surface
-    VkSurfaceKHR surface;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
 
     // Swap chain
-    VkSwapchainKHR swapChain;
+    VkSwapchainKHR swapChain = VK_NULL_HANDLE;
     std::vector<VkImage> swapChainImages;
     VkFormat swapChainImageFormat;
     VkExtent2D swapChainExtent;
     std::vector<VkImageView> swapChainImageViews;
 
     // Render pass and pipeline
-    VkRenderPass renderPass;
-    VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkRenderPass renderPass = VK_NULL_HANDLE;
+    VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
+    VkPipeline graphicsPipeline = VK_NULL_HANDLE;
 
     // Framebuffers
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
     // Command pool and buffers
-    VkCommandPool commandPool;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
     std::vector<VkCommandBuffer> commandBuffers;
 
     // Synchronization objects
@@ -189,17 +189,17 @@ private:
     void cleanup();
 
     // Vertex and index buffers
-    VkBuffer vertexBuffer;
-    VkDeviceMemory vertexBufferMemory;
-    VkBuffer indexBuffer;
-    VkDeviceMemory indexBufferMemory;
+    VkBuffer vertexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
+    VkBuffer indexBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory indexBufferMemory = VK_NULL_HANDLE;
 
     // Uniform buffer for transformation matrix
-    VkBuffer uniformBuffer;
-    VkDeviceMemory uniformBufferMemory;
-    VkDescriptorPool descriptorPool;
-    VkDescriptorSetLayout descriptorSetLayout;
-    VkDescriptorSet descriptorSet;
+    VkBuffer uniformBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory uniformBufferMemory = VK_NULL_HANDLE;
+    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
+    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
+    VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
 
     // Uniform buffer object for transformations
     struct UniformBufferObject {
@@ -231,9 +231,9 @@ private:
     uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
     // Depth buffer
-    VkImage depthImage;
-    VkDeviceMemory depthImageMemory;
-    VkImageView depthImageView;
+    VkImage depthImage = VK_NULL_HANDLE;
+    VkDeviceMemory depthImageMemory = VK_NULL_HANDLE;
+    VkImageView depthImageView = VK_NULL_HANDLE;
 
     // Add these function declarations
     void createDepthResources();

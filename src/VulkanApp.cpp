@@ -906,74 +906,111 @@ void VulkanApp::drawFrame() {
 // Cleanup
 void VulkanApp::cleanup() {
     // Wait for the device to be idle before cleaning up
-    vkDeviceWaitIdle(device);
+    if (device != VK_NULL_HANDLE) {
+        vkDeviceWaitIdle(device);
+    }
 
     // Clean up swap chain resources
     cleanupSwapChain();
 
+    // Clean up texture loader before destroying command pool it might use
     textureLoader.cleanup();
 
     // Clean up sync objects
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
-        vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
-        vkDestroyFence(device, inFlightFences[i], nullptr);
+        if (i < imageAvailableSemaphores.size() && imageAvailableSemaphores[i] != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+            imageAvailableSemaphores[i] = VK_NULL_HANDLE;
+        }
+
+        if (i < renderFinishedSemaphores.size() && renderFinishedSemaphores[i] != VK_NULL_HANDLE) {
+            vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
+            renderFinishedSemaphores[i] = VK_NULL_HANDLE;
+        }
+
+        if (i < inFlightFences.size() && inFlightFences[i] != VK_NULL_HANDLE) {
+            vkDestroyFence(device, inFlightFences[i], nullptr);
+            inFlightFences[i] = VK_NULL_HANDLE;
+        }
     }
 
     // Clean up command pool
-    vkDestroyCommandPool(device, commandPool, nullptr);
-
-    // Clean up framebuffers
-    for (auto framebuffer: swapChainFramebuffers) {
-        vkDestroyFramebuffer(device, framebuffer, nullptr);
+    if (commandPool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(device, commandPool, nullptr);
+        commandPool = VK_NULL_HANDLE;
     }
 
-    // Clean up pipeline
-    vkDestroyPipeline(device, graphicsPipeline, nullptr);
-    vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
-    vkDestroyRenderPass(device, renderPass, nullptr);
-
-    // Clean up image views
-    for (auto imageView: swapChainImageViews) {
-        vkDestroyImageView(device, imageView, nullptr);
+    // Clean up descriptor pool and layout - important to destroy these before device
+    if (descriptorPool != VK_NULL_HANDLE) {
+        vkDestroyDescriptorPool(device, descriptorPool, nullptr);
+        descriptorPool = VK_NULL_HANDLE;
     }
 
-    // Clean up depth resources
-    vkDestroyImageView(device, depthImageView, nullptr);
-    vkDestroyImage(device, depthImage, nullptr);
-    vkFreeMemory(device, depthImageMemory, nullptr);
-
-    // Clean up swap chain
-    vkDestroySwapchainKHR(device, swapChain, nullptr);
-
-    // Clean up descriptor pool and layout
-    vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-    vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+    if (descriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+        descriptorSetLayout = VK_NULL_HANDLE;
+    }
 
     // Clean up uniform buffer
-    vkDestroyBuffer(device, uniformBuffer, nullptr);
-    vkFreeMemory(device, uniformBufferMemory, nullptr);
+    if (uniformBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, uniformBuffer, nullptr);
+        uniformBuffer = VK_NULL_HANDLE;
+    }
+
+    if (uniformBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, uniformBufferMemory, nullptr);
+        uniformBufferMemory = VK_NULL_HANDLE;
+    }
 
     // Clean up vertex and index buffers
-    vkDestroyBuffer(device, indexBuffer, nullptr);
-    vkFreeMemory(device, indexBufferMemory, nullptr);
-    vkDestroyBuffer(device, vertexBuffer, nullptr);
-    vkFreeMemory(device, vertexBufferMemory, nullptr);
+    if (indexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, indexBuffer, nullptr);
+        indexBuffer = VK_NULL_HANDLE;
+    }
+
+    if (indexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, indexBufferMemory, nullptr);
+        indexBufferMemory = VK_NULL_HANDLE;
+    }
+
+    if (vertexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, vertexBuffer, nullptr);
+        vertexBuffer = VK_NULL_HANDLE;
+    }
+
+    if (vertexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, vertexBufferMemory, nullptr);
+        vertexBufferMemory = VK_NULL_HANDLE;
+    }
 
     // Clean up device
-    vkDestroyDevice(device, nullptr);
+    if (device != VK_NULL_HANDLE) {
+        vkDestroyDevice(device, nullptr);
+        device = VK_NULL_HANDLE;
+    }
 
     // Clean up debug messenger if enabled
-    if (enableValidationLayers) {
+    if (enableValidationLayers && debugMessenger != VK_NULL_HANDLE && instance != VK_NULL_HANDLE) {
         DestroyDebugUtilsMessengerEXT(instance, debugMessenger, nullptr);
+        debugMessenger = VK_NULL_HANDLE;
     }
 
     // Clean up surface and instance
-    vkDestroySurfaceKHR(instance, surface, nullptr);
-    vkDestroyInstance(instance, nullptr);
+    if (surface != VK_NULL_HANDLE && instance != VK_NULL_HANDLE) {
+        vkDestroySurfaceKHR(instance, surface, nullptr);
+        surface = VK_NULL_HANDLE;
+    }
+
+    if (instance != VK_NULL_HANDLE) {
+        vkDestroyInstance(instance, nullptr);
+        instance = VK_NULL_HANDLE;
+    }
 
     // Destroy window
-    DestroyWindow(window);
+    if (window != NULL) {
+        DestroyWindow(window);
+        window = NULL;
+    }
 }
 
 // Check validation layer support
@@ -1427,6 +1464,12 @@ void VulkanApp::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
 
 // Create descriptor set layout
 void VulkanApp::createDescriptorSetLayout() {
+    // If we already have a descriptor set layout, destroy it first
+    if (descriptorSetLayout != VK_NULL_HANDLE) {
+        vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
+        descriptorSetLayout = VK_NULL_HANDLE;
+    }
+
     // UBO binding for transformation matrices
     VkDescriptorSetLayoutBinding uboLayoutBinding{};
     uboLayoutBinding.binding = 0;
