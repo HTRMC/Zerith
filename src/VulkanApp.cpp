@@ -353,6 +353,13 @@ void VulkanApp::createLogicalDevice() {
     // Device features
     VkPhysicalDeviceFeatures deviceFeatures{};
 
+    // Check for anisotropic filtering support
+    VkPhysicalDeviceFeatures supportedFeatures;
+    vkGetPhysicalDeviceFeatures(physicalDevice, &supportedFeatures);
+    if (supportedFeatures.samplerAnisotropy) {
+        deviceFeatures.samplerAnisotropy = VK_TRUE;
+    }
+
     // Device create info
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
