@@ -8,9 +8,7 @@
 #include <fstream>
 #include <sstream>
 #include <nlohmann/json.hpp>
-
-// Forward declarations
-struct Vertex;
+#include "Vertex.hpp"
 
 // Model data structures
 struct Face {

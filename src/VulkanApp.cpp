@@ -13,6 +13,8 @@
 #include <chrono>
 #include <cstring>
 
+#include "Chunk.hpp"
+
 VulkanApp *VulkanApp::appInstance = nullptr;
 
 // Debug callback function
@@ -213,22 +215,51 @@ void VulkanApp::initVulkan() {
     // Initialize the texture loader
     textureLoader.init(device, physicalDevice, commandPool, graphicsQueue);
 
-    // Load the BlockBench model
-        if (!loadBlockBenchModel("assets/minecraft/models/block/stone.json")) {
-        std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
-        createVertexBuffer();
-        createIndexBuffer();
-    } else {
-        // Load textures for the model
-        uint32_t textureId = loadModelTextures();
-        if (textureId != textureLoader.getDefaultTextureId()) {
-            currentModel.textureId = textureId;
-            std::cout << "Loaded texture for model: " << textureId << std::endl;
-        }
+    // Create chunks
+    chunkManager.createChunks();
 
-        // Create vertex and index buffers from the loaded model
+    // Update chunk meshes
+    chunkManager.updateChunkMeshes(modelLoader);
+
+    // Get mesh data from the first chunk if available
+    std::vector<Vertex> chunkVertices;
+    std::vector<uint16_t> chunkIndices;
+    bool hasChunkMesh = chunkManager.getFirstChunkMeshData(chunkVertices, chunkIndices);
+
+    // If we have chunk mesh data, use it
+    if (hasChunkMesh) {
+        // Copy mesh data from the first chunk to currentModel
+        currentModel.vertices = std::move(chunkVertices);
+        currentModel.indices = std::move(chunkIndices);
+        currentModel.loaded = true;
+
+        // Load textures for the chunk
+        uint32_t textureId = chunkManager.loadChunkTextures(textureLoader);
+        currentModel.textureId = textureId;
+
+        // Create vertex and index buffers from the chunk data
         createVertexBufferFromModel();
         createIndexBufferFromModel();
+    }
+    else {
+        // Fallback to loading a single block model
+        if (!loadBlockBenchModel("assets/minecraft/models/block/stone.json")) {
+            std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
+            createVertexBuffer();
+            createIndexBuffer();
+        }
+        else {
+            // Load textures for the model
+            uint32_t textureId = loadModelTextures();
+            if (textureId != textureLoader.getDefaultTextureId()) {
+                currentModel.textureId = textureId;
+                std::cout << "Loaded texture for model: " << textureId << std::endl;
+            }
+
+            // Create vertex and index buffers from the loaded model
+            createVertexBufferFromModel();
+            createIndexBufferFromModel();
+        }
     }
 
     createUniformBuffers();
@@ -1614,7 +1645,7 @@ void VulkanApp::updateUniformBuffer() {
 
     // Perspective projection - update aspect ratio based on current swap chain extent
     float aspectRatio = swapChainExtent.width / (float)swapChainExtent.height;
-    ubo.proj = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 10.0f);
+    ubo.proj = glm::perspective(glm::radians(45.0f), aspectRatio, 0.1f, 1000.0f);
 
     // Vulkan has Y flipped compared to OpenGL, so we need to flip it back
     ubo.proj[1][1] *= -1;

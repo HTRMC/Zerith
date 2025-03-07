@@ -10,8 +10,11 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <Xinput.h>
+
+#include "Vertex.hpp"
 #include "ModelLoader.hpp"
 #include "TextureLoader.hpp"
+#include "ChunkManager.hpp"
 
 // Window dimensions
 const uint32_t WIDTH = 800;
@@ -48,45 +51,6 @@ struct SwapChainSupportDetails {
     VkSurfaceCapabilitiesKHR capabilities;
     std::vector<VkSurfaceFormatKHR> formats;
     std::vector<VkPresentModeKHR> presentModes;
-};
-
-struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 color;
-    glm::vec2 texCoord;  // Add texture coordinates
-
-    static VkVertexInputBindingDescription getBindingDescription() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return bindingDescription;
-    }
-
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-
-        // Position attribute
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, pos);
-
-        // Color attribute
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
-
-        // Texture coordinate attribute
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, texCoord);
-
-        return attributeDescriptions;
-    }
 };
 
 // Main Vulkan application class
@@ -211,11 +175,13 @@ private:
     // Model data
     ModelData currentModel;
     ModelLoader modelLoader;
+    TextureLoader textureLoader;
 
     // New methods for model loading
     bool loadBlockBenchModel(const std::string& filename);
     void createVertexBufferFromModel();
     void createIndexBufferFromModel();
+    uint32_t loadModelTextures();
 
     // Previous methods
     void createVertexBuffer();
@@ -302,8 +268,8 @@ private:
     void updateGamepadInput();
     float processGamepadStickValue(SHORT value, float deadzone);
 
-    TextureLoader textureLoader;
-    uint32_t loadModelTextures();
+    // Chunk management
+    ChunkManager chunkManager;
 };
 
 // Debug messenger callback function
