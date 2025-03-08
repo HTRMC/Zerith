@@ -233,9 +233,8 @@ void VulkanApp::initVulkan() {
         currentModel.indices = std::move(chunkIndices);
         currentModel.loaded = true;
 
-        // Load textures for the chunk
-        uint32_t textureId = chunkManager.loadChunkTextures(textureLoader);
-        currentModel.textureId = textureId;
+        // Don't try to store the VkDescriptorImageInfo in uint32_t
+        // We'll load the textures directly in createDescriptorSets() instead
 
         // Create vertex and index buffers from the chunk data
         createVertexBufferFromModel();
@@ -1594,21 +1593,16 @@ void VulkanApp::createDescriptorSets() {
         throw std::runtime_error("Failed to allocate descriptor set!");
     }
 
-    // Buffer info for UBO
+    // Buffer info for UBO (same for all cases)
     VkDescriptorBufferInfo bufferInfo{};
     bufferInfo.buffer = uniformBuffer;
     bufferInfo.offset = 0;
     bufferInfo.range = sizeof(UniformBufferObject);
 
-    // Image info for texture
-    VkDescriptorImageInfo imageInfo{};
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageInfo.imageView = textureLoader.getTextureImageView(currentModel.textureId);
-    imageInfo.sampler = textureLoader.getTextureSampler();
-
+    // Prepare for descriptor updates
     std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
-    // UBO descriptor
+    // UBO descriptor (always the same)
     descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     descriptorWrites[0].dstSet = descriptorSet;
     descriptorWrites[0].dstBinding = 0;
@@ -1617,15 +1611,78 @@ void VulkanApp::createDescriptorSets() {
     descriptorWrites[0].descriptorCount = 1;
     descriptorWrites[0].pBufferInfo = &bufferInfo;
 
-    // Texture descriptor
-    descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrites[1].dstSet = descriptorSet;
-    descriptorWrites[1].dstBinding = 1;
-    descriptorWrites[1].dstArrayElement = 0;
-    descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    descriptorWrites[1].descriptorCount = 1;
-    descriptorWrites[1].pImageInfo = &imageInfo;
+    // Get mesh data from the first chunk if available
+    std::vector<Vertex> chunkVertices;
+    std::vector<uint16_t> chunkIndices;
+    bool hasChunkMesh = chunkManager.getFirstChunkMeshData(chunkVertices, chunkIndices);
 
+    // Set up the texture descriptor based on whether we're using chunks or a single model
+    if (hasChunkMesh) {
+        // Use texture array for chunks
+        VkDescriptorImageInfo textureArrayInfo = chunkManager.loadChunkTextures(textureLoader);
+
+        // Copy mesh data from the first chunk to currentModel if not already done
+        if (currentModel.vertices.empty() || currentModel.indices.empty()) {
+            currentModel.vertices = std::move(chunkVertices);
+            currentModel.indices = std::move(chunkIndices);
+            currentModel.loaded = true;
+
+            // Create vertex and index buffers from the chunk data if not already created
+            if (vertexBuffer == VK_NULL_HANDLE) {
+                createVertexBufferFromModel();
+            }
+            if (indexBuffer == VK_NULL_HANDLE) {
+                createIndexBufferFromModel();
+            }
+        }
+
+        // Texture descriptor (using the texture array)
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &textureArrayInfo;
+    }
+    else {
+        // Fallback to single texture for individual models
+        if (!currentModel.loaded) {
+            if (!loadBlockBenchModel("assets/minecraft/models/block/stone.json")) {
+                std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
+                createVertexBuffer();
+                createIndexBuffer();
+            }
+            else {
+                // Load textures for the model
+                uint32_t textureId = loadModelTextures();
+                if (textureId != textureLoader.getDefaultTextureId()) {
+                    currentModel.textureId = textureId;
+                    std::cout << "Loaded texture for model: " << textureId << std::endl;
+                }
+
+                // Create vertex and index buffers from the loaded model
+                createVertexBufferFromModel();
+                createIndexBufferFromModel();
+            }
+        }
+
+        // Regular texture descriptor for single model
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = textureLoader.getTextureImageView(currentModel.textureId);
+        imageInfo.sampler = textureLoader.getTextureSampler();
+
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].dstArrayElement = 0;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
+    }
+
+    // Update the descriptor set with both bindings
     vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
 }
 

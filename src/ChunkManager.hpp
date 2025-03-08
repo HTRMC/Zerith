@@ -26,11 +26,14 @@ public:
     // Get the first chunk's mesh data (for rendering)
     bool getFirstChunkMeshData(std::vector<Vertex>& vertices, std::vector<uint16_t>& indices) const;
     
-    // Load textures for chunks
-    uint32_t loadChunkTextures(TextureLoader& textureLoader) const;
+    // Load textures for chunks as a texture array
+    VkDescriptorImageInfo loadChunkTextures(TextureLoader& textureLoader) const;
     
     // Get the block registry
     const BlockRegistry& getBlockRegistry() const { return blockRegistry; }
+
+    // Get chunks vector
+    std::vector<std::unique_ptr<Chunk>>& getChunks() { return chunks; }
 
 private:
     // Block registry to manage block types and properties

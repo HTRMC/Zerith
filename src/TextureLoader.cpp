@@ -520,3 +520,250 @@ void TextureLoader::cleanup() {
         texturePathToId.clear();
     }
 }
+
+VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::string>& filenames) {
+    if (filenames.empty()) {
+        throw std::runtime_error("Cannot create texture array with no textures");
+    }
+
+    // Clean up existing texture array if any
+    if (hasTextureArray) {
+        if (textureArray.imageView != VK_NULL_HANDLE) {
+            vkDestroyImageView(device, textureArray.imageView, nullptr);
+            textureArray.imageView = VK_NULL_HANDLE;
+        }
+        if (textureArray.image != VK_NULL_HANDLE) {
+            vkDestroyImage(device, textureArray.image, nullptr);
+            textureArray.image = VK_NULL_HANDLE;
+        }
+        if (textureArray.memory != VK_NULL_HANDLE) {
+            vkFreeMemory(device, textureArray.memory, nullptr);
+            textureArray.memory = VK_NULL_HANDLE;
+        }
+    }
+
+    // Log which textures we're loading
+    std::cout << "Creating texture array with " << filenames.size() << " textures:" << std::endl;
+    for (const auto& name : filenames) {
+        std::cout << "  - " << name << std::endl;
+    }
+
+    // Load all textures to get dimensions and pixel data
+    struct TextureData {
+        int width;
+        int height;
+        int channels;
+        unsigned char* pixels;
+    };
+
+    std::vector<TextureData> loadedTextures;
+    uint32_t maxWidth = 0;
+    uint32_t maxHeight = 0;
+
+    stbi_set_flip_vertically_on_load(true);
+
+    // First pass: load all textures and find maximum dimensions
+    for (const auto& filename : filenames) {
+        TextureData data;
+        data.pixels = stbi_load(filename.c_str(), &data.width, &data.height, &data.channels, STBI_rgb_alpha);
+
+        if (!data.pixels) {
+            // Clean up any previously loaded textures
+            for (auto& tex : loadedTextures) {
+                stbi_image_free(tex.pixels);
+            }
+            throw std::runtime_error("Failed to load texture image: " + filename);
+        }
+
+        loadedTextures.push_back(data);
+
+        // Track the maximum dimensions
+        maxWidth = std::max(maxWidth, static_cast<uint32_t>(data.width));
+        maxHeight = std::max(maxHeight, static_cast<uint32_t>(data.height));
+
+        std::cout << "Loaded texture for array: " << filename << " (" << data.width << "x" << data.height << ")" << std::endl;
+    }
+
+    // Create the texture array image
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = maxWidth;
+    imageInfo.extent.height = maxHeight;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = static_cast<uint32_t>(filenames.size());
+    imageInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.flags = 0; // Optional
+
+    if (vkCreateImage(device, &imageInfo, nullptr, &textureArray.image) != VK_SUCCESS) {
+        // Clean up loaded textures
+        for (auto& tex : loadedTextures) {
+            stbi_image_free(tex.pixels);
+        }
+        throw std::runtime_error("Failed to create texture array image!");
+    }
+
+    // Get memory requirements and allocate memory
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(device, textureArray.image, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex = findMemoryType(
+        memRequirements.memoryTypeBits,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    if (vkAllocateMemory(device, &allocInfo, nullptr, &textureArray.memory) != VK_SUCCESS) {
+        // Clean up loaded textures
+        for (auto& tex : loadedTextures) {
+            stbi_image_free(tex.pixels);
+        }
+        vkDestroyImage(device, textureArray.image, nullptr);
+        textureArray.image = VK_NULL_HANDLE;
+        throw std::runtime_error("Failed to allocate texture array memory!");
+    }
+
+    vkBindImageMemory(device, textureArray.image, textureArray.memory, 0);
+
+    // Transition the image layout for copy operations
+    transitionImageLayout(textureArray.image, VK_FORMAT_R8G8B8A8_SRGB,
+                         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+    // Copy data from each loaded texture to the texture array
+    for (size_t i = 0; i < loadedTextures.size(); i++) {
+        const auto& tex = loadedTextures[i];
+
+        // Create a staging buffer for this texture
+        VkDeviceSize imageSize = maxWidth * maxHeight * 4; // 4 bytes per pixel (RGBA)
+
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+
+        VkBufferCreateInfo bufferInfo{};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = imageSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+        if (vkCreateBuffer(device, &bufferInfo, nullptr, &stagingBuffer) != VK_SUCCESS) {
+            for (auto& t : loadedTextures) {
+                stbi_image_free(t.pixels);
+            }
+            throw std::runtime_error("Failed to create staging buffer for texture array!");
+        }
+
+        VkMemoryRequirements memRequirements;
+        vkGetBufferMemoryRequirements(device, stagingBuffer, &memRequirements);
+
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(
+            memRequirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+        );
+
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &stagingBufferMemory) != VK_SUCCESS) {
+            vkDestroyBuffer(device, stagingBuffer, nullptr);
+            for (auto& t : loadedTextures) {
+                stbi_image_free(t.pixels);
+            }
+            throw std::runtime_error("Failed to allocate staging buffer memory for texture array!");
+        }
+
+        vkBindBufferMemory(device, stagingBuffer, stagingBufferMemory, 0);
+
+        // Copy texture data to staging buffer
+        void* data;
+        vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
+        memcpy(data, tex.pixels, imageSize);
+        vkUnmapMemory(device, stagingBufferMemory);
+
+        // Copy from staging buffer to image array layer
+        copyBufferToImageArray(stagingBuffer, textureArray.image, maxWidth, maxHeight, static_cast<uint32_t>(i));
+
+        // Clean up staging buffer
+        vkDestroyBuffer(device, stagingBuffer, nullptr);
+        vkFreeMemory(device, stagingBufferMemory, nullptr);
+
+        std::cout << "Successfully loaded texture: " << filenames[i] << " into array layer " << i << std::endl;
+    }
+
+    // Transition layout for shader access
+    transitionImageLayout(textureArray.image, VK_FORMAT_R8G8B8A8_SRGB,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+    // Create image view for the texture array
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = textureArray.image;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+    viewInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = static_cast<uint32_t>(filenames.size());
+
+    if (vkCreateImageView(device, &viewInfo, nullptr, &textureArray.imageView) != VK_SUCCESS) {
+        for (auto& tex : loadedTextures) {
+            stbi_image_free(tex.pixels);
+        }
+        throw std::runtime_error("Failed to create texture array image view!");
+    }
+
+    // Clean up loaded textures
+    for (auto& tex : loadedTextures) {
+        stbi_image_free(tex.pixels);
+    }
+
+    // Update texture array metadata
+    textureArray.layerCount = static_cast<uint32_t>(filenames.size());
+    textureArray.width = maxWidth;
+    textureArray.height = maxHeight;
+    hasTextureArray = true;
+
+    std::cout << "Created texture array with " << filenames.size() << " layers" << std::endl;
+
+    // Return the descriptor image info for this texture array
+    VkDescriptorImageInfo descriptorInfo{};
+    descriptorInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptorInfo.imageView = textureArray.imageView;
+    descriptorInfo.sampler = textureSampler;
+
+    return descriptorInfo;
+}
+
+void TextureLoader::copyBufferToImageArray(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerIndex) {
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    VkBufferImageCopy region{};
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    region.imageSubresource.mipLevel = 0;
+    region.imageSubresource.baseArrayLayer = layerIndex;
+    region.imageSubresource.layerCount = 1;
+    region.imageOffset = {0, 0, 0};
+    region.imageExtent = {width, height, 1};
+
+    vkCmdCopyBufferToImage(
+        commandBuffer,
+        buffer,
+        image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1,
+        &region
+    );
+
+    endSingleTimeCommands(commandBuffer);
+}

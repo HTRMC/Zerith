@@ -15,7 +15,7 @@ void ChunkManager::initializeBlockRegistry() {
     blockRegistry.registerBlock(2, "grass_block"); // Grass block
     blockRegistry.registerBlock(3, "dirt");        // Dirt
     blockRegistry.registerBlock(4, "cobblestone"); // Cobblestone
-    blockRegistry.registerBlock(5, "oak_planks");  // Oak planks
+    blockRegistry.registerBlock(5, "torch");  // Torch
     
     std::cout << "Initialized block registry with 6 block types" << std::endl;
 }
@@ -52,34 +52,33 @@ bool ChunkManager::getFirstChunkMeshData(std::vector<Vertex>& vertices, std::vec
     return false;
 }
 
-uint32_t ChunkManager::loadChunkTextures(TextureLoader& textureLoader) const {
-    // Get the texture loader's default texture ID as fallback
-    uint32_t textureId = textureLoader.getDefaultTextureId();
-    
-    // For now, we'll just load a default texture for all blocks
-    // In a more complete implementation, we'd load textures for each block type
-    
-    // Try loading textures in order of preference
-    const std::array<std::string, 8> preferredTextures = {
-        "all", "side", "bottom", "top", "north", "south", "east", "west"
-    };
-    
-    // Try to find a texture for stone (block ID 1)
-    std::string modelPath = blockRegistry.getModelPath(1);
-    auto modelOpt = textureLoader.loadTexture("assets/minecraft/textures/block/stone.png");
-    
-    if (modelOpt != textureId) {
-        std::cout << "Loaded texture for chunk blocks" << std::endl;
-        return modelOpt;
-    }
-    
-    // If that fails, try dirt
-    modelOpt = textureLoader.loadTexture("assets/minecraft/textures/block/dirt.png");
-    if (modelOpt != textureId) {
-        std::cout << "Loaded dirt texture for chunk blocks" << std::endl;
-        return modelOpt;
-    }
-    
-    std::cout << "Using default texture for chunk" << std::endl;
-    return textureId;
+VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoader) const {
+    // Create a vector to hold the texture paths for each block type
+    std::vector<std::string> texturePaths;
+
+    // Add textures for each block type in order of block ID
+    // This way the texture index corresponds to the block ID
+    // We'll skip ID 0 (air) since it's transparent
+
+    // 1: Stone
+    texturePaths.push_back("assets/minecraft/textures/block/stone.png");
+
+    // 2: Grass Block (using top texture for simplicity)
+    texturePaths.push_back("assets/minecraft/textures/block/grass_block_top.png");
+
+    // 3: Dirt
+    texturePaths.push_back("assets/minecraft/textures/block/dirt.png");
+
+    // 4: Cobblestone
+    texturePaths.push_back("assets/minecraft/textures/block/cobblestone.png");
+
+    // 5: Oak Planks
+    texturePaths.push_back("assets/minecraft/textures/block/torch.png");
+
+    // Create texture array from these textures
+    VkDescriptorImageInfo textureArrayInfo = textureLoader.createTextureArray(texturePaths);
+
+    std::cout << "Created texture array for " << texturePaths.size() << " block types" << std::endl;
+
+    return textureArrayInfo;
 }

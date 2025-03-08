@@ -139,7 +139,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                       << registry.getBlockName(blockId) << ") at " << modelPath << std::endl;
         }
     }
-    
+
     // For each block in the chunk
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
@@ -155,7 +155,9 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                 if (blockModels.find(blockId) == blockModels.end()) {
                     continue;
                 }
-                
+                // Print block ID and texture index
+                std::cout << "Block ID: " << blockId << ", Texture Index: " << (blockId - 1) << std::endl;
+
                 // Calculate block position in world space
                 glm::vec3 blockPosition = glm::vec3(
                     chunkPosition.x * CHUNK_SIZE_X + x,
@@ -184,6 +186,12 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                 for (const Vertex& vertex : modelData.vertices) {
                     Vertex transformedVertex = vertex;
                     transformedVertex.pos += blockPosition;
+
+                    // Set the texture index to match the block ID
+                    // Note: Since air is 0, and we don't include it in our texture array,
+                    // we need to subtract 1 from blockId to get the correct texture index
+                    transformedVertex.textureIndex = blockId - 1;
+
                     meshVertices.push_back(transformedVertex);
                 }
                 
@@ -194,7 +202,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
             }
         }
     }
-    
+
     // Mark mesh as clean after generation
     std::cout << "Generated mesh with " << meshVertices.size() << " vertices and " 
               << meshIndices.size() << " indices" << std::endl;
