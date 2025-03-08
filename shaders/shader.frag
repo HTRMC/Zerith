@@ -11,5 +11,11 @@ layout(location = 0) out vec4 outColor;
 void main() {
     // Mix color and texture
     vec4 texColor = texture(texSampler, vec3(fragTexCoord, fragTextureIndex));
+
+    // Discard fragments with very low alpha
+    if (texColor.a == 0) {
+        discard;
+    }
+
     outColor = texColor;
 }

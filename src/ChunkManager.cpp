@@ -15,7 +15,7 @@ void ChunkManager::initializeBlockRegistry() {
     blockRegistry.registerBlock(2, "grass_block"); // Grass block
     blockRegistry.registerBlock(3, "dirt");        // Dirt
     blockRegistry.registerBlock(4, "cobblestone"); // Cobblestone
-    blockRegistry.registerBlock(5, "torch");  // Torch
+    blockRegistry.registerBlock(5, "glass");  // Torch
     
     std::cout << "Initialized block registry with 6 block types" << std::endl;
 }
@@ -73,7 +73,7 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
     texturePaths.push_back("assets/minecraft/textures/block/cobblestone.png");
 
     // 5: Oak Planks
-    texturePaths.push_back("assets/minecraft/textures/block/torch.png");
+    texturePaths.push_back("assets/minecraft/textures/block/green_stained_glass.png");
 
     // Create texture array from these textures
     VkDescriptorImageInfo textureArrayInfo = textureLoader.createTextureArray(texturePaths);
