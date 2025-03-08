@@ -234,7 +234,6 @@ void TextureLoader::createDefaultTexture() {
 void TextureLoader::createTextureImage(const std::string& filename, Texture& texture) {
     // Load image with stb_image
     int texWidth, texHeight, texChannels;
-    stbi_set_flip_vertically_on_load(true);
     stbi_uc* pixels = stbi_load(filename.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
     VkDeviceSize imageSize = texWidth * texHeight * 4; // 4 bytes per pixel for RGBA
     
@@ -559,8 +558,6 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
     std::vector<TextureData> loadedTextures;
     uint32_t maxWidth = 0;
     uint32_t maxHeight = 0;
-
-    stbi_set_flip_vertically_on_load(true);
 
     // First pass: load all textures and find maximum dimensions
     for (const auto& filename : filenames) {

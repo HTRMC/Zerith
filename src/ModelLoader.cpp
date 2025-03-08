@@ -304,19 +304,12 @@ std::vector<glm::vec2> ModelLoader::parseUVs(const nlohmann::json& uvJson) {
         float maxU = uvJson[2].get<float>() / 16.0f;
         float maxV = uvJson[3].get<float>() / 16.0f;
 
-        // Since we're using stbi_set_flip_vertically_on_load(true),
-        // we need to adapt the UVs accordingly:
-        float tempMinV = 1.0f - maxV;
-        float tempMaxV = 1.0f - minV;
-        minV = tempMinV;
-        maxV = tempMaxV;
-
-        // Add corners in clockwise order for proper face orientation
+        // Add corners in counter-clockwise order for proper face orientation
         // This may need adjustment depending on your face construction
-        result.push_back({minU, minV}); // Bottom-left
-        result.push_back({maxU, minV}); // Bottom-right
-        result.push_back({maxU, maxV}); // Top-right
         result.push_back({minU, maxV}); // Top-left
+        result.push_back({maxU, maxV}); // Top-right
+        result.push_back({maxU, minV}); // Bottom-right
+        result.push_back({minU, minV}); // Bottom-left
     }
     return result;
 }
