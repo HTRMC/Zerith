@@ -352,10 +352,11 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
             {0.0f, 0.0f}  // Top-left
         };
 
-        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor, uvs[0] };
-        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[1] };
-        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[2] };
-        Vertex frontTopLeft     = { { x_min, y_max, z_max }, faceColor, uvs[3] };
+        // Initialize all Vertex fields including textureIndex and renderLayer (both 0)
+        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor, uvs[0], 0, 0 };
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[1], 0, 0 };
+        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[2], 0, 0 };
+        Vertex frontTopLeft     = { { x_min, y_max, z_max }, faceColor, uvs[3], 0, 0 };
 
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
@@ -392,10 +393,11 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
             {1.0f, 0.0f}  // Top-left (reversed for back face)
         };
 
-        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor, uvs[0] };
-        Vertex backBottomRight = { { x_max, y_min, z_min }, faceColor, uvs[1] };
-        Vertex backTopRight    = { { x_max, y_min, z_max }, faceColor, uvs[2] };
-        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3] };
+        // Initialize all Vertex fields
+        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor, uvs[0], 0, 0 };
+        Vertex backBottomRight = { { x_max, y_min, z_min }, faceColor, uvs[1], 0, 0 };
+        Vertex backTopRight    = { { x_max, y_min, z_max }, faceColor, uvs[2], 0, 0 };
+        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3], 0, 0 };
 
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
@@ -433,10 +435,11 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
             {0.0f, 0.0f}  // Top-left
         };
 
-        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[0] };
-        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[1] };
-        Vertex backTopRight     = { { x_max, y_min, z_max }, faceColor, uvs[2] };
-        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[3] };
+        // Initialize all Vertex fields
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[0], 0, 0 };
+        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[1], 0, 0 };
+        Vertex backTopRight     = { { x_max, y_min, z_max }, faceColor, uvs[2], 0, 0 };
+        Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[3], 0, 0 };
 
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
@@ -473,10 +476,11 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
             {1.0f, 0.0f}  // Top-left (reversed for left face)
         };
 
-        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor, uvs[0] };
-        Vertex frontBottomLeft = { { x_min, y_max, z_min }, faceColor, uvs[1] };
-        Vertex frontTopLeft    = { { x_min, y_max, z_max }, faceColor, uvs[2] };
-        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3] };
+        // Initialize all Vertex fields
+        Vertex backBottomLeft  = { { x_min, y_min, z_min }, faceColor, uvs[0], 0, 0 };
+        Vertex frontBottomLeft = { { x_min, y_max, z_min }, faceColor, uvs[1], 0, 0 };
+        Vertex frontTopLeft    = { { x_min, y_max, z_max }, faceColor, uvs[2], 0, 0 };
+        Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3], 0, 0 };
 
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
@@ -513,10 +517,11 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
             {0.0f, 1.0f}  // Bottom-left
         };
 
-        Vertex frontTopLeft  = { { x_min, y_max, z_max }, faceColor, uvs[0] };
-        Vertex frontTopRight = { { x_max, y_max, z_max }, faceColor, uvs[1] };
-        Vertex backTopRight  = { { x_max, y_min, z_max }, faceColor, uvs[2] };
-        Vertex backTopLeft   = { { x_min, y_min, z_max }, faceColor, uvs[3] };
+        // Initialize all Vertex fields
+        Vertex frontTopLeft  = { { x_min, y_max, z_max }, faceColor, uvs[0], 0, 0 };
+        Vertex frontTopRight = { { x_max, y_max, z_max }, faceColor, uvs[1], 0, 0 };
+        Vertex backTopRight  = { { x_max, y_min, z_max }, faceColor, uvs[2], 0, 0 };
+        Vertex backTopLeft   = { { x_min, y_min, z_max }, faceColor, uvs[3], 0, 0 };
 
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
@@ -553,10 +558,11 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
             {1.0f, 1.0f}  // Top-right (flipped for bottom face)
         };
 
-        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[0] };
-        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor, uvs[1] };
-        Vertex backBottomLeft   = { { x_min, y_min, z_min }, faceColor, uvs[2] };
-        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[3] };
+        // Initialize all Vertex fields
+        Vertex frontBottomRight = { { x_max, y_max, z_min }, faceColor, uvs[0], 0, 0 };
+        Vertex frontBottomLeft  = { { x_min, y_max, z_min }, faceColor, uvs[1], 0, 0 };
+        Vertex backBottomLeft   = { { x_min, y_min, z_min }, faceColor, uvs[2], 0, 0 };
+        Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[3], 0, 0 };
 
         uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {

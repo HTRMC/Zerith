@@ -207,7 +207,10 @@ void VulkanApp::initVulkan() {
     createImageViews();
     createRenderPass();
     createDescriptorSetLayout();
-    createGraphicsPipeline();
+
+    // Create multiple pipelines for different render layers instead of a single pipeline
+    createRenderLayerPipelines();
+
     createDepthResources();
     createFramebuffers();
     createCommandPool();
@@ -221,50 +224,21 @@ void VulkanApp::initVulkan() {
     // Update chunk meshes
     chunkManager.updateChunkMeshes(modelLoader);
 
-    // Get mesh data from the first chunk if available
-    std::vector<Vertex> chunkVertices;
-    std::vector<uint16_t> chunkIndices;
-    bool hasChunkMesh = chunkManager.getFirstChunkMeshData(chunkVertices, chunkIndices);
-
-    // If we have chunk mesh data, use it
-    if (hasChunkMesh) {
-        // Copy mesh data from the first chunk to currentModel
-        currentModel.vertices = std::move(chunkVertices);
-        currentModel.indices = std::move(chunkIndices);
-        currentModel.loaded = true;
-
-        // Don't try to store the VkDescriptorImageInfo in uint32_t
-        // We'll load the textures directly in createDescriptorSets() instead
-
-        // Create vertex and index buffers from the chunk data
-        createVertexBufferFromModel();
-        createIndexBufferFromModel();
-    }
-    else {
-        // Fallback to loading a single block model
-        if (!loadBlockBenchModel("assets/minecraft/models/block/stone.json")) {
-            std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
-            createVertexBuffer();
-            createIndexBuffer();
-        }
-        else {
-            // Load textures for the model
-            uint32_t textureId = loadModelTextures();
-            if (textureId != textureLoader.getDefaultTextureId()) {
-                currentModel.textureId = textureId;
-                std::cout << "Loaded texture for model: " << textureId << std::endl;
-            }
-
-            // Create vertex and index buffers from the loaded model
-            createVertexBufferFromModel();
-            createIndexBufferFromModel();
+    // Create buffers for each render layer
+    for (int i = 0; i < 3; i++) {
+        BlockRenderLayer layer = static_cast<BlockRenderLayer>(i);
+        if (chunkManager.isLayerDirty(layer)) {
+            chunkManager.createLayerBuffers(layer, device, physicalDevice, commandPool, graphicsQueue);
         }
     }
 
     createUniformBuffers();
     createDescriptorPool();
     createDescriptorSets();
-    createCommandBuffers();
+
+    // Create command buffers that handle multiple render layers
+    createMultiLayerCommandBuffers();
+
     createSyncObjects();
 }
 
@@ -952,6 +926,9 @@ void VulkanApp::cleanup() {
     // Clean up texture loader before destroying command pool it might use
     textureLoader.cleanup();
 
+    // Clean up the chunk manager's buffers
+    chunkManager.cleanupLayerBuffers(device);
+
     // Clean up sync objects
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         if (i < imageAvailableSemaphores.size() && imageAvailableSemaphores[i] != VK_NULL_HANDLE) {
@@ -1017,6 +994,22 @@ void VulkanApp::cleanup() {
     if (vertexBufferMemory != VK_NULL_HANDLE) {
         vkFreeMemory(device, vertexBufferMemory, nullptr);
         vertexBufferMemory = VK_NULL_HANDLE;
+    }
+
+    // Clean up all three pipelines
+    if (opaquePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, opaquePipeline, nullptr);
+        opaquePipeline = VK_NULL_HANDLE;
+    }
+
+    if (cutoutPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, cutoutPipeline, nullptr);
+        cutoutPipeline = VK_NULL_HANDLE;
+    }
+
+    if (translucentPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, translucentPipeline, nullptr);
+        translucentPipeline = VK_NULL_HANDLE;
     }
 
     // Clean up device
@@ -1618,9 +1611,9 @@ void VulkanApp::createDescriptorSets() {
     descriptorWrites[0].pBufferInfo = &bufferInfo;
 
     // Get mesh data from the first chunk if available
-    std::vector<Vertex> chunkVertices;
-    std::vector<uint16_t> chunkIndices;
-    bool hasChunkMesh = chunkManager.getFirstChunkMeshData(chunkVertices, chunkIndices);
+    std::vector<Vertex> opaqueVertices;
+    std::vector<uint16_t> opaqueIndices;
+    bool hasChunkMesh = chunkManager.getLayerMeshData(BlockRenderLayer::LAYER_OPAQUE, opaqueVertices, opaqueIndices);
 
     // Set up the texture descriptor based on whether we're using chunks or a single model
     if (hasChunkMesh) {
@@ -1629,8 +1622,8 @@ void VulkanApp::createDescriptorSets() {
 
         // Copy mesh data from the first chunk to currentModel if not already done
         if (currentModel.vertices.empty() || currentModel.indices.empty()) {
-            currentModel.vertices = std::move(chunkVertices);
-            currentModel.indices = std::move(chunkIndices);
+            currentModel.vertices = std::move(opaqueVertices);
+            currentModel.indices = std::move(opaqueIndices);
             currentModel.loaded = true;
 
             // Create vertex and index buffers from the chunk data if not already created
@@ -2301,9 +2294,29 @@ void VulkanApp::cleanupSwapChain() {
     // Free command buffers
     vkFreeCommandBuffers(device, commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());
 
-    // Clean up pipeline
-    vkDestroyPipeline(device, graphicsPipeline, nullptr);
+    // Clean up all three pipelines
+    if (opaquePipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, opaquePipeline, nullptr);
+        opaquePipeline = VK_NULL_HANDLE;
+    }
+
+    if (cutoutPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, cutoutPipeline, nullptr);
+        cutoutPipeline = VK_NULL_HANDLE;
+    }
+
+    if (translucentPipeline != VK_NULL_HANDLE) {
+        vkDestroyPipeline(device, translucentPipeline, nullptr);
+        translucentPipeline = VK_NULL_HANDLE;
+    }
+
+    // Also reset the main graphics pipeline reference to avoid dangling pointer
+    graphicsPipeline = VK_NULL_HANDLE;
+
+    // Clean up pipeline layout
     vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
+
+    // Clean up render pass
     vkDestroyRenderPass(device, renderPass, nullptr);
 
     // Clean up image views
@@ -2347,11 +2360,293 @@ void VulkanApp::recreateSwapChain() {
     createSwapChain();
     createImageViews();
     createRenderPass();
-    createGraphicsPipeline();
+    createDescriptorSetLayout();
+    createRenderLayerPipelines(); // Use our new method to create all three pipelines
     createDepthResources();
     createFramebuffers();
-    createCommandBuffers();
+    createMultiLayerCommandBuffers(); // Use our new method to create command buffers for all layers
 
     // Reset the resize flag
     framebufferResized = false;
+}
+
+// Implementation for createRenderLayerPipelines() in VulkanApp.cpp
+void VulkanApp::createRenderLayerPipelines() {
+    try {
+        // Load pre-compiled SPIR-V shader binaries from files
+        std::vector<char> vertShaderCode = readFile("shaders/vert.spv");
+        std::vector<char> fragShaderCode = readFile("shaders/frag.spv");
+
+        // Create shader modules
+        VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
+        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+        // Shader stage creation
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        vertShaderStageInfo.module = vertShaderModule;
+        vertShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+        // Vertex input state - UPDATED for our Vertex struct
+        auto bindingDescription = Vertex::getBindingDescription();
+        auto attributeDescriptions = Vertex::getAttributeDescriptions();
+
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
+        // Input assembly state
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+        // Viewport state
+        VkViewport viewport{};
+        viewport.x = 0.0f;
+        viewport.y = 0.0f;
+        viewport.width = (float) swapChainExtent.width;
+        viewport.height = (float) swapChainExtent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+
+        VkRect2D scissor{};
+        scissor.offset = {0, 0};
+        scissor.extent = swapChainExtent;
+
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.pViewports = &viewport;
+        viewportState.scissorCount = 1;
+        viewportState.pScissors = &scissor;
+
+        // Rasterization state - same for all pipelines
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE; // UPDATED for GLM
+        rasterizer.depthBiasEnable = VK_FALSE;
+
+        // Multisample state - same for all pipelines
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        // Depth stencil state for opaque and cutout - full depth testing and writing
+        VkPipelineDepthStencilStateCreateInfo opaqueDepthStencil{};
+        opaqueDepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        opaqueDepthStencil.depthTestEnable = VK_TRUE;
+        opaqueDepthStencil.depthWriteEnable = VK_TRUE;
+        opaqueDepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        opaqueDepthStencil.depthBoundsTestEnable = VK_FALSE;
+        opaqueDepthStencil.stencilTestEnable = VK_FALSE;
+
+        // Depth stencil state for translucent - test but don't write depth
+        VkPipelineDepthStencilStateCreateInfo translucentDepthStencil{};
+        translucentDepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        translucentDepthStencil.depthTestEnable = VK_TRUE;
+        translucentDepthStencil.depthWriteEnable = VK_FALSE; // Key difference: don't write to depth buffer
+        translucentDepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        translucentDepthStencil.depthBoundsTestEnable = VK_FALSE;
+        translucentDepthStencil.stencilTestEnable = VK_FALSE;
+
+        // Color blend attachment state for opaque and cutout - no blending
+        VkPipelineColorBlendAttachmentState opaqueColorBlendAttachment{};
+        opaqueColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                          VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        opaqueColorBlendAttachment.blendEnable = VK_FALSE;
+
+        // Color blend attachment state for translucent - alpha blending
+        VkPipelineColorBlendAttachmentState translucentColorBlendAttachment{};
+        translucentColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+                                              VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        translucentColorBlendAttachment.blendEnable = VK_TRUE;
+        translucentColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        translucentColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        translucentColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        translucentColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        translucentColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        translucentColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        // Color blending state for opaque and cutout
+        VkPipelineColorBlendStateCreateInfo opaqueColorBlending{};
+        opaqueColorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        opaqueColorBlending.logicOpEnable = VK_FALSE;
+        opaqueColorBlending.attachmentCount = 1;
+        opaqueColorBlending.pAttachments = &opaqueColorBlendAttachment;
+
+        // Color blending state for translucent
+        VkPipelineColorBlendStateCreateInfo translucentColorBlending{};
+        translucentColorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        translucentColorBlending.logicOpEnable = VK_FALSE;
+        translucentColorBlending.attachmentCount = 1;
+        translucentColorBlending.pAttachments = &translucentColorBlendAttachment;
+
+        // Pipeline layout (same for all pipelines)
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create pipeline layout!");
+        }
+
+        // ==== OPAQUE PIPELINE ====
+        VkGraphicsPipelineCreateInfo opaquePipelineInfo{};
+        opaquePipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        opaquePipelineInfo.stageCount = 2;
+        opaquePipelineInfo.pStages = shaderStages;
+        opaquePipelineInfo.pVertexInputState = &vertexInputInfo;
+        opaquePipelineInfo.pInputAssemblyState = &inputAssembly;
+        opaquePipelineInfo.pViewportState = &viewportState;
+        opaquePipelineInfo.pRasterizationState = &rasterizer;
+        opaquePipelineInfo.pMultisampleState = &multisampling;
+        opaquePipelineInfo.pDepthStencilState = &opaqueDepthStencil;
+        opaquePipelineInfo.pColorBlendState = &opaqueColorBlending;
+        opaquePipelineInfo.layout = pipelineLayout;
+        opaquePipelineInfo.renderPass = renderPass;
+        opaquePipelineInfo.subpass = 0;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &opaquePipelineInfo, nullptr, &opaquePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create opaque graphics pipeline!");
+        }
+
+        // ==== CUTOUT PIPELINE ====
+        VkGraphicsPipelineCreateInfo cutoutPipelineInfo = opaquePipelineInfo;
+        // Cutout uses the same settings as opaque, just alpha testing happens in the fragment shader
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &cutoutPipelineInfo, nullptr, &cutoutPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create cutout graphics pipeline!");
+        }
+
+        // ==== TRANSLUCENT PIPELINE ====
+        VkGraphicsPipelineCreateInfo translucentPipelineInfo = opaquePipelineInfo;
+        translucentPipelineInfo.pDepthStencilState = &translucentDepthStencil;
+        translucentPipelineInfo.pColorBlendState = &translucentColorBlending;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &translucentPipelineInfo, nullptr, &translucentPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create translucent graphics pipeline!");
+        }
+
+        // Set the main graphics pipeline to the opaque one for compatibility with existing code
+        graphicsPipeline = opaquePipeline;
+
+        // Cleanup shader modules
+        vkDestroyShaderModule(device, vertShaderModule, nullptr);
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+    } catch (const std::exception &e) {
+        std::cerr << "Error in createRenderLayerPipelines: " << e.what() << std::endl;
+        throw;
+    }
+}
+
+// Implementation for the modified command buffer creation
+void VulkanApp::createMultiLayerCommandBuffers() {
+    commandBuffers.resize(swapChainFramebuffers.size());
+
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = (uint32_t) commandBuffers.size();
+
+    if (vkAllocateCommandBuffers(device, &allocInfo, commandBuffers.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to allocate command buffers!");
+    }
+
+    for (size_t i = 0; i < commandBuffers.size(); i++) {
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+
+        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to begin recording command buffer!");
+        }
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = swapChainFramebuffers[i];
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = swapChainExtent;
+
+        // Clear values for color and depth
+        std::array<VkClearValue, 2> clearValues{};
+        clearValues[0].color = {{0.149f, 0.549f, 0.894f, 1.0f}}; // Blue sky background
+        clearValues[1].depthStencil = {1.0f, 0}; // Far depth value
+
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
+
+        vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        // Bind descriptor sets (same for all pipelines)
+        vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
+                               &descriptorSet, 0, nullptr);
+
+        // Get access to the chunk manager's layer render data
+        const auto& opaqueLayerData = chunkManager.getLayerRenderData(BlockRenderLayer::LAYER_OPAQUE);
+        const auto& cutoutLayerData = chunkManager.getLayerRenderData(BlockRenderLayer::LAYER_CUTOUT);
+        const auto& translucentLayerData = chunkManager.getLayerRenderData(BlockRenderLayer::LAYER_TRANSLUCENT);
+
+        // ==== RENDER OPAQUE LAYER ====
+        if (opaqueLayerData.vertexBuffer != VK_NULL_HANDLE && !opaqueLayerData.indices.empty()) {
+            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, opaquePipeline);
+
+            VkBuffer vertexBuffers[] = {opaqueLayerData.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffers[i], opaqueLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(opaqueLayerData.indices.size()), 1, 0, 0, 0);
+        }
+
+        // ==== RENDER CUTOUT LAYER ====
+        if (cutoutLayerData.vertexBuffer != VK_NULL_HANDLE && !cutoutLayerData.indices.empty()) {
+            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, cutoutPipeline);
+
+            VkBuffer vertexBuffers[] = {cutoutLayerData.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffers[i], cutoutLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(cutoutLayerData.indices.size()), 1, 0, 0, 0);
+        }
+
+        // ==== RENDER TRANSLUCENT LAYER ====
+        if (translucentLayerData.vertexBuffer != VK_NULL_HANDLE && !translucentLayerData.indices.empty()) {
+            vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, translucentPipeline);
+
+            VkBuffer vertexBuffers[] = {translucentLayerData.vertexBuffer};
+            VkDeviceSize offsets[] = {0};
+            vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
+            vkCmdBindIndexBuffer(commandBuffers[i], translucentLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+
+            vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(translucentLayerData.indices.size()), 1, 0, 0, 0);
+        }
+
+        vkCmdEndRenderPass(commandBuffers[i]);
+
+        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer!");
+        }
+    }
 }

@@ -2,6 +2,7 @@
 
 #include <array>
 #include <vector>
+#include <map>
 #include <glm/glm.hpp>
 #include "ModelLoader.hpp"
 #include "Block.hpp"
@@ -12,6 +13,13 @@ constexpr int CHUNK_SIZE_X = 16;
 constexpr int CHUNK_SIZE_Y = 16;
 constexpr int CHUNK_SIZE_Z = 16;
 constexpr int CHUNK_VOLUME = CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z;
+
+// Structure to hold mesh data for a specific render layer
+struct RenderLayerMesh {
+    std::vector<Vertex> vertices;
+    std::vector<uint16_t> indices;
+    bool dirty = true;
+};
 
 class Chunk {
 public:
@@ -36,15 +44,17 @@ public:
     // Get chunk position in world coordinates
     glm::ivec3 getPosition() const { return chunkPosition; }
     
-    // Get mesh data
-    const std::vector<Vertex>& getVertices() const { return meshVertices; }
-    const std::vector<uint16_t>& getIndices() const { return meshIndices; }
+    // Get mesh data for a specific render layer
+    const RenderLayerMesh& getRenderLayerMesh(BlockRenderLayer layer) const;
     
-    // Check if mesh is dirty and needs regeneration
-    bool isMeshDirty() const { return meshDirty; }
+    // Check if mesh for a specific layer is dirty and needs regeneration
+    bool isMeshDirty(BlockRenderLayer layer) const;
     
     // Mark mesh as clean after regeneration
-    void markMeshClean() { meshDirty = false; }
+    void markMeshClean(BlockRenderLayer layer);
+
+    // Check if any mesh layer is dirty
+    bool isAnyMeshDirty() const;
 
 private:
     // Convert 3D coordinates to 1D index
@@ -62,8 +72,6 @@ private:
     // Block data - array of block IDs
     std::array<uint16_t, CHUNK_VOLUME> blocks;
     
-    // Mesh data
-    std::vector<Vertex> meshVertices;
-    std::vector<uint16_t> meshIndices;
-    bool meshDirty = true;
+    // Mesh data for each render layer
+    std::map<BlockRenderLayer, RenderLayerMesh> layerMeshes;
 };

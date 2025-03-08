@@ -10,6 +10,7 @@ struct Vertex {
     glm::vec3 color;
     glm::vec2 texCoord;
     int textureIndex;  // Index of the texture to use
+    int renderLayer;   // Render layer (maps to BlockRenderLayer enum)
 
     static VkVertexInputBindingDescription getBindingDescription() {
         VkVertexInputBindingDescription bindingDescription{};
@@ -20,8 +21,8 @@ struct Vertex {
         return bindingDescription;
     }
 
-    static std::array<VkVertexInputAttributeDescription, 4> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 4> attributeDescriptions{};
+    static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions{};
 
         // Position attribute
         attributeDescriptions[0].binding = 0;
@@ -46,6 +47,12 @@ struct Vertex {
         attributeDescriptions[3].location = 3;
         attributeDescriptions[3].format = VK_FORMAT_R32_SINT;
         attributeDescriptions[3].offset = offsetof(Vertex, textureIndex);
+
+        // Render layer attribute
+        attributeDescriptions[4].binding = 0;
+        attributeDescriptions[4].location = 4;
+        attributeDescriptions[4].format = VK_FORMAT_R32_SINT;
+        attributeDescriptions[4].offset = offsetof(Vertex, renderLayer);
 
         return attributeDescriptions;
     }

@@ -1,6 +1,6 @@
 #include "Block.hpp"
 
-void BlockRegistry::registerBlock(uint16_t id, const std::string& name) {
+void BlockRegistry::registerBlock(uint16_t id, const std::string& name, BlockRenderLayer renderLayer) {
     blockNames[id] = name;
 
     // Set transparency based on block type
@@ -8,11 +8,14 @@ void BlockRegistry::registerBlock(uint16_t id, const std::string& name) {
     bool transparent = false;
 
     // Define transparent blocks
-    if (id == 0 || name == "air" || name == "glass") {
+    if (id == 0 || name == "air" || name == "glass" || renderLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
         transparent = true;
     }
 
     blockTransparency[id] = transparent;
+
+    // Store the render layer
+    blockRenderLayers[id] = renderLayer;
 }
 
 std::string BlockRegistry::getBlockName(uint16_t id) const {
@@ -33,6 +36,14 @@ bool BlockRegistry::isBlockTransparent(uint16_t id) const {
         return it->second;
     }
     return false; // Default to solid if unknown
+}
+
+BlockRenderLayer BlockRegistry::getBlockRenderLayer(uint16_t id) const {
+    auto it = blockRenderLayers.find(id);
+    if (it != blockRenderLayers.end()) {
+        return it->second;
+    }
+    return BlockRenderLayer::LAYER_OPAQUE; // Default to opaque if unknown
 }
 
 std::string BlockRegistry::getModelPath(uint16_t id) const {

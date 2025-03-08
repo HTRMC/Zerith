@@ -90,6 +90,16 @@ private:
     VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
     VkPipeline graphicsPipeline = VK_NULL_HANDLE;
 
+    VkPipeline opaquePipeline = VK_NULL_HANDLE;
+    VkPipeline cutoutPipeline = VK_NULL_HANDLE;
+    VkPipeline translucentPipeline = VK_NULL_HANDLE;
+
+    // Create separate pipelines for different render layers
+    void createRenderLayerPipelines();
+
+    // Create command buffers that render all three layers in order
+    void createMultiLayerCommandBuffers();
+
     // Framebuffers
     std::vector<VkFramebuffer> swapChainFramebuffers;
 
