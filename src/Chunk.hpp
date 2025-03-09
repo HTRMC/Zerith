@@ -74,4 +74,25 @@ private:
     
     // Mesh data for each render layer
     std::map<BlockRenderLayer, RenderLayerMesh> layerMeshes;
+
+    // Check if a face should be rendered
+    bool shouldRenderFace(int x, int y, int z, const std::string& face, const BlockRegistry& registry) const;
+
+    // Helper function to create vertices for a face
+    std::vector<Vertex> createFaceVertices(
+        const Element& element,
+        const std::string& faceName,
+        const glm::vec3& color,
+        const std::vector<glm::vec2>& uvs,
+        const glm::vec3& position,
+        uint16_t blockId,
+        BlockRenderLayer renderLayer);
+
+    // Helper function to create indices for a face
+    std::vector<uint16_t> createFaceIndices(uint16_t baseIndex);
+
+    // Helper function to get default UVs for a face
+    std::vector<glm::vec2> getDefaultUVs(const std::string& faceName);
+
+    glm::vec3 parseColor(int colorIndex) const;
 };

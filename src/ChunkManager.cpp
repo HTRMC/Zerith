@@ -15,12 +15,12 @@ ChunkManager::ChunkManager() {
 
 void ChunkManager::initializeBlockRegistry() {
     // Register block types with IDs and appropriate render layers
-    blockRegistry.registerBlock(0, "air", BlockRenderLayer::LAYER_CUTOUT);         // Air (transparent)
-    blockRegistry.registerBlock(1, "stone", BlockRenderLayer::LAYER_OPAQUE);       // Stone
-    blockRegistry.registerBlock(2, "grass_block", BlockRenderLayer::LAYER_OPAQUE); // Grass block
-    blockRegistry.registerBlock(3, "dirt", BlockRenderLayer::LAYER_OPAQUE);        // Dirt
-    blockRegistry.registerBlock(4, "cobblestone", BlockRenderLayer::LAYER_OPAQUE); // Cobblestone
-    blockRegistry.registerBlock(5, "glass", BlockRenderLayer::LAYER_TRANSLUCENT);  // Glass (translucent)
+    blockRegistry.registerBlock(0, "air", BlockRenderLayer::LAYER_CUTOUT);                      // Air (transparent)
+    blockRegistry.registerBlock(1, "stone", BlockRenderLayer::LAYER_OPAQUE);                    // Stone
+    blockRegistry.registerBlock(2, "grass_block", BlockRenderLayer::LAYER_OPAQUE);              // Grass block
+    blockRegistry.registerBlock(3, "oak_fence_post", BlockRenderLayer::LAYER_CUTOUT);           // Oak Fence Post
+    blockRegistry.registerBlock(4, "cobblestone", BlockRenderLayer::LAYER_OPAQUE);              // Cobblestone
+    blockRegistry.registerBlock(5, "green_stained_glass", BlockRenderLayer::LAYER_TRANSLUCENT); // Green Stained Glass (translucent)
     
     std::cout << "Initialized block registry with 6 block types" << std::endl;
 }
@@ -367,7 +367,7 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
     texturePaths.push_back("assets/minecraft/textures/block/grass_block_top.png");
 
     // 3: Dirt
-    texturePaths.push_back("assets/minecraft/textures/block/dirt.png");
+    texturePaths.push_back("assets/minecraft/textures/block/oak_planks.png");
 
     // 4: Cobblestone
     texturePaths.push_back("assets/minecraft/textures/block/cobblestone.png");
