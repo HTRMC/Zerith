@@ -387,6 +387,40 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const
         return false;
         }
 
+    // Special Rule for Cutout blocks: Cull faces that span the full dimension
+    // when adjacent to opaque blocks
+    if (currentBlockLayer == BlockRenderLayer::LAYER_CUTOUT &&
+        adjacentBlockLayer == BlockRenderLayer::LAYER_OPAQUE) {
+
+        // We need to determine if this face spans the full dimension of the block
+        // We'll check this based on the model data for the block
+        const Element& element = getBlockElement(blockId, face);
+
+        // Check if the face spans the full dimension based on face direction
+        bool isFullFace = false;
+
+        if (face == "north" || face == "south") {
+            // Y direction faces - check if they span full X and Z dimensions
+            isFullFace = (element.from.x <= 0.01f && element.to.x >= 0.99f &&
+                          element.from.z <= 0.01f && element.to.z >= 0.99f);
+        }
+        else if (face == "east" || face == "west") {
+            // X direction faces - check if they span full Y and Z dimensions
+            isFullFace = (element.from.y <= 0.01f && element.to.y >= 0.99f &&
+                          element.from.z <= 0.01f && element.to.z >= 0.99f);
+        }
+        else if (face == "up" || face == "down") {
+            // Z direction faces - check if they span full X and Y dimensions
+            isFullFace = (element.from.x <= 0.01f && element.to.x >= 0.99f &&
+                          element.from.y <= 0.01f && element.to.y >= 0.99f);
+        }
+
+        // If this is a full face, cull it
+        if (isFullFace) {
+            return false;
+        }
+        }
+
     // Rule 4: For all other cases (involving cutout blocks, or opaque->translucent), render the face
     return true;
 }
@@ -494,4 +528,18 @@ glm::vec3 Chunk::parseColor(int colorIndex) const {
         // Add more colors as needed
         default: return {1.0f, 1.0f, 1.0f}; // Default white
     }
+}
+
+// Helper function to check if a cutout block face is at the block boundary
+const Element& Chunk::getBlockElement(uint16_t blockId, const std::string& face) const {
+    // This would need to be implemented based on your model system
+    // You would need to access the model data for the block and get the element for the specific face
+    // For now, I'll return a placeholder element that assumes everything is a full face
+
+    // This is a placeholder and should be replaced with actual implementation
+    static Element defaultElement;
+    defaultElement.from = glm::vec3(0.0f, 0.0f, 0.0f);
+    defaultElement.to = glm::vec3(1.0f, 1.0f, 1.0f);
+
+    return defaultElement;
 }

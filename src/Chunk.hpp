@@ -95,4 +95,6 @@ private:
     std::vector<glm::vec2> getDefaultUVs(const std::string& faceName);
 
     glm::vec3 parseColor(int colorIndex) const;
+
+    const Element &getBlockElement(uint16_t blockId, const std::string &face) const;
 };
