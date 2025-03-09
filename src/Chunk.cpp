@@ -369,15 +369,25 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const
     BlockRenderLayer currentBlockLayer = registry.getBlockRenderLayer(blockId);
     BlockRenderLayer adjacentBlockLayer = registry.getBlockRenderLayer(adjacentBlockId);
 
-    // ONLY cull faces between two opaque blocks
-    // All other combinations (opaque-cutout, opaque-translucent, cutout-cutout,
-    // cutout-translucent, translucent-translucent) should be rendered
+    // Rule 1: Cull faces between two opaque blocks
     if (currentBlockLayer == BlockRenderLayer::LAYER_OPAQUE &&
         adjacentBlockLayer == BlockRenderLayer::LAYER_OPAQUE) {
-        return false; // Cull the face between two opaque blocks
+        return false;
         }
 
-    // Render the face in all other cases
+    // Rule 2: Cull faces between two translucent blocks
+    if (currentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
+        adjacentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
+        return false;
+        }
+
+    // Rule 3: Cull the face of a translucent block when it's adjacent to an opaque block
+    if (currentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
+        adjacentBlockLayer == BlockRenderLayer::LAYER_OPAQUE) {
+        return false;
+        }
+
+    // Rule 4: For all other cases (involving cutout blocks, or opaque->translucent), render the face
     return true;
 }
 
