@@ -44,12 +44,20 @@ static std::string resolveResourcePath(const std::string& path) {
 std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
     try {
         // Handle the filename - if it doesn't start with "assets/", assume a simple path like "block/oak_stairs"
-        std::string fullPath = filename;
-        if (filename.find("assets/") != 0) {
-            // Handle paths like "block/oak_stairs" or "minecraft:block/oak_stairs"
-            fullPath = resolveResourcePath(filename) + ".json";
-            std::cout << "Resolved model path: " << filename << " -> " << fullPath << std::endl;
+        std::string fullPath = resolveModelPath(filename);
+
+        // Check if the model is already in the cache
+        auto cacheIt = modelCache.find(fullPath);
+        if (cacheIt != modelCache.end()) {
+            // Found in cache
+            cacheHits++;
+            return cacheIt->second;
         }
+
+        // Not in cache, need to load it
+        cacheMisses++;
+
+        std::cout << "Attempting to load model file: " << fullPath << std::endl;
 
         // Create model data
         ModelData modelData;
@@ -73,6 +81,10 @@ std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
             // If we have vertices and indices, mark as loaded
             if (!modelData.vertices.empty() && !modelData.indices.empty()) {
                 modelData.loaded = true;
+
+                // Add to cache before returning
+                modelCache[fullPath] = modelData;
+
                 return modelData;
             }
         } else {
@@ -87,6 +99,43 @@ std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
         std::cerr << "Error loading model " << filename << ": " << e.what() << std::endl;
         return std::nullopt;
     }
+}
+
+std::string ModelLoader::resolveModelPath(const std::string& path) {
+    // Handle Minecraft namespaced paths like "minecraft:block/oak_planks"
+    std::string resolvedPath = path;
+
+    // If path already has full path, return it
+    if (resolvedPath.find("assets/") == 0 && resolvedPath.find(".json") != std::string::npos) {
+        return resolvedPath;
+    }
+
+    // Replace namespace separator
+    size_t colonPos = resolvedPath.find(':');
+    if (colonPos != std::string::npos) {
+        // Extract namespace and the rest of the path
+        std::string namespace_ = resolvedPath.substr(0, colonPos);
+        std::string resourcePath = resolvedPath.substr(colonPos + 1);
+
+        // Format as assets/namespace/models/resourcePath
+        resolvedPath = "assets/" + namespace_ + "/models/" + resourcePath;
+    } else {
+        // If no namespace, assume "minecraft" namespace
+        resolvedPath = "assets/minecraft/models/" + resolvedPath;
+    }
+
+    // Add .json extension if needed
+    if (resolvedPath.find(".json") == std::string::npos) {
+        resolvedPath += ".json";
+    }
+
+    return resolvedPath;
+}
+
+void ModelLoader::clearCache() {
+    modelCache.clear();
+    cacheHits = 0;
+    cacheMisses = 0;
 }
 
 bool ModelLoader::processModelFile(const std::string& filename, ModelData& modelData) {

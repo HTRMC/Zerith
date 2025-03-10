@@ -41,10 +41,23 @@ public:
     ModelLoader() = default;
     ~ModelLoader() = default;
 
-    // Load a model from a BlockBench JSON file
+    // Load a model from a BlockBench JSON file, using cache if available
     std::optional<ModelData> loadModel(const std::string& filename);
 
+    // Clear the model cache
+    void clearCache();
+
+    // Get stats about the model cache
+    size_t getCacheSize() const { return modelCache.size(); }
+    size_t getCacheHits() const { return cacheHits; }
+    size_t getCacheMisses() const { return cacheMisses; }
+
 private:
+    // Model cache
+    std::unordered_map<std::string, ModelData> modelCache;
+    size_t cacheHits = 0;    // For stats
+    size_t cacheMisses = 0;  // For stats
+
     // Process a model file, handling inheritance and texture references
     bool processModelFile(const std::string& filename, ModelData& modelData);
 
@@ -68,4 +81,7 @@ private:
     
     // Parse UV coordinates
     std::vector<glm::vec2> parseUVs(const nlohmann::json& uvJson);
+
+    // Resolves a full file path for a model
+    std::string resolveModelPath(const std::string& path);
 };

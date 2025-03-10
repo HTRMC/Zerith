@@ -111,6 +111,9 @@ public:
     // Get the total number of loaded chunks
     size_t getLoadedChunkCount() const { return chunks.size(); }
 
+    // Preload common block models to improve performance
+    void preloadBlockModels(ModelLoader& modelLoader);
+
 private:
     // Block registry to manage block types and properties
     BlockRegistry blockRegistry;
@@ -133,7 +136,7 @@ private:
 
     // Queue for chunks to load
     std::priority_queue<ChunkLoadRequest> chunkLoadQueue;
-                  
+
     // Set of chunk positions currently in the load queue
     std::unordered_set<glm::ivec3, IVec3Hash, IVec3Equal> queuedChunks;
 

@@ -370,9 +370,9 @@ void ChunkManager::createLayerBuffers(BlockRenderLayer layer, VkDevice device, V
     // Mark layer as clean
     data.dirty = false;
 
-    std::cout << "Created buffers for render layer " << static_cast<int>(layer)
-              << " with " << vertices.size() << " vertices and "
-              << indices.size() << " indices" << std::endl;
+    // std::cout << "Created buffers for render layer " << static_cast<int>(layer)
+    //           << " with " << vertices.size() << " vertices and "
+    //           << indices.size() << " indices" << std::endl;
 }
 
 void ChunkManager::cleanupLayerBuffers(VkDevice device) {
@@ -533,12 +533,14 @@ void ChunkManager::processChunkQueue(ModelLoader& modelLoader) {
 
 void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader) {
     bool anyChunkUpdated = false;
+    size_t meshGenerationCount = 0;
 
     // Update meshes for all chunks that need it
     for (auto& [pos, chunk] : chunks) {
         if (chunk->isAnyMeshDirty()) {
             chunk->generateMesh(blockRegistry, modelLoader);
             anyChunkUpdated = true;
+            meshGenerationCount++;
         }
     }
 
@@ -547,7 +549,35 @@ void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader) {
         for (auto& [layer, data] : layerRenderData) {
             data.dirty = true;
         }
+
+        // Log performance stats
+        if (meshGenerationCount > 0) {
+            // std::cout << "Generated meshes for " << meshGenerationCount
+            //           << " chunks. Model cache: " << modelLoader.getCacheSize()
+            //           << " models, hits: " << modelLoader.getCacheHits()
+            //           << ", misses: " << modelLoader.getCacheMisses() << std::endl;
+        }
     }
+}
+
+void ChunkManager::preloadBlockModels(ModelLoader& modelLoader) {
+    std::cout << "Preloading block models..." << std::endl;
+
+    // Preload models for registered blocks
+    std::vector<std::string> blockModels = {
+        "assets/minecraft/models/block/stone.json",
+        "assets/minecraft/models/block/grass_block.json",
+        "assets/minecraft/models/block/oak_fence_post.json",
+        "assets/minecraft/models/block/cobblestone.json",
+        "assets/minecraft/models/block/green_stained_glass.json"
+    };
+
+    for (const auto& modelPath : blockModels) {
+        modelLoader.loadModel(modelPath);
+    }
+
+    // Cache stats after preloading
+    std::cout << "Preloaded " << modelLoader.getCacheSize() << " block models" << std::endl;
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& position) {

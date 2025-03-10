@@ -2661,6 +2661,9 @@ void VulkanApp::setupChunkSystem() {
     // Set Vulkan resources for buffer creation
     chunkManager.setVulkanResources(device, physicalDevice, commandPool, graphicsQueue);
 
+    // Preload common block models to improve performance
+    chunkManager.preloadBlockModels(modelLoader);
+
     // Initial update based on player position
     updateLoadedChunks();
 

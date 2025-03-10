@@ -318,13 +318,13 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
     }
 
     // Mark all meshes as clean after generation
-    std::cout << "Generated meshes: "
-              << "LAYER_OPAQUE: " << layerMeshes[BlockRenderLayer::LAYER_OPAQUE].vertices.size() << " vertices, "
-              << layerMeshes[BlockRenderLayer::LAYER_OPAQUE].indices.size() << " indices, "
-              << "LAYER_CUTOUT: " << layerMeshes[BlockRenderLayer::LAYER_CUTOUT].vertices.size() << " vertices, "
-              << layerMeshes[BlockRenderLayer::LAYER_CUTOUT].indices.size() << " indices, "
-              << "LAYER_TRANSLUCENT: " << layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT].vertices.size() << " vertices, "
-              << layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT].indices.size() << " indices" << std::endl;
+    // std::cout << "Generated meshes: "
+    //           << "LAYER_OPAQUE: " << layerMeshes[BlockRenderLayer::LAYER_OPAQUE].vertices.size() << " vertices, "
+    //           << layerMeshes[BlockRenderLayer::LAYER_OPAQUE].indices.size() << " indices, "
+    //           << "LAYER_CUTOUT: " << layerMeshes[BlockRenderLayer::LAYER_CUTOUT].vertices.size() << " vertices, "
+    //           << layerMeshes[BlockRenderLayer::LAYER_CUTOUT].indices.size() << " indices, "
+    //           << "LAYER_TRANSLUCENT: " << layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT].vertices.size() << " vertices, "
+    //           << layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT].indices.size() << " indices" << std::endl;
 
     for (auto& [layer, mesh] : layerMeshes) {
         mesh.dirty = false;
