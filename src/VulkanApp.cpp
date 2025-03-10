@@ -774,7 +774,7 @@ void VulkanApp::createCommandBuffers() {
         VkBuffer vertexBuffers[] = {vertexBuffer};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         // Bind descriptor sets
         vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1,
@@ -1347,7 +1347,7 @@ void VulkanApp::createVertexBuffer() {
 // Create index buffer implementation
 void VulkanApp::createIndexBuffer() {
     // Define indices for the cube
-    std::vector<uint16_t> indices = {
+    std::vector<uint32_t> indices = {
         // Front face
         0, 1, 2, 2, 3, 0,
         // Right face
@@ -1611,7 +1611,7 @@ void VulkanApp::createDescriptorSets() {
 
     // Get mesh data from the first chunk if available
     std::vector<Vertex> opaqueVertices;
-    std::vector<uint16_t> opaqueIndices;
+    std::vector<uint32_t> opaqueIndices;
     bool hasChunkMesh = chunkManager.getLayerMeshData(BlockRenderLayer::LAYER_OPAQUE, opaqueVertices, opaqueIndices);
 
     // Set up the texture descriptor based on whether we're using chunks or a single model
@@ -2613,7 +2613,7 @@ void VulkanApp::createMultiLayerCommandBuffers() {
             VkBuffer vertexBuffers[] = {opaqueLayerData.vertexBuffer};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], opaqueLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer(commandBuffers[i], opaqueLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(opaqueLayerData.indices.size()), 1, 0, 0, 0);
         }
@@ -2625,7 +2625,7 @@ void VulkanApp::createMultiLayerCommandBuffers() {
             VkBuffer vertexBuffers[] = {cutoutLayerData.vertexBuffer};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], cutoutLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer(commandBuffers[i], cutoutLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(cutoutLayerData.indices.size()), 1, 0, 0, 0);
         }
@@ -2637,7 +2637,7 @@ void VulkanApp::createMultiLayerCommandBuffers() {
             VkBuffer vertexBuffers[] = {translucentLayerData.vertexBuffer};
             VkDeviceSize offsets[] = {0};
             vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, vertexBuffers, offsets);
-            vkCmdBindIndexBuffer(commandBuffers[i], translucentLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+            vkCmdBindIndexBuffer(commandBuffers[i], translucentLayerData.indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
             vkCmdDrawIndexed(commandBuffers[i], static_cast<uint32_t>(translucentLayerData.indices.size()), 1, 0, 0, 0);
         }

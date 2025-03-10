@@ -111,7 +111,7 @@ void ChunkManager::updateChunkMeshes(ModelLoader& modelLoader) {
     generateChunkMeshes(modelLoader);
 }
 
-bool ChunkManager::getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint16_t>& indices) const {
+bool ChunkManager::getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) const {
     vertices.clear();
     indices.clear();
 
@@ -124,13 +124,13 @@ bool ChunkManager::getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>&
         }
 
         // Get base index for this chunk's vertices
-        uint16_t baseIndex = static_cast<uint16_t>(vertices.size());
+        uint32_t baseIndex = static_cast<uint32_t>(vertices.size());
 
         // Add vertices
         vertices.insert(vertices.end(), layerMesh.vertices.begin(), layerMesh.vertices.end());
 
         // Add indices (adjusted by base index)
-        for (uint16_t index : layerMesh.indices) {
+        for (uint32_t index : layerMesh.indices) {
             indices.push_back(baseIndex + index);
         }
     }
@@ -176,7 +176,7 @@ void ChunkManager::createLayerBuffers(BlockRenderLayer layer, VkDevice device, V
 
     // Collect the mesh data for this layer
     std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
 
     if (!getLayerMeshData(layer, vertices, indices)) {
         // No mesh data for this layer
@@ -272,7 +272,7 @@ void ChunkManager::createLayerBuffers(BlockRenderLayer layer, VkDevice device, V
     vkBindBufferMemory(device, data.vertexBuffer, data.vertexBufferMemory, 0);
 
     // Create index buffer
-    VkDeviceSize indexBufferSize = sizeof(uint16_t) * indices.size();
+    VkDeviceSize indexBufferSize = sizeof(uint32_t) * indices.size();
 
     // Create staging buffer for indices
     bufferInfo.size = indexBufferSize;

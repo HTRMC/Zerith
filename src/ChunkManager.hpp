@@ -17,7 +17,7 @@
 // Structure to hold mesh data for a specific render layer across all chunks
 struct LayerRenderData {
     std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
     VkBuffer vertexBuffer = VK_NULL_HANDLE;
     VkDeviceMemory vertexBufferMemory = VK_NULL_HANDLE;
     VkBuffer indexBuffer = VK_NULL_HANDLE;
@@ -58,7 +58,7 @@ public:
     void updateChunkMeshes(ModelLoader& modelLoader);
     
     // Get mesh data for each render layer
-    bool getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint16_t>& indices) const;
+    bool getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) const;
 
     // Get the complete render data for a layer
     const LayerRenderData& getLayerRenderData(BlockRenderLayer layer) const;

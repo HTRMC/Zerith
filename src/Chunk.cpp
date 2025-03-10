@@ -248,7 +248,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                         }
 
                         // Add indices for the face (typically 6 indices for a quad: two triangles)
-                        std::vector<uint16_t> faceIndices = createFaceIndices(baseIndex);
+                        std::vector<uint32_t> faceIndices = createFaceIndices(baseIndex);
                         for (uint16_t index : faceIndices) {
                             layerMesh.indices.push_back(index);
                         }
@@ -300,7 +300,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                     }
 
                     // Add indices for the face
-                    std::vector<uint16_t> faceIndices = createFaceIndices(baseIndex);
+                    std::vector<uint32_t> faceIndices = createFaceIndices(baseIndex);
                     for (uint16_t index : faceIndices) {
                         translucentMesh.indices.push_back(index);
                     }
@@ -485,7 +485,7 @@ std::vector<Vertex> Chunk::createFaceVertices(
 }
 
 // Helper function to create indices for a face (assumes 4 vertices in clockwise order)
-std::vector<uint16_t> Chunk::createFaceIndices(uint16_t baseIndex) {
+std::vector<uint32_t> Chunk::createFaceIndices(uint32_t baseIndex) {
     return {
         baseIndex, static_cast<unsigned short>(baseIndex + 1), static_cast<unsigned short>(baseIndex + 2),
         static_cast<unsigned short>(baseIndex + 2), static_cast<unsigned short>(baseIndex + 3), baseIndex

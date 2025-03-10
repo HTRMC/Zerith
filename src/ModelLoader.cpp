@@ -407,18 +407,18 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
         Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[2], 0, 0 };
         Vertex frontTopLeft     = { { x_min, y_max, z_max }, faceColor, uvs[3], 0, 0 };
 
-        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        uint32_t base = static_cast<uint32_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontBottomLeft, frontBottomRight, frontTopRight, frontTopLeft
         });
 
         modelData.indices.insert(modelData.indices.end(), {
-            static_cast<uint16_t>(base),
-            static_cast<uint16_t>(base + 1),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base)
+            static_cast<uint32_t>(base),
+            static_cast<uint32_t>(base + 1),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base)
         });
     }
 
@@ -448,19 +448,19 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
         Vertex backTopRight    = { { x_max, y_min, z_max }, faceColor, uvs[2], 0, 0 };
         Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3], 0, 0 };
 
-        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        uint32_t base = static_cast<uint32_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             backBottomLeft, backBottomRight, backTopRight, backTopLeft
         });
 
         // Reverse winding order for proper face orientation:
         modelData.indices.insert(modelData.indices.end(), {
-            static_cast<uint16_t>(base + 1),
-            static_cast<uint16_t>(base),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 1)
+            static_cast<uint32_t>(base + 1),
+            static_cast<uint32_t>(base),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 1)
         });
     }
 
@@ -490,18 +490,18 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
         Vertex backTopRight     = { { x_max, y_min, z_max }, faceColor, uvs[2], 0, 0 };
         Vertex frontTopRight    = { { x_max, y_max, z_max }, faceColor, uvs[3], 0, 0 };
 
-        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        uint32_t base = static_cast<uint32_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontBottomRight, backBottomRight, backTopRight, frontTopRight
         });
 
         modelData.indices.insert(modelData.indices.end(), {
-            static_cast<uint16_t>(base),
-            static_cast<uint16_t>(base + 1),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base)
+            static_cast<uint32_t>(base),
+            static_cast<uint32_t>(base + 1),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base)
         });
     }
 
@@ -531,18 +531,18 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
         Vertex frontTopLeft    = { { x_min, y_max, z_max }, faceColor, uvs[2], 0, 0 };
         Vertex backTopLeft     = { { x_min, y_min, z_max }, faceColor, uvs[3], 0, 0 };
 
-        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        uint32_t base = static_cast<uint32_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             backBottomLeft, frontBottomLeft, frontTopLeft, backTopLeft
         });
 
         modelData.indices.insert(modelData.indices.end(), {
-            static_cast<uint16_t>(base),
-            static_cast<uint16_t>(base + 1),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base)
+            static_cast<uint32_t>(base),
+            static_cast<uint32_t>(base + 1),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base)
         });
     }
 
@@ -572,18 +572,18 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
         Vertex backTopRight  = { { x_max, y_min, z_max }, faceColor, uvs[2], 0, 0 };
         Vertex backTopLeft   = { { x_min, y_min, z_max }, faceColor, uvs[3], 0, 0 };
 
-        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        uint32_t base = static_cast<uint32_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontTopLeft, frontTopRight, backTopRight, backTopLeft
         });
 
         modelData.indices.insert(modelData.indices.end(), {
-            static_cast<uint16_t>(base),
-            static_cast<uint16_t>(base + 1),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base)
+            static_cast<uint32_t>(base),
+            static_cast<uint32_t>(base + 1),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base)
         });
     }
 
@@ -613,18 +613,18 @@ void ModelLoader::createElementGeometry(const Element& element, ModelData& model
         Vertex backBottomLeft   = { { x_min, y_min, z_min }, faceColor, uvs[2], 0, 0 };
         Vertex backBottomRight  = { { x_max, y_min, z_min }, faceColor, uvs[3], 0, 0 };
 
-        uint16_t base = static_cast<uint16_t>(modelData.vertices.size());
+        uint32_t base = static_cast<uint32_t>(modelData.vertices.size());
         modelData.vertices.insert(modelData.vertices.end(), {
             frontBottomRight, frontBottomLeft, backBottomLeft, backBottomRight
         });
 
         modelData.indices.insert(modelData.indices.end(), {
-            static_cast<uint16_t>(base),
-            static_cast<uint16_t>(base + 1),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 2),
-            static_cast<uint16_t>(base + 3),
-            static_cast<uint16_t>(base)
+            static_cast<uint32_t>(base),
+            static_cast<uint32_t>(base + 1),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 2),
+            static_cast<uint32_t>(base + 3),
+            static_cast<uint32_t>(base)
         });
     }
 }

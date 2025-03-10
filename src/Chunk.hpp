@@ -17,7 +17,7 @@ constexpr int CHUNK_VOLUME = CHUNK_SIZE_X * CHUNK_SIZE_Y * CHUNK_SIZE_Z;
 // Structure to hold mesh data for a specific render layer
 struct RenderLayerMesh {
     std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
     bool dirty = true;
 };
 
@@ -89,7 +89,7 @@ private:
         BlockRenderLayer renderLayer);
 
     // Helper function to create indices for a face
-    std::vector<uint16_t> createFaceIndices(uint16_t baseIndex);
+    std::vector<uint32_t> createFaceIndices(uint32_t baseIndex);
 
     // Helper function to get default UVs for a face
     std::vector<glm::vec2> getDefaultUVs(const std::string& faceName);

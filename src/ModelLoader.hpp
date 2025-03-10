@@ -12,7 +12,7 @@
 
 // Model data structures
 struct Face {
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
     glm::vec3 color;
     std::string texture;
     std::vector<glm::vec2> uvs;
@@ -27,7 +27,7 @@ struct Element {
 
 struct ModelData {
     std::vector<Vertex> vertices;
-    std::vector<uint16_t> indices;
+    std::vector<uint32_t> indices;
     bool loaded = false;
     std::string name;
     std::vector<Element> elements;
