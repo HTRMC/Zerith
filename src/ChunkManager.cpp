@@ -55,9 +55,6 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
 
     // Update the last known player chunk position
     lastPlayerChunkPos = playerChunkPos;
-
-    // Update chunk priorities based on new player position
-    updateChunkPriorities(playerChunkPos);
     
     // Identify chunks to load and unload
     for (int x = playerChunkPos.x - chunkLoadRadius; x <= playerChunkPos.x + chunkLoadRadius; x++) {
@@ -65,16 +62,12 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
             for (int z = playerChunkPos.z - chunkLoadRadius; z <= playerChunkPos.z + chunkLoadRadius; z++) {
                 glm::ivec3 checkPos(x, y, z);
 
-                // Check if this chunk is within our spherical radius
-                if (isChunkInRange(checkPos, playerChunkPos, chunkLoadRadius)) {
-                    // If chunk isn't loaded and isn't already queued, add it to load queue
-                    if (chunks.find(checkPos) == chunks.end() &&
-                        queuedChunks.find(checkPos) == queuedChunks.end()) {
+                // If chunk isn't loaded and isn't already queued, add it to load queue
+                if (chunks.find(checkPos) == chunks.end() &&
+                    queuedChunks.find(checkPos) == queuedChunks.end()) {
 
-                        int priority = calculateChunkPriority(checkPos, playerChunkPos);
-                        chunkLoadQueue.push({checkPos, priority});
-                        queuedChunks.insert(checkPos);
-                    }
+                    chunkLoadQueue.push({checkPos});  // No priority needed
+                    queuedChunks.insert(checkPos);
                 }
             }
         }
@@ -83,7 +76,16 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
     // Find chunks to unload (chunks that are too far from player)
     std::vector<glm::ivec3> chunksToUnload;
     for (const auto& [pos, chunk] : chunks) {
-        if (!isChunkInRange(pos, playerChunkPos, chunkLoadRadius + 2)) { // +2 for hysteresis
+        // Check if chunk is outside the cubic loading area
+        bool outsideLoadArea =
+            pos.x < playerChunkPos.x - chunkLoadRadius - 2 ||
+            pos.x > playerChunkPos.x + chunkLoadRadius + 2 ||
+            pos.y < playerChunkPos.y - chunkLoadRadius - 2 ||
+            pos.y > playerChunkPos.y + chunkLoadRadius + 2 ||
+            pos.z < playerChunkPos.z - chunkLoadRadius - 2 ||
+            pos.z > playerChunkPos.z + chunkLoadRadius + 2;
+
+        if (outsideLoadArea) {
             chunksToUnload.push_back(pos);
         }
     }
@@ -460,6 +462,9 @@ void ChunkManager::unloadChunk(const glm::ivec3& position) {
     if (it != chunks.end()) {
         chunks.erase(it);
 
+        // Also remove from queuedChunks set if it's there - THIS LINE IS MISSING
+        queuedChunks.erase(position);
+
         // Mark all render layers as dirty
         for (auto& [layer, data] : layerRenderData) {
             data.dirty = true;
@@ -468,36 +473,6 @@ void ChunkManager::unloadChunk(const glm::ivec3& position) {
         std::cout << "Unloaded chunk at position (" << position.x << ","
                   << position.y << "," << position.z << ")" << std::endl;
     }
-}
-
-void ChunkManager::updateChunkPriorities(const glm::ivec3& playerChunkPos) {
-    // Replace the existing load queue with a new one
-    std::priority_queue<ChunkLoadRequest> newQueue;
-
-    // Update priorities for chunks already in the queue
-    while (!chunkLoadQueue.empty()) {
-        ChunkLoadRequest request = chunkLoadQueue.top();
-        chunkLoadQueue.pop();
-
-        // Calculate new priority
-        request.priority = calculateChunkPriority(request.position, playerChunkPos);
-
-        // Add back to the queue
-        newQueue.push(request);
-    }
-
-    // Swap the queues
-    chunkLoadQueue = std::move(newQueue);
-}
-
-int ChunkManager::calculateChunkPriority(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos) const {
-    // Calculate Manhattan distance to player
-    int distance = std::abs(chunkPos.x - playerChunkPos.x) +
-                   std::abs(chunkPos.y - playerChunkPos.y) +
-                   std::abs(chunkPos.z - playerChunkPos.z);
-
-    // Lower priority values are processed first, so assign distance directly
-    return distance;
 }
 
 bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos, int radius) const {
@@ -518,7 +493,7 @@ void ChunkManager::processChunkQueue(ModelLoader& modelLoader) {
 
     while (!chunkLoadQueue.empty() && processedCount < maxChunksPerFrame) {
         // Get highest priority chunk
-        ChunkLoadRequest request = chunkLoadQueue.top();
+        ChunkLoadRequest request = chunkLoadQueue.front();
         chunkLoadQueue.pop();
 
         // Remove from queued set

@@ -128,14 +128,10 @@ private:
     struct ChunkLoadRequest {
         glm::ivec3 position;
         int priority; // Lower number = higher priority
-
-        bool operator<(const ChunkLoadRequest& other) const {
-            return priority > other.priority; // For priority queue (min heap)
-        }
     };
 
     // Queue for chunks to load
-    std::priority_queue<ChunkLoadRequest> chunkLoadQueue;
+    std::queue<ChunkLoadRequest> chunkLoadQueue;
 
     // Set of chunk positions currently in the load queue
     std::unordered_set<glm::ivec3, IVec3Hash, IVec3Equal> queuedChunks;
@@ -156,8 +152,6 @@ private:
     // Helper methods
     void loadChunk(const glm::ivec3& position);
     void unloadChunk(const glm::ivec3& position);
-    void updateChunkPriorities(const glm::ivec3& playerChunkPos);
-    int calculateChunkPriority(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos) const;
     bool isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos, int radius) const;
     void processChunkQueue(ModelLoader& modelLoader);
     void generateChunkMeshes(ModelLoader& modelLoader);

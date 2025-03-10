@@ -45,45 +45,37 @@ void Chunk::fill(uint16_t blockId) {
 }
 
 void Chunk::generateTestPattern() {
-    // Generate a test pattern with different blocks
+    // Use chunk position to create visually distinct chunks
+    int chunkColorSeed = (chunkPosition.x * 4 + chunkPosition.y * 9 + chunkPosition.z * 7) % 5 + 1;
+    uint16_t primaryBlock = chunkColorSeed; // Use different block type based on chunk position
+
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
             for (int z = 0; z < CHUNK_SIZE_Z; z++) {
-                // Test pattern:
-                // - Stone below half height
-                // - Dirt for a layer above that
-                // - Grass on top of dirt
-                // - Air above
+                // Base terrain with chunk-specific primary block type
                 if (z < 4) {
-                    setBlockAt(x, y, z, 1); // Stone
-                } 
+                    setBlockAt(x, y, z, primaryBlock); // Varies by chunk position
+                }
                 else if (z < 7) {
-                    setBlockAt(x, y, z, 3); // Dirt
+                    setBlockAt(x, y, z, 3); // Dirt stays the same
                 }
                 else if (z == 7) {
-                    setBlockAt(x, y, z, 2); // Grass block
+                    setBlockAt(x, y, z, 2); // Grass stays the same
                 }
                 else {
-                    setBlockAt(x, y, z, 0); // Air
+                    setBlockAt(x, y, z, 0); // Air above
                 }
-                
-                // Create some patterns
-                if ((x + y) % 5 == 0 && z < 10) {
-                    setBlockAt(x, y, z, 5); // Glass
-                }
-                
-                // Small pyramid in the center
-                int centerX = CHUNK_SIZE_X / 2;
-                int centerY = CHUNK_SIZE_Y / 2;
-                int distX = std::abs(x - centerX);
-                int distY = std::abs(y - centerY);
-                if (distX + distY < 5 && z >= 7 && z < 12 - (distX + distY)) {
-                    setBlockAt(x, y, z, 4); // Cobblestone
-                }
+
+                // Add chunk border indicators
+                if ((x == 0 || x == CHUNK_SIZE_X-1 ||
+                     y == 0 || y == CHUNK_SIZE_Y-1) && z < 9) {
+                    setBlockAt(x, y, z, 5); // Glass borders
+                     }
+
             }
         }
     }
-    
+
     // Mark all render layer meshes as dirty
     for (auto& [layer, mesh] : layerMeshes) {
         mesh.dirty = true;
