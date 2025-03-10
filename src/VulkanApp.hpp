@@ -280,6 +280,17 @@ private:
 
     // Chunk management
     ChunkManager chunkManager;
+
+    // Chunk loading configuration
+    int chunkLoadRadius = 4;         // Default chunk load radius
+    float chunkUpdateInterval = 0.5f; // Time between chunk updates in seconds
+    float lastChunkUpdateTime = 0.0f; // Last time chunks were updated
+
+    // Set up the chunk loading system
+    void setupChunkSystem();
+
+    // Update loaded chunks based on camera position
+    void updateLoadedChunks();
 };
 
 // Debug messenger callback function

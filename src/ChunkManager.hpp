@@ -3,6 +3,12 @@
 #include <vector>
 #include <memory>
 #include <glm/glm.hpp>
+#include <unordered_map>
+#include <queue>
+#include <mutex>
+#include <future>
+#include <unordered_set>
+
 #include "Block.hpp"
 #include "ModelLoader.hpp"
 #include "Chunk.hpp"
@@ -19,17 +25,34 @@ struct LayerRenderData {
     bool dirty = true;
 };
 
+// Hash function for glm::ivec3 to use in unordered_map
+struct IVec3Hash {
+    size_t operator()(const glm::ivec3& vec) const {
+        // Simple hash function for ivec3
+        return std::hash<int>()(vec.x) ^
+               (std::hash<int>()(vec.y) << 1) ^
+               (std::hash<int>()(vec.z) << 2);
+    }
+};
+
+// Equality operator for glm::ivec3 to use in unordered_map
+struct IVec3Equal {
+    bool operator()(const glm::ivec3& lhs, const glm::ivec3& rhs) const {
+        return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+    }
+};
+
 // Class to manage chunks and block registry
 class ChunkManager {
 public:
     ChunkManager();
-    ~ChunkManager() = default;
+    ~ChunkManager();
 
     // Initialize the block registry with block types
     void initializeBlockRegistry();
     
-    // Create and manage chunks
-    void createChunks();
+    // Load chunks around the given player position
+    void updateLoadedChunks(const glm::vec3& playerPosition);
     
     // Update chunk meshes that need regeneration
     void updateChunkMeshes(ModelLoader& modelLoader);
@@ -59,16 +82,80 @@ public:
     // Get the block registry
     const BlockRegistry& getBlockRegistry() const { return blockRegistry; }
 
-    // Get chunks vector
-    std::vector<std::unique_ptr<Chunk>>& getChunks() { return chunks; }
+    // Get a specific chunk by position
+    Chunk* getChunk(const glm::ivec3& position);
+
+    // Set device-related resources for buffer creation
+    void setVulkanResources(VkDevice device, VkPhysicalDevice physicalDevice,
+                          VkCommandPool commandPool, VkQueue graphicsQueue);
+
+    // Get block at a specific world position
+    uint16_t getBlockAt(const glm::vec3& worldPos) const;
+
+    // Set block at a specific world position
+    void setBlockAt(const glm::vec3& worldPos, uint16_t blockId);
+
+    // Convert world position to chunk position
+    static glm::ivec3 worldToChunkPos(const glm::vec3& worldPos);
+
+    // Convert world position to local position within a chunk
+    static glm::ivec3 worldToLocalPos(const glm::vec3& worldPos);
+
+    // Configuration
+    void setChunkLoadRadius(int radius) { chunkLoadRadius = radius; }
+    int getChunkLoadRadius() const { return chunkLoadRadius; }
+
+    void setMaxChunksPerFrame(int count) { maxChunksPerFrame = count; }
+    int getMaxChunksPerFrame() const { return maxChunksPerFrame; }
+
+    // Get the total number of loaded chunks
+    size_t getLoadedChunkCount() const { return chunks.size(); }
 
 private:
     // Block registry to manage block types and properties
     BlockRegistry blockRegistry;
     
-    // Container for all chunks
-    std::vector<std::unique_ptr<Chunk>> chunks;
+    // Container for all chunks (mapped by chunk position)
+    std::unordered_map<glm::ivec3, std::unique_ptr<Chunk>, IVec3Hash, IVec3Equal> chunks;
 
     // Render data for each layer
     std::map<BlockRenderLayer, LayerRenderData> layerRenderData;
+
+    // Chunk that needs to be loaded
+    struct ChunkLoadRequest {
+        glm::ivec3 position;
+        int priority; // Lower number = higher priority
+
+        bool operator<(const ChunkLoadRequest& other) const {
+            return priority > other.priority; // For priority queue (min heap)
+        }
+    };
+
+    // Queue for chunks to load
+    std::priority_queue<ChunkLoadRequest> chunkLoadQueue;
+                  
+    // Set of chunk positions currently in the load queue
+    std::unordered_set<glm::ivec3, IVec3Hash, IVec3Equal> queuedChunks;
+
+    // Last known player chunk position
+    glm::ivec3 lastPlayerChunkPos;
+
+    // Configuration
+    int chunkLoadRadius = 8; // How many chunks to load in each direction
+    int maxChunksPerFrame = 2; // Maximum number of chunks to load per frame
+
+    // Vulkan resources for buffer creation
+    VkDevice device = VK_NULL_HANDLE;
+    VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
+    VkCommandPool commandPool = VK_NULL_HANDLE;
+    VkQueue graphicsQueue = VK_NULL_HANDLE;
+
+    // Helper methods
+    void loadChunk(const glm::ivec3& position);
+    void unloadChunk(const glm::ivec3& position);
+    void updateChunkPriorities(const glm::ivec3& playerChunkPos);
+    int calculateChunkPriority(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos) const;
+    bool isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos, int radius) const;
+    void processChunkQueue(ModelLoader& modelLoader);
+    void generateChunkMeshes(ModelLoader& modelLoader);
 };

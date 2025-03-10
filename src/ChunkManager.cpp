@@ -2,6 +2,9 @@
 #include "Chunk.hpp"
 #include "TextureLoader.hpp"
 #include <iostream>
+#include <algorithm>
+#include <cmath>
+#include "VulkanApp.hpp"
 
 ChunkManager::ChunkManager() {
     // Initialize block registry
@@ -11,6 +14,14 @@ ChunkManager::ChunkManager() {
     layerRenderData[BlockRenderLayer::LAYER_OPAQUE] = LayerRenderData{};
     layerRenderData[BlockRenderLayer::LAYER_CUTOUT] = LayerRenderData{};
     layerRenderData[BlockRenderLayer::LAYER_TRANSLUCENT] = LayerRenderData{};
+
+    // Initialize player chunk position to an invalid position
+    lastPlayerChunkPos = glm::ivec3(INT_MAX, INT_MAX, INT_MAX);
+}
+
+ChunkManager::~ChunkManager() {
+    // Clear all loaded chunks
+    chunks.clear();
 }
 
 void ChunkManager::initializeBlockRegistry() {
@@ -25,41 +36,77 @@ void ChunkManager::initializeBlockRegistry() {
     std::cout << "Initialized block registry with 6 block types" << std::endl;
 }
 
-void ChunkManager::createChunks() {
-    // Create a single chunk at (0,0,0) for now
-    auto chunk = std::make_unique<Chunk>(glm::ivec3(0, 0, 0));
-    
-    // Generate a test pattern in the chunk
-    chunk->generateTestPattern();
-    
-    // Add to chunks vector
-    chunks.push_back(std::move(chunk));
-    
-    std::cout << "Created 1 chunk at position (0,0,0)" << std::endl;
-
-    // Mark all layers as dirty
-    for (auto& [layer, data] : layerRenderData) {
-        data.dirty = true;
-    }
+void ChunkManager::setVulkanResources(VkDevice device, VkPhysicalDevice physicalDevice,
+                                    VkCommandPool commandPool, VkQueue graphicsQueue) {
+    this->device = device;
+    this->physicalDevice = physicalDevice;
+    this->commandPool = commandPool;
+    this->graphicsQueue = graphicsQueue;
 }
 
-void ChunkManager::updateChunkMeshes(ModelLoader& modelLoader) {
-    bool anyChunkUpdated = false;
+void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
+    // Convert player position to chunk coordinates
+    glm::ivec3 playerChunkPos = worldToChunkPos(playerPosition);
 
-    // Update meshes for all chunks that need it
-    for (auto& chunk : chunks) {
-        if (chunk->isAnyMeshDirty()) {
-            chunk->generateMesh(blockRegistry, modelLoader);
-            anyChunkUpdated = true;
-        }
+    // If player hasn't moved to a new chunk, just process the queue
+    if (playerChunkPos == lastPlayerChunkPos) {
+        return;
     }
 
-    // If any chunk was updated, mark all layer render data as dirty
-    if (anyChunkUpdated) {
+    // Update the last known player chunk position
+    lastPlayerChunkPos = playerChunkPos;
+
+    // Update chunk priorities based on new player position
+    updateChunkPriorities(playerChunkPos);
+    
+    // Identify chunks to load and unload
+    for (int x = playerChunkPos.x - chunkLoadRadius; x <= playerChunkPos.x + chunkLoadRadius; x++) {
+        for (int y = playerChunkPos.y - chunkLoadRadius; y <= playerChunkPos.y + chunkLoadRadius; y++) {
+            for (int z = playerChunkPos.z - chunkLoadRadius; z <= playerChunkPos.z + chunkLoadRadius; z++) {
+                glm::ivec3 checkPos(x, y, z);
+
+                // Check if this chunk is within our spherical radius
+                if (isChunkInRange(checkPos, playerChunkPos, chunkLoadRadius)) {
+                    // If chunk isn't loaded and isn't already queued, add it to load queue
+                    if (chunks.find(checkPos) == chunks.end() &&
+                        queuedChunks.find(checkPos) == queuedChunks.end()) {
+
+                        int priority = calculateChunkPriority(checkPos, playerChunkPos);
+                        chunkLoadQueue.push({checkPos, priority});
+                        queuedChunks.insert(checkPos);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Find chunks to unload (chunks that are too far from player)
+    std::vector<glm::ivec3> chunksToUnload;
+    for (const auto& [pos, chunk] : chunks) {
+        if (!isChunkInRange(pos, playerChunkPos, chunkLoadRadius + 2)) { // +2 for hysteresis
+            chunksToUnload.push_back(pos);
+        }
+    }
+    
+    // Unload chunks that are too far
+    for (const auto& pos : chunksToUnload) {
+        unloadChunk(pos);
+    }
+
+    // Mark render data as dirty if any chunks were loaded or unloaded
+    if (!chunksToUnload.empty() || !chunkLoadQueue.empty()) {
         for (auto& [layer, data] : layerRenderData) {
             data.dirty = true;
         }
     }
+}
+
+void ChunkManager::updateChunkMeshes(ModelLoader& modelLoader) {
+    // Process the chunk load queue
+    processChunkQueue(modelLoader);
+
+    // Generate meshes for chunks that need it
+    generateChunkMeshes(modelLoader);
 }
 
 bool ChunkManager::getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint16_t>& indices) const {
@@ -67,7 +114,7 @@ bool ChunkManager::getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>&
     indices.clear();
 
     // Collect mesh data from all chunks for the specified layer
-    for (const auto& chunk : chunks) {
+    for (const auto& [pos, chunk] : chunks) {
         const auto& layerMesh = chunk->getRenderLayerMesh(layer);
 
         if (layerMesh.vertices.empty() || layerMesh.indices.empty()) {
@@ -381,4 +428,199 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
     std::cout << "Created texture array for " << texturePaths.size() << " block types" << std::endl;
 
     return textureArrayInfo;
+}
+
+void ChunkManager::loadChunk(const glm::ivec3& position) {
+    // Check if chunk already exists
+    if (chunks.find(position) != chunks.end()) {
+        return;
+    }
+
+    // Create new chunk
+    auto chunk = std::make_unique<Chunk>(position);
+
+    // Initialize chunk data - generate terrain
+    chunk->generateTestPattern();
+
+    // Insert into chunks map
+    chunks[position] = std::move(chunk);
+
+    // Mark all render layers as dirty
+    for (auto& [layer, data] : layerRenderData) {
+        data.dirty = true;
+    }
+
+    std::cout << "Loaded chunk at position (" << position.x << ","
+              << position.y << "," << position.z << ")" << std::endl;
+}
+
+void ChunkManager::unloadChunk(const glm::ivec3& position) {
+    // Remove chunk from map
+    auto it = chunks.find(position);
+    if (it != chunks.end()) {
+        chunks.erase(it);
+
+        // Mark all render layers as dirty
+        for (auto& [layer, data] : layerRenderData) {
+            data.dirty = true;
+        }
+
+        std::cout << "Unloaded chunk at position (" << position.x << ","
+                  << position.y << "," << position.z << ")" << std::endl;
+    }
+}
+
+void ChunkManager::updateChunkPriorities(const glm::ivec3& playerChunkPos) {
+    // Replace the existing load queue with a new one
+    std::priority_queue<ChunkLoadRequest> newQueue;
+
+    // Update priorities for chunks already in the queue
+    while (!chunkLoadQueue.empty()) {
+        ChunkLoadRequest request = chunkLoadQueue.top();
+        chunkLoadQueue.pop();
+
+        // Calculate new priority
+        request.priority = calculateChunkPriority(request.position, playerChunkPos);
+
+        // Add back to the queue
+        newQueue.push(request);
+    }
+
+    // Swap the queues
+    chunkLoadQueue = std::move(newQueue);
+}
+
+int ChunkManager::calculateChunkPriority(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos) const {
+    // Calculate Manhattan distance to player
+    int distance = std::abs(chunkPos.x - playerChunkPos.x) +
+                   std::abs(chunkPos.y - playerChunkPos.y) +
+                   std::abs(chunkPos.z - playerChunkPos.z);
+
+    // Lower priority values are processed first, so assign distance directly
+    return distance;
+}
+
+bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos, int radius) const {
+    // Calculate squared Euclidean distance
+    int dx = chunkPos.x - playerChunkPos.x;
+    int dy = chunkPos.y - playerChunkPos.y;
+    int dz = chunkPos.z - playerChunkPos.z;
+
+    int distanceSquared = dx*dx + dy*dy + dz*dz;
+
+    // Compare to radius squared for efficiency (avoid square root)
+    return distanceSquared <= radius*radius;
+}
+
+void ChunkManager::processChunkQueue(ModelLoader& modelLoader) {
+    // Process a limited number of chunks per frame
+    int processedCount = 0;
+
+    while (!chunkLoadQueue.empty() && processedCount < maxChunksPerFrame) {
+        // Get highest priority chunk
+        ChunkLoadRequest request = chunkLoadQueue.top();
+        chunkLoadQueue.pop();
+
+        // Remove from queued set
+        queuedChunks.erase(request.position);
+
+        // Load the chunk
+        loadChunk(request.position);
+
+        processedCount++;
+    }
+}
+
+void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader) {
+    bool anyChunkUpdated = false;
+
+    // Update meshes for all chunks that need it
+    for (auto& [pos, chunk] : chunks) {
+        if (chunk->isAnyMeshDirty()) {
+            chunk->generateMesh(blockRegistry, modelLoader);
+            anyChunkUpdated = true;
+        }
+    }
+
+    // If any chunk was updated, mark all layer render data as dirty
+    if (anyChunkUpdated) {
+        for (auto& [layer, data] : layerRenderData) {
+            data.dirty = true;
+        }
+    }
+}
+
+Chunk* ChunkManager::getChunk(const glm::ivec3& position) {
+    auto it = chunks.find(position);
+    if (it != chunks.end()) {
+        return it->second.get();
+    }
+    return nullptr;
+}
+
+glm::ivec3 ChunkManager::worldToChunkPos(const glm::vec3& worldPos) {
+    return glm::ivec3(
+        static_cast<int>(std::floor(worldPos.x / CHUNK_SIZE_X)),
+        static_cast<int>(std::floor(worldPos.y / CHUNK_SIZE_Y)),
+        static_cast<int>(std::floor(worldPos.z / CHUNK_SIZE_Z))
+    );
+}
+
+glm::ivec3 ChunkManager::worldToLocalPos(const glm::vec3& worldPos) {
+    return glm::ivec3(
+        static_cast<int>(std::floor(worldPos.x)) % CHUNK_SIZE_X,
+        static_cast<int>(std::floor(worldPos.y)) % CHUNK_SIZE_Y,
+        static_cast<int>(std::floor(worldPos.z)) % CHUNK_SIZE_Z
+    );
+}
+
+uint16_t ChunkManager::getBlockAt(const glm::vec3& worldPos) const {
+    // Convert world position to chunk position
+    glm::ivec3 chunkPos = worldToChunkPos(worldPos);
+
+    // Convert world position to local position within the chunk
+    glm::ivec3 localPos = worldToLocalPos(worldPos);
+
+    // Make sure local coordinates are non-negative
+    if (localPos.x < 0) localPos.x += CHUNK_SIZE_X;
+    if (localPos.y < 0) localPos.y += CHUNK_SIZE_Y;
+    if (localPos.z < 0) localPos.z += CHUNK_SIZE_Z;
+
+    // Find the chunk
+    auto it = chunks.find(chunkPos);
+    if (it != chunks.end()) {
+        // Get block from chunk
+        return it->second->getBlockAt(localPos.x, localPos.y, localPos.z);
+    }
+
+    // If chunk isn't loaded, return air
+    return 0;
+}
+
+void ChunkManager::setBlockAt(const glm::vec3& worldPos, uint16_t blockId) {
+    // Convert world position to chunk position
+    glm::ivec3 chunkPos = worldToChunkPos(worldPos);
+
+    // Convert world position to local position within the chunk
+    glm::ivec3 localPos = worldToLocalPos(worldPos);
+
+    // Make sure local coordinates are non-negative
+    if (localPos.x < 0) localPos.x += CHUNK_SIZE_X;
+    if (localPos.y < 0) localPos.y += CHUNK_SIZE_Y;
+    if (localPos.z < 0) localPos.z += CHUNK_SIZE_Z;
+
+    // Find the chunk
+    auto it = chunks.find(chunkPos);
+    if (it != chunks.end()) {
+        // Set block in chunk
+        it->second->setBlockAt(localPos.x, localPos.y, localPos.z, blockId);
+
+        // Mark layer render data as dirty
+        for (auto& [layer, data] : layerRenderData) {
+            data.dirty = true;
+        }
+    } else {
+        // Chunk isn't loaded, we could queue it for loading or ignore
+        // For now, we'll just ignore blocks set outside loaded chunks
+    }
 }

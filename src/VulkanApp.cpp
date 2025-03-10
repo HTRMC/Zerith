@@ -218,19 +218,8 @@ void VulkanApp::initVulkan() {
     // Initialize the texture loader
     textureLoader.init(device, physicalDevice, commandPool, graphicsQueue);
 
-    // Create chunks
-    chunkManager.createChunks();
-
-    // Update chunk meshes
-    chunkManager.updateChunkMeshes(modelLoader);
-
-    // Create buffers for each render layer
-    for (int i = 0; i < 3; i++) {
-        BlockRenderLayer layer = static_cast<BlockRenderLayer>(i);
-        if (chunkManager.isLayerDirty(layer)) {
-            chunkManager.createLayerBuffers(layer, device, physicalDevice, commandPool, graphicsQueue);
-        }
-    }
+    // Setup chunk system - NEW
+    setupChunkSystem();
 
     createUniformBuffers();
     createDescriptorPool();
@@ -869,6 +858,16 @@ void VulkanApp::drawFrame() {
 
     // Update uniform buffer with latest transformations
     updateUniformBuffer();
+
+    // Calculate the time since the last chunk update
+    float currentTime = static_cast<float>(GetTickCount64()) / 1000.0f;
+    if (currentTime - lastChunkUpdateTime > chunkUpdateInterval) {
+        // Update loaded chunks
+        updateLoadedChunks();
+
+        // Update the last update time
+        lastChunkUpdateTime = currentTime;
+    }
 
     vkResetFences(device, 1, &inFlightFences[currentFrame]);
 
@@ -2647,6 +2646,40 @@ void VulkanApp::createMultiLayerCommandBuffers() {
 
         if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to record command buffer!");
+        }
+    }
+}
+
+// Implementation for setupChunkSystem (add to VulkanApp.cpp)
+void VulkanApp::setupChunkSystem() {
+    // Set chunk load radius
+    chunkManager.setChunkLoadRadius(chunkLoadRadius);
+
+    // Set max chunks to load per frame
+    chunkManager.setMaxChunksPerFrame(2);
+
+    // Set Vulkan resources for buffer creation
+    chunkManager.setVulkanResources(device, physicalDevice, commandPool, graphicsQueue);
+
+    // Initial update based on player position
+    updateLoadedChunks();
+
+    std::cout << "Chunk system initialized with load radius: " << chunkLoadRadius << std::endl;
+}
+
+// Implementation for updateLoadedChunks (add to VulkanApp.cpp)
+void VulkanApp::updateLoadedChunks() {
+    // Update chunks based on camera position
+    chunkManager.updateLoadedChunks(cameraPos);
+
+    // Update chunk meshes
+    chunkManager.updateChunkMeshes(modelLoader);
+
+    // Check if we need to rebuild render buffers
+    for (int i = 0; i < 3; i++) {
+        BlockRenderLayer layer = static_cast<BlockRenderLayer>(i);
+        if (chunkManager.isLayerDirty(layer)) {
+            chunkManager.createLayerBuffers(layer, device, physicalDevice, commandPool, graphicsQueue);
         }
     }
 }
