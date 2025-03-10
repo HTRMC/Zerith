@@ -2678,11 +2678,20 @@ void VulkanApp::updateLoadedChunks() {
     // Update chunk meshes
     chunkManager.updateChunkMeshes(modelLoader);
 
+    bool anyLayerUpdated = false;
+
     // Check if we need to rebuild render buffers
     for (int i = 0; i < 3; i++) {
         BlockRenderLayer layer = static_cast<BlockRenderLayer>(i);
         if (chunkManager.isLayerDirty(layer)) {
             chunkManager.createLayerBuffers(layer, device, physicalDevice, commandPool, graphicsQueue);
+            anyLayerUpdated = true;
         }
+    }
+
+    // If any layer was updated, recreate the command buffers to reference the new data
+    if (anyLayerUpdated) {
+        vkDeviceWaitIdle(device);
+        createMultiLayerCommandBuffers();
     }
 }
