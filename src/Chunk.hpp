@@ -40,7 +40,7 @@ public:
     
     // Generate mesh data for rendering
     void generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader);
-    
+
     // Get chunk position in world coordinates
     glm::ivec3 getPosition() const { return chunkPosition; }
     
@@ -63,8 +63,11 @@ private:
     // Check if coordinates are in bounds
     bool isInBounds(int x, int y, int z) const;
     
-    // Helper function to determine if a face should be rendered
-    bool shouldRenderFace(int x, int y, int z, int dx, int dy, int dz, const BlockRegistry& registry) const;
+    // Check if a block has any visible faces and should be included in the mesh
+    bool isBlockVisible(int x, int y, int z, const BlockRegistry& registry) const;
+
+    // Check if a specific face is occluded by an adjacent block
+    bool isFaceOccluded(uint16_t blockId, uint16_t adjacentBlockId, const BlockRegistry& registry) const;
 
     // Position of this chunk in chunk coordinates
     glm::ivec3 chunkPosition;
@@ -74,6 +77,9 @@ private:
     
     // Mesh data for each render layer
     std::map<BlockRenderLayer, RenderLayerMesh> layerMeshes;
+
+    // Tracking visible blocks for optimization
+    std::vector<bool> visibleBlocks;
 
     // Check if a face should be rendered
     bool shouldRenderFace(int x, int y, int z, const std::string& face, const BlockRegistry& registry) const;

@@ -141,6 +141,10 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
         }
     }
 
+    // Pre-pass: identify which blocks are visible (have at least one face showing)
+    visibleBlocks.clear();
+    visibleBlocks.resize(CHUNK_VOLUME, false);
+
     // For LAYER_TRANSLUCENT blocks, we'll create a list of blocks to sort by distance from camera
     struct TranslucentBlock {
         uint16_t blockId;
@@ -150,42 +154,76 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
     };
     std::vector<TranslucentBlock> translucentBlocks;
 
-    // For each block in the chunk
+    // For each block in the chunk, determine if it's visible
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
             for (int z = 0; z < CHUNK_SIZE_Z; z++) {
                 uint16_t blockId = getBlockAt(x, y, z);
-                
+
                 // Skip air blocks and invalid blocks
                 if (blockId == 0 || !registry.isValidBlock(blockId)) {
                     continue;
                 }
-                
+
                 // Skip blocks without models
                 if (blockModels.find(blockId) == blockModels.end()) {
                     continue;
                 }
 
-                // Determine which faces are visible
-                std::unordered_map<std::string, bool> visibleFaces;
-                visibleFaces["north"] = shouldRenderFace(x, y, z, "north", registry);
-                visibleFaces["south"] = shouldRenderFace(x, y, z, "south", registry);
-                visibleFaces["east"] = shouldRenderFace(x, y, z, "east", registry);
-                visibleFaces["west"] = shouldRenderFace(x, y, z, "west", registry);
-                visibleFaces["up"] = shouldRenderFace(x, y, z, "up", registry);
-                visibleFaces["down"] = shouldRenderFace(x, y, z, "down", registry);
+                // Check if block is visible (has at least one face that should be rendered)
+                if (isBlockVisible(x, y, z, registry)) {
+                    visibleBlocks[coordsToIndex(x, y, z)] = true;
+
+                    // Get the render layer for this block
+                    BlockRenderLayer renderLayer = registry.getBlockRenderLayer(blockId);
+
+                    // For LAYER_TRANSLUCENT blocks, store them for later processing
+                    if (renderLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
+                        glm::vec3 blockPosition = glm::vec3(
+                            chunkPosition.x * CHUNK_SIZE_X + x,
+                            chunkPosition.y * CHUNK_SIZE_Y + y,
+                            chunkPosition.z * CHUNK_SIZE_Z + z
+                        );
+
+                        // Determine which faces are visible
+                        std::unordered_map<std::string, bool> visibleFaces;
+                        visibleFaces["north"] = shouldRenderFace(x, y, z, "north", registry);
+                        visibleFaces["south"] = shouldRenderFace(x, y, z, "south", registry);
+                        visibleFaces["east"] = shouldRenderFace(x, y, z, "east", registry);
+                        visibleFaces["west"] = shouldRenderFace(x, y, z, "west", registry);
+                        visibleFaces["up"] = shouldRenderFace(x, y, z, "up", registry);
+                        visibleFaces["down"] = shouldRenderFace(x, y, z, "down", registry);
+
+                        translucentBlocks.push_back({blockId, blockPosition, &blockModels[blockId], visibleFaces});
+                    }
+                }
+            }
+        }
+    }
+
+    // For each visible block in the chunk (that's not translucent)
+    for (int x = 0; x < CHUNK_SIZE_X; x++) {
+        for (int y = 0; y < CHUNK_SIZE_Y; y++) {
+            for (int z = 0; z < CHUNK_SIZE_Z; z++) {
+                int index = coordsToIndex(x, y, z);
+
+                // Skip if block is not visible
+                if (!visibleBlocks[index]) {
+                    continue;
+                }
+
+                uint16_t blockId = blocks[index];
+
+                // Skip air blocks, invalid blocks, and blocks without models
+                if (blockId == 0 || !registry.isValidBlock(blockId) || blockModels.find(blockId) == blockModels.end()) {
+                    continue;
+                }
 
                 // Get the render layer for this block
                 BlockRenderLayer renderLayer = registry.getBlockRenderLayer(blockId);
 
-                // For LAYER_TRANSLUCENT blocks, store them for later processing
+                // Skip translucent blocks - they're handled separately
                 if (renderLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
-                    glm::vec3 blockPosition = glm::vec3(
-                        chunkPosition.x * CHUNK_SIZE_X + x,
-                        chunkPosition.y * CHUNK_SIZE_Y + y,
-                        chunkPosition.z * CHUNK_SIZE_Z + z
-                    );
-                    translucentBlocks.push_back({blockId, blockPosition, &blockModels[blockId], visibleFaces});
                     continue;
                 }
 
@@ -201,7 +239,16 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
 
                 // Get the model data for this block
                 const ModelData& modelData = blockModels[blockId];
-                
+
+                // Determine which faces are visible
+                std::unordered_map<std::string, bool> visibleFaces;
+                visibleFaces["north"] = shouldRenderFace(x, y, z, "north", registry);
+                visibleFaces["south"] = shouldRenderFace(x, y, z, "south", registry);
+                visibleFaces["east"] = shouldRenderFace(x, y, z, "east", registry);
+                visibleFaces["west"] = shouldRenderFace(x, y, z, "west", registry);
+                visibleFaces["up"] = shouldRenderFace(x, y, z, "up", registry);
+                visibleFaces["down"] = shouldRenderFace(x, y, z, "down", registry);
+
                 // Process each element in the model
                 for (const Element& element : modelData.elements) {
                     // Process each face in the element - only if it should be rendered
@@ -293,17 +340,112 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
     }
 
     // Mark all meshes as clean after generation
-    // std::cout << "Generated meshes: "
-    //           << "LAYER_OPAQUE: " << layerMeshes[BlockRenderLayer::LAYER_OPAQUE].vertices.size() << " vertices, "
-    //           << layerMeshes[BlockRenderLayer::LAYER_OPAQUE].indices.size() << " indices, "
-    //           << "LAYER_CUTOUT: " << layerMeshes[BlockRenderLayer::LAYER_CUTOUT].vertices.size() << " vertices, "
-    //           << layerMeshes[BlockRenderLayer::LAYER_CUTOUT].indices.size() << " indices, "
-    //           << "LAYER_TRANSLUCENT: " << layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT].vertices.size() << " vertices, "
-    //           << layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT].indices.size() << " indices" << std::endl;
-
     for (auto& [layer, mesh] : layerMeshes) {
         mesh.dirty = false;
     }
+}
+
+// Implementation of the isBlockVisible method
+bool Chunk::isBlockVisible(int x, int y, int z, const BlockRegistry& registry) const {
+    uint16_t blockId = getBlockAt(x, y, z);
+
+    // Air blocks are not visible
+    if (blockId == 0) {
+        return false;
+    }
+
+    // Get the block's render layer
+    BlockRenderLayer blockLayer = registry.getBlockRenderLayer(blockId);
+
+    // Translucent and cutout blocks are always considered visible
+    // since they may need special rendering even when surrounded
+    if (blockLayer == BlockRenderLayer::LAYER_TRANSLUCENT ||
+        blockLayer == BlockRenderLayer::LAYER_CUTOUT) {
+        return true;
+    }
+
+    // Check the six adjacent blocks
+    // If any adjacent face is not occluded, the block is visible
+
+    // North face (-Y)
+    uint16_t northId = getBlockAt(x, y - 1, z);
+    if (!isFaceOccluded(blockId, northId, registry)) {
+        return true;
+    }
+
+    // South face (+Y)
+    uint16_t southId = getBlockAt(x, y + 1, z);
+    if (!isFaceOccluded(blockId, southId, registry)) {
+        return true;
+    }
+
+    // East face (+X)
+    uint16_t eastId = getBlockAt(x + 1, y, z);
+    if (!isFaceOccluded(blockId, eastId, registry)) {
+        return true;
+    }
+
+    // West face (-X)
+    uint16_t westId = getBlockAt(x - 1, y, z);
+    if (!isFaceOccluded(blockId, westId, registry)) {
+        return true;
+    }
+
+    // Up face (+Z)
+    uint16_t upId = getBlockAt(x, y, z + 1);
+    if (!isFaceOccluded(blockId, upId, registry)) {
+        return true;
+    }
+
+    // Down face (-Z)
+    uint16_t downId = getBlockAt(x, y, z - 1);
+    if (!isFaceOccluded(blockId, downId, registry)) {
+        return true;
+    }
+
+    // If all faces are occluded, the block is not visible
+    return false;
+}
+
+// Implementation of the isFaceOccluded method
+bool Chunk::isFaceOccluded(uint16_t blockId, uint16_t adjacentBlockId, const BlockRegistry& registry) const {
+    // If adjacent block is air, the face is not occluded
+    if (adjacentBlockId == 0) {
+        return false;
+    }
+
+    // Get render layers for both blocks
+    BlockRenderLayer blockLayer = registry.getBlockRenderLayer(blockId);
+    BlockRenderLayer adjacentLayer = registry.getBlockRenderLayer(adjacentBlockId);
+
+    // Rule 1: Opaque blocks occlude faces of other opaque blocks
+    if (blockLayer == BlockRenderLayer::LAYER_OPAQUE &&
+        adjacentLayer == BlockRenderLayer::LAYER_OPAQUE) {
+        return true;
+    }
+
+    // Rule 2: Translucent blocks don't occlude faces of other translucent blocks
+    if (blockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
+        adjacentLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
+        return false;
+    }
+
+    // Rule 3: Opaque blocks occlude faces of translucent blocks
+    if (blockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
+        adjacentLayer == BlockRenderLayer::LAYER_OPAQUE) {
+        return true;
+    }
+
+    // Rule 4: For cutout blocks, it depends on their geometry
+    // (but we'll assume non-full block faces are not occluded for simplicity)
+    if (blockLayer == BlockRenderLayer::LAYER_CUTOUT ||
+        adjacentLayer == BlockRenderLayer::LAYER_CUTOUT) {
+        // For simplicity, we'll assume cutout blocks don't fully occlude
+        return false;
+    }
+
+    // Default - if any other case, face is not occluded
+    return false;
 }
 
 bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const BlockRegistry& registry) const {
