@@ -2684,6 +2684,7 @@ void VulkanApp::updateLoadedChunks() {
     for (int i = 0; i < 3; i++) {
         BlockRenderLayer layer = static_cast<BlockRenderLayer>(i);
         if (chunkManager.isLayerDirty(layer)) {
+            vkDeviceWaitIdle(device);
             chunkManager.createLayerBuffers(layer, device, physicalDevice, commandPool, graphicsQueue);
             anyLayerUpdated = true;
         }

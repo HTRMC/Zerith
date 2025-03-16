@@ -174,6 +174,9 @@ void ChunkManager::createLayerBuffers(BlockRenderLayer layer, VkDevice device, V
                                      VkCommandPool commandPool, VkQueue graphicsQueue) {
     auto& data = layerRenderData[layer];
 
+    // Make sure device is idle before destroying old buffers
+    vkDeviceWaitIdle(device);
+
     // Clean up previous buffers if they exist
     if (data.vertexBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(device, data.vertexBuffer, nullptr);
