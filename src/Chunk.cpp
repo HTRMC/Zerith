@@ -45,33 +45,16 @@ void Chunk::fill(uint16_t blockId) {
 }
 
 void Chunk::generateTestPattern() {
-    // Use chunk position to create visually distinct chunks
-    int chunkColorSeed = (chunkPosition.x * 4 + chunkPosition.y * 9 + chunkPosition.z * 7) % 5 + 1;
-    uint16_t primaryBlock = chunkColorSeed; // Use different block type based on chunk position
-
+    // Fill the chunk with stone blocks (ID 1) up to vertical block world coordinate 62
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
             for (int z = 0; z < CHUNK_SIZE_Z; z++) {
-                // Base terrain with chunk-specific primary block type
-                if (z < 4) {
-                    setBlockAt(x, y, z, primaryBlock); // Varies by chunk position
+                // Set blocks to stone (ID 1) if below or at vertical block world coordinate 62
+                if (chunkPosition.z * CHUNK_SIZE_Z + z <= 18) {
+                    setBlockAt(x, y, z, 1); // 1 is the ID for stone
+                } else {
+                    setBlockAt(x, y, z, 0); // 0 is the ID for air
                 }
-                else if (z < 7) {
-                    setBlockAt(x, y, z, 3); // Dirt stays the same
-                }
-                else if (z == 7) {
-                    setBlockAt(x, y, z, 2); // Grass stays the same
-                }
-                else {
-                    setBlockAt(x, y, z, 0); // Air above
-                }
-
-                // Add chunk border indicators
-                if ((x == 0 || x == CHUNK_SIZE_X-1 ||
-                     y == 0 || y == CHUNK_SIZE_Y-1) && z < 9) {
-                    setBlockAt(x, y, z, 5); // Glass borders
-                     }
-
             }
         }
     }

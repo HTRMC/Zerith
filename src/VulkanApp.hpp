@@ -282,7 +282,7 @@ private:
     ChunkManager chunkManager;
 
     // Chunk loading configuration
-    int chunkLoadRadius = 4;         // Default chunk load radius
+    int chunkLoadRadius = 2;         // Default chunk load radius
     float chunkUpdateInterval = 0.5f; // Time between chunk updates in seconds
     float lastChunkUpdateTime = 0.0f; // Last time chunks were updated
 

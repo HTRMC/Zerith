@@ -174,6 +174,27 @@ void ChunkManager::createLayerBuffers(BlockRenderLayer layer, VkDevice device, V
                                      VkCommandPool commandPool, VkQueue graphicsQueue) {
     auto& data = layerRenderData[layer];
 
+    // Clean up previous buffers if they exist
+    if (data.vertexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, data.vertexBuffer, nullptr);
+        data.vertexBuffer = VK_NULL_HANDLE;
+    }
+
+    if (data.vertexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, data.vertexBufferMemory, nullptr);
+        data.vertexBufferMemory = VK_NULL_HANDLE;
+    }
+
+    if (data.indexBuffer != VK_NULL_HANDLE) {
+        vkDestroyBuffer(device, data.indexBuffer, nullptr);
+        data.indexBuffer = VK_NULL_HANDLE;
+    }
+
+    if (data.indexBufferMemory != VK_NULL_HANDLE) {
+        vkFreeMemory(device, data.indexBufferMemory, nullptr);
+        data.indexBufferMemory = VK_NULL_HANDLE;
+    }
+
     // Collect the mesh data for this layer
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
