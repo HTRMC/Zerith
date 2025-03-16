@@ -631,8 +631,9 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
     vkBindImageMemory(device, textureArray.image, textureArray.memory, 0);
 
     // Transition the image layout for copy operations
-    transitionImageLayout(textureArray.image, VK_FORMAT_R8G8B8A8_SRGB,
-                         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    transitionLayeredImageLayout(textureArray.image, VK_FORMAT_R8G8B8A8_SRGB,
+                               VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               static_cast<uint32_t>(filenames.size()));
 
     // Copy data from each loaded texture to the texture array
     for (size_t i = 0; i < loadedTextures.size(); i++) {
@@ -695,8 +696,9 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
     }
 
     // Transition layout for shader access
-    transitionImageLayout(textureArray.image, VK_FORMAT_R8G8B8A8_SRGB,
-                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    transitionLayeredImageLayout(textureArray.image, VK_FORMAT_R8G8B8A8_SRGB,
+                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                              static_cast<uint32_t>(filenames.size()));
 
     // Create image view for the texture array
     VkImageViewCreateInfo viewInfo{};
@@ -760,6 +762,57 @@ void TextureLoader::copyBufferToImageArray(VkBuffer buffer, VkImage image, uint3
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         1,
         &region
+    );
+
+    endSingleTimeCommands(commandBuffer);
+}
+
+void TextureLoader::transitionLayeredImageLayout(VkImage image, VkFormat format,
+                                             VkImageLayout oldLayout, VkImageLayout newLayout,
+                                             uint32_t layerCount) {
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+
+    VkImageMemoryBarrier barrier{};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = layerCount;
+
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+        newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+               newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    } else {
+        throw std::runtime_error("Unsupported layout transition!");
+    }
+
+    vkCmdPipelineBarrier(
+        commandBuffer,
+        sourceStage, destinationStage,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier
     );
 
     endSingleTimeCommands(commandBuffer);
