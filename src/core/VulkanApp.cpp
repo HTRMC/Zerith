@@ -13,7 +13,7 @@
 #include <chrono>
 #include <cstring>
 
-#include "Chunk.hpp"
+#include "../world/Chunk.hpp"
 
 VulkanApp *VulkanApp::appInstance = nullptr;
 

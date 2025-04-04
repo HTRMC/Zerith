@@ -16,10 +16,10 @@ find_package(nlohmann_json REQUIRED)
 find_package(Stb REQUIRED)
 
 # Source files
-file(GLOB SOURCES src/*.cpp)
+file(GLOB_RECURSE SOURCES src/*.cpp)
 
 # Header files
-file(GLOB HEADERS src/*.hpp)
+file(GLOB_RECURSE HEADERS src/*.hpp)
 
 # Add executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})

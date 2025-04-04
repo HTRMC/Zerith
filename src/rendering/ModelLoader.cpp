@@ -1,5 +1,5 @@
 #include "ModelLoader.hpp"
-#include "VulkanApp.hpp"
+#include "../core/VulkanApp.hpp"
 #include <iostream>
 #include <fstream>
 #include <glm/glm.hpp>

@@ -1,10 +1,9 @@
 #include "ChunkManager.hpp"
 #include "Chunk.hpp"
-#include "TextureLoader.hpp"
 #include <iostream>
 #include <algorithm>
 #include <cmath>
-#include "VulkanApp.hpp"
+#include "../core/VulkanApp.hpp"
 
 ChunkManager::ChunkManager() {
     // Initialize block registry

@@ -10,9 +10,9 @@
 #include <unordered_set>
 
 #include "Block.hpp"
-#include "ModelLoader.hpp"
+#include "../rendering/ModelLoader.hpp"
+#include "../rendering/TextureLoader.hpp"
 #include "Chunk.hpp"
-#include "TextureLoader.hpp"
 
 // Structure to hold mesh data for a specific render layer across all chunks
 struct LayerRenderData {
