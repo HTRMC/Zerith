@@ -24,8 +24,9 @@ file(GLOB_RECURSE HEADERS src/*.hpp)
 # Add executable
 add_executable(${PROJECT_NAME} ${SOURCES} ${HEADERS})
 
-# Include directories
+# Set the src directory as the project's include directory
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
     ${Vulkan_INCLUDE_DIRS}
     ${Stb_INCLUDE_DIR}
 )

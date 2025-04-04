@@ -4,9 +4,9 @@
 #include <vector>
 #include <map>
 #include <glm/glm.hpp>
-#include "../rendering/ModelLoader.hpp"
+#include "rendering/ModelLoader.hpp"
 #include "Block.hpp"
-#include "../rendering/Vertex.hpp"
+#include "rendering/Vertex.hpp"
 
 // Constants for chunk dimensions
 constexpr int CHUNK_SIZE_X = 16;

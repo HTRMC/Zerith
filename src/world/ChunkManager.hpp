@@ -10,8 +10,8 @@
 #include <unordered_set>
 
 #include "Block.hpp"
-#include "../rendering/ModelLoader.hpp"
-#include "../rendering/TextureLoader.hpp"
+#include "rendering/ModelLoader.hpp"
+#include "rendering/TextureLoader.hpp"
 #include "Chunk.hpp"
 
 // Structure to hold mesh data for a specific render layer across all chunks

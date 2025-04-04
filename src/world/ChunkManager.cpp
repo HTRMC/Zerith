@@ -3,7 +3,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
-#include "../core/VulkanApp.hpp"
+#include "core/VulkanApp.hpp"
 
 ChunkManager::ChunkManager() {
     // Initialize block registry

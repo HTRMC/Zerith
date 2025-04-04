@@ -11,10 +11,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <Xinput.h>
 
-#include "../rendering/Vertex.hpp"
-#include "../rendering/ModelLoader.hpp"
-#include "../rendering/TextureLoader.hpp"
-#include "../world/ChunkManager.hpp"
+#include "rendering/Vertex.hpp"
+#include "rendering/ModelLoader.hpp"
+#include "rendering/TextureLoader.hpp"
+#include "world/ChunkManager.hpp"
 
 // Window dimensions
 const uint32_t WIDTH = 800;

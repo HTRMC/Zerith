@@ -2,7 +2,7 @@
 #include <iostream>
 #include <unordered_set>
 #include <algorithm>
-#include "../core/VulkanApp.hpp"
+#include "core/VulkanApp.hpp"
 
 Chunk::Chunk(const glm::ivec3& position) : chunkPosition(position) {
     // Initialize all blocks to air (0)
