@@ -1,6 +1,6 @@
 #pragma once
 
-#define NOMINMAX // Prevent Windows.h from defining min/max macros
+#define NOMINMAX
 #define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 #include <vector>

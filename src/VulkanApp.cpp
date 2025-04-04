@@ -1,6 +1,6 @@
 #include "VulkanApp.hpp"
 
-#include <Windows.h>
+#include "windows_wrapper.hpp"
 #include <windowsx.h>
 #include <iostream>
 #include <stdexcept>
