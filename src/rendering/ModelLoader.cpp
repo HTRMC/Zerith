@@ -5,6 +5,8 @@
 #include <glm/glm.hpp>
 #include <filesystem>
 
+#include "Logger.hpp"
+
 namespace fs = std::filesystem;
 
 // Helper function to read a file into a string
@@ -57,7 +59,7 @@ std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
         // Not in cache, need to load it
         cacheMisses++;
 
-        std::cout << "Attempting to load model file: " << fullPath << std::endl;
+        LOG_DEBUG("Attempting to load model file: %s", fullPath.c_str());
 
         // Create model data
         ModelData modelData;
@@ -65,7 +67,7 @@ std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
 
         // Process the model file and its inherited properties
         if (!processModelFile(fullPath, modelData)) {
-            std::cerr << "Failed to process model file: " << fullPath << std::endl;
+            LOG_ERROR("Failed to load model file: %s", fullPath.c_str());
             return std::nullopt;
         }
 
@@ -88,15 +90,16 @@ std::optional<ModelData> ModelLoader::loadModel(const std::string& filename) {
                 return modelData;
             }
         } else {
-            std::cerr << "Model file does not contain elements array" << std::endl;
+            LOG_ERROR("Model file does not contain elements array");
             return std::nullopt;
         }
 
-        std::cerr << "Failed to generate geometry for model: " << filename << std::endl;
+        LOG_ERROR("Failed to generate geometry for model: %s", fullPath.c_str());
         return std::nullopt;
     }
     catch (const std::exception& e) {
-        std::cerr << "Error loading model " << filename << ": " << e.what() << std::endl;
+
+        LOG_ERROR("Error loading model %s: %s", filename.c_str(), e.what());
         return std::nullopt;
     }
 }
@@ -142,17 +145,17 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
     // Read the file
     std::string jsonContent;
     try {
-        std::cout << "Attempting to load model file: " << filename << std::endl;
+        LOG_INFO("Processing model file: %s", filename.c_str());
 
         // Check if file exists
         if (!fs::exists(filename)) {
-            std::cerr << "Model file does not exist: " << filename << std::endl;
+            LOG_ERROR("Model file does not exist: %s", filename.c_str());
             return false;
         }
 
         jsonContent = readFileToString(filename);
     } catch (const std::exception& e) {
-        std::cerr << "Failed to read model file " << filename << ": " << e.what() << std::endl;
+        LOG_ERROR("Failed to read model file %s: %s", filename.c_str(), e.what());
         return false;
     }
 
@@ -161,7 +164,7 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
     try {
         modelJson = nlohmann::json::parse(jsonContent);
     } catch (const std::exception& e) {
-        std::cerr << "Failed to parse JSON from " << filename << ": " << e.what() << std::endl;
+        LOG_ERROR("Failed to parse JSON from %s: %s", filename.c_str(), e.what());
         return false;
     }
 
@@ -170,12 +173,12 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
         std::string parentPath = modelJson["parent"].get<std::string>();
         std::string fullParentPath = resolveResourcePath(parentPath) + ".json";
 
-        std::cout << "Loading parent model: " << parentPath << " -> " << fullParentPath << std::endl;
+        LOG_DEBUG("Loading parent model: %s -> %s", parentPath.c_str(), fullParentPath.c_str());
 
         // Try to load the parent model first
         ModelData parentModelData;
         if (!processModelFile(fullParentPath, parentModelData)) {
-            std::cerr << "Failed to load parent model: " << fullParentPath << std::endl;
+            LOG_ERROR("Failed to load parent model: %s", fullParentPath.c_str());
             return false;
         }
 
@@ -210,7 +213,7 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
                     // This is a reference to another texture defined in this model
                     // Store the reference to be resolved later
                     modelData.textureReferences[key] = texturePath.substr(1);  // Remove the '#'
-                    std::cout << "Texture reference: " << key << " -> #" << texturePath.substr(1) << std::endl;
+                    LOG_DEBUG("Texture reference: %s -> #%s", key.c_str(), texturePath.substr(1).c_str());
                 } else {
                     // This is a direct texture path
                     std::string namespace_ = "minecraft"; // Default namespace
@@ -226,7 +229,7 @@ bool ModelLoader::processModelFile(const std::string& filename, ModelData& model
                     // Format as assets/namespace/textures/path.png
                     std::string fullTexturePath = "assets/" + namespace_ + "/textures/" + texPath + ".png";
                     modelData.textureMap[key] = fullTexturePath;
-                    std::cout << "Texture mapping: " << key << " -> " << fullTexturePath << std::endl;
+                    LOG_DEBUG("Texture mapping: %s -> %s", key.c_str(), fullTexturePath.c_str());
                 }
             }
         }
@@ -312,7 +315,7 @@ bool ModelLoader::resolveTextureReference(const std::string& key, const std::str
     // Check if the reference points to a direct texture path
     if (modelData.textureMap.find(refName) != modelData.textureMap.end()) {
         modelData.textureMap[key] = modelData.textureMap[refName];
-        std::cout << "Resolved texture reference: " << key << " -> " << modelData.textureMap[key] << std::endl;
+        LOG_DEBUG("Resolved texture reference: %s -> %s", key.c_str(), modelData.textureMap[key].c_str());
         return true;
     }
 
@@ -321,7 +324,7 @@ bool ModelLoader::resolveTextureReference(const std::string& key, const std::str
         std::string nextRef = modelData.textureReferences[refName];
         // Prevent infinite recursion
         if (nextRef == refName) {
-            std::cerr << "Circular texture reference detected: " << key << " -> #" << refName << std::endl;
+            LOG_ERROR("Circular texture reference detected: %s -> #%s", key.c_str(), refName.c_str());
             return false;
         }
         // Resolve the nested reference
@@ -331,7 +334,7 @@ bool ModelLoader::resolveTextureReference(const std::string& key, const std::str
         }
     }
 
-    std::cerr << "Could not resolve texture reference: " << key << " -> #" << refName << std::endl;
+    LOG_ERROR("Could not resolve texture reference: %s -> #%s", key.c_str(), refName.c_str());
     return false;
 }
 

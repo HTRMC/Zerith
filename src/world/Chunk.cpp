@@ -2,9 +2,11 @@
 #include <iostream>
 #include <unordered_set>
 #include <algorithm>
+
+#include "Logger.hpp"
 #include "core/VulkanApp.hpp"
 
-Chunk::Chunk(const glm::ivec3& position) : chunkPosition(position) {
+Chunk::Chunk(const glm::ivec3 &position) : chunkPosition(position) {
     // Initialize all blocks to air (0)
     blocks.fill(0);
 
@@ -18,7 +20,7 @@ uint16_t Chunk::getBlockAt(int x, int y, int z) const {
     if (!isInBounds(x, y, z)) {
         return 0; // Air outside bounds
     }
-    
+
     return blocks[coordsToIndex(x, y, z)];
 }
 
@@ -26,11 +28,11 @@ void Chunk::setBlockAt(int x, int y, int z, uint16_t blockId) {
     if (!isInBounds(x, y, z)) {
         return;
     }
-    
+
     blocks[coordsToIndex(x, y, z)] = blockId;
 
     // Mark all render layer meshes as dirty
-    for (auto& [layer, mesh] : layerMeshes) {
+    for (auto &[layer, mesh]: layerMeshes) {
         mesh.dirty = true;
     }
 }
@@ -39,7 +41,7 @@ void Chunk::fill(uint16_t blockId) {
     blocks.fill(blockId);
 
     // Mark all render layer meshes as dirty
-    for (auto& [layer, mesh] : layerMeshes) {
+    for (auto &[layer, mesh]: layerMeshes) {
         mesh.dirty = true;
     }
 }
@@ -60,7 +62,7 @@ void Chunk::generateTestPattern() {
     }
 
     // Mark all render layer meshes as dirty
-    for (auto& [layer, mesh] : layerMeshes) {
+    for (auto &[layer, mesh]: layerMeshes) {
         mesh.dirty = true;
     }
 }
@@ -75,7 +77,7 @@ bool Chunk::isInBounds(int x, int y, int z) const {
            z >= 0 && z < CHUNK_SIZE_Z;
 }
 
-const RenderLayerMesh& Chunk::getRenderLayerMesh(BlockRenderLayer layer) const {
+const RenderLayerMesh &Chunk::getRenderLayerMesh(BlockRenderLayer layer) const {
     auto it = layerMeshes.find(layer);
     if (it != layerMeshes.end()) {
         return it->second;
@@ -95,7 +97,7 @@ bool Chunk::isMeshDirty(BlockRenderLayer layer) const {
 }
 
 bool Chunk::isAnyMeshDirty() const {
-    for (const auto& [layer, mesh] : layerMeshes) {
+    for (const auto &[layer, mesh]: layerMeshes) {
         if (mesh.dirty) {
             return true;
         }
@@ -110,34 +112,35 @@ void Chunk::markMeshClean(BlockRenderLayer layer) {
     }
 }
 
-void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader) {
+void Chunk::generateMesh(const BlockRegistry &registry, ModelLoader &modelLoader) {
     // Clear previous mesh data for all layers
-    for (auto& [layer, mesh] : layerMeshes) {
+    for (auto &[layer, mesh]: layerMeshes) {
         mesh.vertices.clear();
         mesh.indices.clear();
     }
-    
+
     // Load all necessary block models
     std::unordered_map<uint16_t, ModelData> blockModels;
-    
+
     // First, identify all unique block types in the chunk and load their models
     std::unordered_set<uint16_t> uniqueBlocks;
-    for (uint16_t blockId : blocks) {
-        if (blockId != 0 && registry.isValidBlock(blockId)) { // Skip air blocks (0)
+    for (uint16_t blockId: blocks) {
+        if (blockId != 0 && registry.isValidBlock(blockId)) {
+            // Skip air blocks (0)
             uniqueBlocks.insert(blockId);
         }
     }
-    
+
     // Load models for each unique block type
-    for (uint16_t blockId : uniqueBlocks) {
+    for (uint16_t blockId: uniqueBlocks) {
         std::string modelPath = registry.getModelPath(blockId);
         auto modelOpt = modelLoader.loadModel(modelPath);
-        
+
         if (modelOpt.has_value()) {
             blockModels[blockId] = modelOpt.value();
         } else {
-            std::cerr << "Failed to load model for block " << blockId << " (" 
-                      << registry.getBlockName(blockId) << ") at " << modelPath << std::endl;
+            LOG_ERROR("Failed to load model for block %d (%s) at %s", blockId, registry.getBlockName(blockId).c_str(),
+                      modelPath.c_str());
         }
     }
 
@@ -149,7 +152,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
     struct TranslucentBlock {
         uint16_t blockId;
         glm::vec3 position;
-        ModelData* model;
+        ModelData *model;
         std::unordered_map<std::string, bool> visibleFaces;
     };
     std::vector<TranslucentBlock> translucentBlocks;
@@ -228,7 +231,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                 }
 
                 // Get the appropriate mesh for this block's render layer
-                RenderLayerMesh& layerMesh = layerMeshes[renderLayer];
+                RenderLayerMesh &layerMesh = layerMeshes[renderLayer];
 
                 // Calculate block position in world space
                 glm::vec3 blockPosition = glm::vec3(
@@ -238,7 +241,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                 );
 
                 // Get the model data for this block
-                const ModelData& modelData = blockModels[blockId];
+                const ModelData &modelData = blockModels[blockId];
 
                 // Determine which faces are visible
                 std::unordered_map<std::string, bool> visibleFaces;
@@ -250,9 +253,9 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                 visibleFaces["down"] = shouldRenderFace(x, y, z, "down", registry);
 
                 // Process each element in the model
-                for (const Element& element : modelData.elements) {
+                for (const Element &element: modelData.elements) {
                     // Process each face in the element - only if it should be rendered
-                    for (const auto& [faceName, face] : element.faces) {
+                    for (const auto &[faceName, face]: element.faces) {
                         // Skip faces that should be culled
                         if (!visibleFaces[faceName]) {
                             continue;
@@ -273,13 +276,13 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                         );
 
                         // Add vertices to mesh
-                        for (const Vertex& vertex : faceVertices) {
+                        for (const Vertex &vertex: faceVertices) {
                             layerMesh.vertices.push_back(vertex);
                         }
 
                         // Add indices for the face (typically 6 indices for a quad: two triangles)
                         std::vector<uint32_t> faceIndices = createFaceIndices(baseIndex);
-                        for (uint16_t index : faceIndices) {
+                        for (uint16_t index: faceIndices) {
                             layerMesh.indices.push_back(index);
                         }
                     }
@@ -292,18 +295,18 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
     if (!translucentBlocks.empty()) {
         // Sort LAYER_TRANSLUCENT blocks back-to-front
         std::sort(translucentBlocks.begin(), translucentBlocks.end(),
-            [](const TranslucentBlock& a, const TranslucentBlock& b) {
-                return a.position.z > b.position.z;
-            });
+                  [](const TranslucentBlock &a, const TranslucentBlock &b) {
+                      return a.position.z > b.position.z;
+                  });
 
         // Now add the sorted LAYER_TRANSLUCENT blocks to the LAYER_TRANSLUCENT mesh
-        RenderLayerMesh& translucentMesh = layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT];
+        RenderLayerMesh &translucentMesh = layerMeshes[BlockRenderLayer::LAYER_TRANSLUCENT];
 
-        for (const TranslucentBlock& block : translucentBlocks) {
+        for (const TranslucentBlock &block: translucentBlocks) {
             // Process each element in the model
-            for (const Element& element : block.model->elements) {
+            for (const Element &element: block.model->elements) {
                 // Process each face in the element - only if it should be rendered
-                for (const auto& [faceName, face] : element.faces) {
+                for (const auto &[faceName, face]: element.faces) {
                     // Skip faces that should be culled
                     if (!block.visibleFaces.at(faceName)) {
                         continue;
@@ -325,13 +328,13 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                     );
 
                     // Add vertices to mesh
-                    for (const Vertex& vertex : faceVertices) {
+                    for (const Vertex &vertex: faceVertices) {
                         translucentMesh.vertices.push_back(vertex);
                     }
 
                     // Add indices for the face
                     std::vector<uint32_t> faceIndices = createFaceIndices(baseIndex);
-                    for (uint16_t index : faceIndices) {
+                    for (uint16_t index: faceIndices) {
                         translucentMesh.indices.push_back(index);
                     }
                 }
@@ -340,13 +343,13 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
     }
 
     // Mark all meshes as clean after generation
-    for (auto& [layer, mesh] : layerMeshes) {
+    for (auto &[layer, mesh]: layerMeshes) {
         mesh.dirty = false;
     }
 }
 
 // Implementation of the isBlockVisible method
-bool Chunk::isBlockVisible(int x, int y, int z, const BlockRegistry& registry) const {
+bool Chunk::isBlockVisible(int x, int y, int z, const BlockRegistry &registry) const {
     uint16_t blockId = getBlockAt(x, y, z);
 
     // Air blocks are not visible
@@ -408,7 +411,7 @@ bool Chunk::isBlockVisible(int x, int y, int z, const BlockRegistry& registry) c
 }
 
 // Implementation of the isFaceOccluded method
-bool Chunk::isFaceOccluded(uint16_t blockId, uint16_t adjacentBlockId, const BlockRegistry& registry) const {
+bool Chunk::isFaceOccluded(uint16_t blockId, uint16_t adjacentBlockId, const BlockRegistry &registry) const {
     // If adjacent block is air, the face is not occluded
     if (adjacentBlockId == 0) {
         return false;
@@ -448,7 +451,7 @@ bool Chunk::isFaceOccluded(uint16_t blockId, uint16_t adjacentBlockId, const Blo
     return false;
 }
 
-bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const BlockRegistry& registry) const {
+bool Chunk::shouldRenderFace(int x, int y, int z, const std::string &face, const BlockRegistry &registry) const {
     // Get the block at the current position
     uint16_t blockId = getBlockAt(x, y, z);
 
@@ -490,28 +493,27 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const
     if (currentBlockLayer == BlockRenderLayer::LAYER_OPAQUE &&
         adjacentBlockLayer == BlockRenderLayer::LAYER_OPAQUE) {
         return false;
-        }
+    }
 
     // Rule 2: Cull faces between two translucent blocks
     if (currentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
         adjacentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
         return false;
-        }
+    }
 
     // Rule 3: Cull the face of a translucent block when it's adjacent to an opaque block
     if (currentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
         adjacentBlockLayer == BlockRenderLayer::LAYER_OPAQUE) {
         return false;
-        }
+    }
 
     // Special Rule for Cutout blocks: Cull faces that span the full dimension
     // when adjacent to opaque blocks
     if (currentBlockLayer == BlockRenderLayer::LAYER_CUTOUT &&
         adjacentBlockLayer == BlockRenderLayer::LAYER_OPAQUE) {
-
         // We need to determine if this face spans the full dimension of the block
         // We'll check this based on the model data for the block
-        const Element& element = getBlockElement(blockId, face);
+        const Element &element = getBlockElement(blockId, face);
 
         // Check if the face spans the full dimension based on face direction
         bool isFullFace = false;
@@ -520,13 +522,11 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const
             // Y direction faces - check if they span full X and Z dimensions
             isFullFace = (element.from.x <= 0.01f && element.to.x >= 0.99f &&
                           element.from.z <= 0.01f && element.to.z >= 0.99f);
-        }
-        else if (face == "east" || face == "west") {
+        } else if (face == "east" || face == "west") {
             // X direction faces - check if they span full Y and Z dimensions
             isFullFace = (element.from.y <= 0.01f && element.to.y >= 0.99f &&
                           element.from.z <= 0.01f && element.to.z >= 0.99f);
-        }
-        else if (face == "up" || face == "down") {
+        } else if (face == "up" || face == "down") {
             // Z direction faces - check if they span full X and Y dimensions
             isFullFace = (element.from.x <= 0.01f && element.to.x >= 0.99f &&
                           element.from.y <= 0.01f && element.to.y >= 0.99f);
@@ -536,21 +536,20 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string& face, const
         if (isFullFace) {
             return false;
         }
-        }
+    }
 
     // Rule 4: For all other cases (involving cutout blocks, or opaque->translucent), render the face
     return true;
 }
 
 std::vector<Vertex> Chunk::createFaceVertices(
-    const Element& element,
-    const std::string& faceName,
-    const glm::vec3& color,
-    const std::vector<glm::vec2>& uvs,
-    const glm::vec3& position,
+    const Element &element,
+    const std::string &faceName,
+    const glm::vec3 &color,
+    const std::vector<glm::vec2> &uvs,
+    const glm::vec3 &position,
     uint16_t blockId,
     BlockRenderLayer renderLayer) {
-
     std::vector<Vertex> vertices;
 
     // Get the min and max coordinates of the element
@@ -565,45 +564,112 @@ std::vector<Vertex> Chunk::createFaceVertices(
     // IMPORTANT: Ensure counter-clockwise winding when looking at the face from outside the block
     if (faceName == "north") {
         // North face (negative Y) - when looking at it from outside (north side)
-        vertices.push_back({{x_max + position.x, y_min + position.y, z_min + position.z}, color, uvs[0], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_min + position.y, z_min + position.z}, color, uvs[1], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_min + position.y, z_max + position.z}, color, uvs[2], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_min + position.y, z_max + position.z}, color, uvs[3], blockId - 1, static_cast<int>(renderLayer)});
-    }
-    else if (faceName == "south") {
+        vertices.push_back({
+            {x_max + position.x, y_min + position.y, z_min + position.z}, color, uvs[0], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_min + position.y, z_min + position.z}, color, uvs[1], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_min + position.y, z_max + position.z}, color, uvs[2], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_min + position.y, z_max + position.z}, color, uvs[3], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+    } else if (faceName == "south") {
         // South face (positive Y) - when looking at it from outside (south side)
-        vertices.push_back({{x_min + position.x, y_max + position.y, z_min + position.z}, color, uvs[0], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_max + position.y, z_min + position.z}, color, uvs[1], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_max + position.y, z_max + position.z}, color, uvs[2], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_max + position.y, z_max + position.z}, color, uvs[3], blockId - 1, static_cast<int>(renderLayer)});
-    }
-    else if (faceName == "east") {
+        vertices.push_back({
+            {x_min + position.x, y_max + position.y, z_min + position.z}, color, uvs[0], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_max + position.y, z_min + position.z}, color, uvs[1], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_max + position.y, z_max + position.z}, color, uvs[2], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_max + position.y, z_max + position.z}, color, uvs[3], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+    } else if (faceName == "east") {
         // East face (positive X) - when looking at it from outside (east side)
-        vertices.push_back({{x_max + position.x, y_max + position.y, z_min + position.z}, color, uvs[0], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_min + position.y, z_min + position.z}, color, uvs[1], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_min + position.y, z_max + position.z}, color, uvs[2], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_max + position.y, z_max + position.z}, color, uvs[3], blockId - 1, static_cast<int>(renderLayer)});
-    }
-    else if (faceName == "west") {
+        vertices.push_back({
+            {x_max + position.x, y_max + position.y, z_min + position.z}, color, uvs[0], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_min + position.y, z_min + position.z}, color, uvs[1], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_min + position.y, z_max + position.z}, color, uvs[2], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_max + position.y, z_max + position.z}, color, uvs[3], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+    } else if (faceName == "west") {
         // West face (negative X) - when looking at it from outside (west side)
-        vertices.push_back({{x_min + position.x, y_min + position.y, z_min + position.z}, color, uvs[0], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_max + position.y, z_min + position.z}, color, uvs[1], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_max + position.y, z_max + position.z}, color, uvs[2], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_min + position.y, z_max + position.z}, color, uvs[3], blockId - 1, static_cast<int>(renderLayer)});
-    }
-    else if (faceName == "up") {
+        vertices.push_back({
+            {x_min + position.x, y_min + position.y, z_min + position.z}, color, uvs[0], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_max + position.y, z_min + position.z}, color, uvs[1], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_max + position.y, z_max + position.z}, color, uvs[2], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_min + position.y, z_max + position.z}, color, uvs[3], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+    } else if (faceName == "up") {
         // Top face (positive Z) - when looking at it from above
-        vertices.push_back({{x_min + position.x, y_max + position.y, z_max + position.z}, color, uvs[0], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_max + position.y, z_max + position.z}, color, uvs[1], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_min + position.y, z_max + position.z}, color, uvs[2], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_min + position.y, z_max + position.z}, color, uvs[3], blockId - 1, static_cast<int>(renderLayer)});
-    }
-    else if (faceName == "down") {
+        vertices.push_back({
+            {x_min + position.x, y_max + position.y, z_max + position.z}, color, uvs[0], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_max + position.y, z_max + position.z}, color, uvs[1], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_min + position.y, z_max + position.z}, color, uvs[2], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_min + position.y, z_max + position.z}, color, uvs[3], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+    } else if (faceName == "down") {
         // Bottom face (negative Z) - when looking at it from below
-        vertices.push_back({{x_min + position.x, y_min + position.y, z_min + position.z}, color, uvs[0], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_min + position.y, z_min + position.z}, color, uvs[1], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_max + position.x, y_max + position.y, z_min + position.z}, color, uvs[2], blockId - 1, static_cast<int>(renderLayer)});
-        vertices.push_back({{x_min + position.x, y_max + position.y, z_min + position.z}, color, uvs[3], blockId - 1, static_cast<int>(renderLayer)});
+        vertices.push_back({
+            {x_min + position.x, y_min + position.y, z_min + position.z}, color, uvs[0], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_min + position.y, z_min + position.z}, color, uvs[1], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_max + position.x, y_max + position.y, z_min + position.z}, color, uvs[2], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
+        vertices.push_back({
+            {x_min + position.x, y_max + position.y, z_min + position.z}, color, uvs[3], blockId - 1,
+            static_cast<int>(renderLayer)
+        });
     }
 
     return vertices;
@@ -618,14 +684,14 @@ std::vector<uint32_t> Chunk::createFaceIndices(uint32_t baseIndex) {
 }
 
 // Helper function to get default UVs for a face
-std::vector<glm::vec2> Chunk::getDefaultUVs(const std::string& faceName) {
+std::vector<glm::vec2> Chunk::getDefaultUVs(const std::string &faceName) {
     // Provide sensible default UVs for each face type
     // These are counter-clockwise coordinates: bottom-left, bottom-right, top-right, top-left
     return {
-            {0.0f, 0.0f},
-            {1.0f, 0.0f},
-            {1.0f, 1.0f},
-            {0.0f, 1.0f}
+        {0.0f, 0.0f},
+        {1.0f, 0.0f},
+        {1.0f, 1.0f},
+        {0.0f, 1.0f}
     };
 }
 
@@ -648,7 +714,7 @@ glm::vec3 Chunk::parseColor(int colorIndex) const {
 }
 
 // Helper function to check if a cutout block face is at the block boundary
-const Element& Chunk::getBlockElement(uint16_t blockId, const std::string& face) const {
+const Element &Chunk::getBlockElement(uint16_t blockId, const std::string &face) const {
     // This would need to be implemented based on your model system
     // You would need to access the model data for the block and get the element for the specific face
     // For now, I'll return a placeholder element that assumes everything is a full face

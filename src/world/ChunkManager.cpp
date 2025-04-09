@@ -3,6 +3,8 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
+
+#include "Logger.hpp"
 #include "core/VulkanApp.hpp"
 
 ChunkManager::ChunkManager() {
@@ -31,8 +33,8 @@ void ChunkManager::initializeBlockRegistry() {
     blockRegistry.registerBlock(3, "oak_fence_post", BlockRenderLayer::LAYER_CUTOUT);           // Oak Fence Post
     blockRegistry.registerBlock(4, "cobblestone", BlockRenderLayer::LAYER_OPAQUE);              // Cobblestone
     blockRegistry.registerBlock(5, "green_stained_glass", BlockRenderLayer::LAYER_TRANSLUCENT); // Green Stained Glass (translucent)
-    
-    std::cout << "Initialized block registry with 6 block types" << std::endl;
+
+    LOG_INFO("Initialized block registry with %d block types", blockRegistry.getBlockCount());
 }
 
 void ChunkManager::setVulkanResources(VkDevice device, VkPhysicalDevice physicalDevice,
@@ -395,9 +397,8 @@ void ChunkManager::createLayerBuffers(BlockRenderLayer layer, VkDevice device, V
     // Mark layer as clean
     data.dirty = false;
 
-    // std::cout << "Created buffers for render layer " << static_cast<int>(layer)
-    //           << " with " << vertices.size() << " vertices and "
-    //           << indices.size() << " indices" << std::endl;
+    LOG_DEBUG("Created buffers for render layer %d with %zu vertices and %zu indices",
+             static_cast<int>(layer), vertices.size(), indices.size());
 }
 
 void ChunkManager::cleanupLayerBuffers(VkDevice device) {
@@ -450,7 +451,7 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
     // Create texture array from these textures
     VkDescriptorImageInfo textureArrayInfo = textureLoader.createTextureArray(texturePaths);
 
-    std::cout << "Created texture array for " << texturePaths.size() << " block types" << std::endl;
+    LOG_INFO("Created texture array for %zu block types", texturePaths.size());
 
     return textureArrayInfo;
 }
@@ -475,8 +476,7 @@ void ChunkManager::loadChunk(const glm::ivec3& position) {
         data.dirty = true;
     }
 
-    std::cout << "Loaded chunk at position (" << position.x << ","
-              << position.y << "," << position.z << ")" << std::endl;
+    LOG_DEBUG("Loaded chunk at position (%d, %d, %d)", position.x, position.y, position.z);
 }
 
 void ChunkManager::unloadChunk(const glm::ivec3& position) {
@@ -493,8 +493,7 @@ void ChunkManager::unloadChunk(const glm::ivec3& position) {
             data.dirty = true;
         }
 
-        std::cout << "Unloaded chunk at position (" << position.x << ","
-                  << position.y << "," << position.z << ")" << std::endl;
+        LOG_DEBUG("Unloaded chunk at position (%d, %d, %d)", position.x, position.y, position.z);
     }
 }
 
@@ -550,16 +549,14 @@ void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader) {
 
         // Log performance stats
         if (meshGenerationCount > 0) {
-            // std::cout << "Generated meshes for " << meshGenerationCount
-            //           << " chunks. Model cache: " << modelLoader.getCacheSize()
-            //           << " models, hits: " << modelLoader.getCacheHits()
-            //           << ", misses: " << modelLoader.getCacheMisses() << std::endl;
+            LOG_DEBUG("Generated meshes for %zu chunks. Model cache: %zu models, hits: %zu, misses: %zu",
+                     meshGenerationCount, modelLoader.getCacheSize(), modelLoader.getCacheHits(), modelLoader.getCacheMisses());
         }
     }
 }
 
 void ChunkManager::preloadBlockModels(ModelLoader& modelLoader) {
-    std::cout << "Preloading block models..." << std::endl;
+    LOG_INFO("Preloading block models...");
 
     // Preload models for registered blocks
     std::vector<std::string> blockModels = {
@@ -575,7 +572,7 @@ void ChunkManager::preloadBlockModels(ModelLoader& modelLoader) {
     }
 
     // Cache stats after preloading
-    std::cout << "Preloaded " << modelLoader.getCacheSize() << " block models" << std::endl;
+    LOG_INFO("Preloaded %d block models", blockModels.size());
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& position) {

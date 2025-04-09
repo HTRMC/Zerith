@@ -35,6 +35,11 @@ public:
     // Get the render layer for a block
     BlockRenderLayer getBlockRenderLayer(uint16_t id) const;
 
+    // Get the number of registered blocks
+    size_t getBlockCount() const {
+        return blockNames.size();
+    }
+
 private:
     std::unordered_map<uint16_t, std::string> blockNames;
     std::unordered_map<uint16_t, bool> blockTransparency;

@@ -1,6 +1,7 @@
 #include "VulkanApp.hpp"
 
 #include "windows_wrapper.hpp"
+#include "Logger.hpp"
 #include <windowsx.h>
 #include <iostream>
 #include <stdexcept>
@@ -23,7 +24,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
     void *pUserData) {
-    std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
+    LOG_WARN("Validation layer: %s", pCallbackData->pMessage);
     return VK_FALSE;
 }
 
@@ -144,7 +145,12 @@ void VulkanApp::run() {
     lastFrameTime = static_cast<float>(GetTickCount64()) / 1000.0f;
 
     initWindow();
-    initVulkan();
+    try {
+        initVulkan();
+    } catch (const std::exception& e) {
+        LOG_FATAL("Failed to initialize Vulkan: %s", e.what());
+        throw;
+    }
     mainLoop();
     cleanup();
 }
@@ -165,6 +171,7 @@ void VulkanApp::initWindow() {
     RegisterClassEx(&wc);
 
     // Create the window
+    LOG_INFO("Creating window: %dx%d", WIDTH, HEIGHT);
     RECT rect = {0, 0, WIDTH, HEIGHT};
     AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, FALSE);
 
@@ -182,10 +189,12 @@ void VulkanApp::initWindow() {
     );
 
     if (!window) {
-        throw std::runtime_error("Failed to create window!");
+        LOG_FATAL("Failed to create window!");
+        throw std::runtime_error("Window creation failed");
     }
 
     ShowWindow(window, SW_SHOW);
+    LOG_INFO("Window created successfully");
 
     // Make sure we start with a valid client area size
     RECT clientRect;
@@ -200,6 +209,7 @@ void VulkanApp::initWindow() {
 void VulkanApp::initVulkan() {
     createInstance();
     setupDebugMessenger();
+    LOG_DEBUG("Vulkan debug messenger set up");
     createSurface();
     pickPhysicalDevice();
     createLogicalDevice();
@@ -228,13 +238,15 @@ void VulkanApp::initVulkan() {
     // Create command buffers that handle multiple render layers
     createMultiLayerCommandBuffers();
 
+    LOG_INFO("Vulkan initialization complete");
     createSyncObjects();
 }
 
 // Create Vulkan instance
 void VulkanApp::createInstance() {
     if (enableValidationLayers && !checkValidationLayerSupport()) {
-        throw std::runtime_error("Validation layers requested, but not available!");
+        LOG_FATAL("Validation layers requested, but not available!");
+        throw std::runtime_error("Validation layers not available");
     }
 
     // Application info
@@ -271,7 +283,8 @@ void VulkanApp::createInstance() {
 
     // Create the instance
     if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create Vulkan instance!");
+        LOG_FATAL("Failed to create Vulkan instance!");
+        throw std::runtime_error("Vulkan instance creation failed");
     }
 }
 
@@ -283,7 +296,8 @@ void VulkanApp::setupDebugMessenger() {
     populateDebugMessengerCreateInfo(createInfo);
 
     if (CreateDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to set up debug messenger!");
+        LOG_ERROR("Failed to set up debug messenger!");
+        throw std::runtime_error("Debug messenger setup failed");
     }
 }
 
@@ -295,7 +309,8 @@ void VulkanApp::createSurface() {
     createInfo.hinstance = hInstance;
 
     if (vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &surface) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create window surface!");
+        LOG_FATAL("Failed to create window surface!");
+        throw std::runtime_error("Window surface creation failed");
     }
 }
 
@@ -305,7 +320,8 @@ void VulkanApp::pickPhysicalDevice() {
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
 
     if (deviceCount == 0) {
-        throw std::runtime_error("Failed to find GPUs with Vulkan support!");
+        LOG_FATAL("Failed to find GPUs with Vulkan support!");
+        throw std::runtime_error("No Vulkan-capable GPUs found");
     }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
@@ -319,8 +335,13 @@ void VulkanApp::pickPhysicalDevice() {
     }
 
     if (physicalDevice == VK_NULL_HANDLE) {
-        throw std::runtime_error("Failed to find a suitable GPU!");
+        LOG_FATAL("Failed to find a suitable GPU!");
+        throw std::runtime_error("No suitable GPU found");
     }
+
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(physicalDevice, &deviceProperties);
+    LOG_INFO("Selected GPU: %s", deviceProperties.deviceName);
 }
 
 // Create logical device
@@ -374,6 +395,7 @@ void VulkanApp::createLogicalDevice() {
 
     // Create the logical device
     if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS) {
+        LOG_ERROR("Failed to create logical device!");
         throw std::runtime_error("Failed to create logical device!");
     }
 
@@ -548,8 +570,8 @@ void VulkanApp::createGraphicsPipeline() {
         std::vector<char> fragShaderCode = readFile("shaders/frag.spv");
 
         // Print shader file sizes for debugging
-        std::cout << "Loaded vertex shader: " << vertShaderCode.size() << " bytes" << std::endl;
-        std::cout << "Loaded fragment shader: " << fragShaderCode.size() << " bytes" << std::endl;
+        LOG_DEBUG("Loaded vertex shader: %zu bytes", vertShaderCode.size());
+        LOG_DEBUG("Loaded fragment shader: %zu bytes", fragShaderCode.size());
 
         // Create shader modules
         VkShaderModule vertShaderModule = createShaderModule(vertShaderCode);
@@ -686,7 +708,7 @@ void VulkanApp::createGraphicsPipeline() {
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
     } catch (const std::exception &e) {
-        std::cerr << "Error in createGraphicsPipeline: " << e.what() << std::endl;
+        LOG_ERROR("Error in createGraphicsPipeline: %s", e.what());
         throw;
     }
 }
@@ -1647,7 +1669,7 @@ void VulkanApp::createDescriptorSets() {
         // Fallback to single texture for individual models
         if (!currentModel.loaded) {
             if (!loadBlockBenchModel("assets/minecraft/models/block/stone.json")) {
-                std::cout << "Failed to load BlockBench model, falling back to hardcoded cube" << std::endl;
+                LOG_WARN("Failed to load BlockBench model, falling back to hardcoded cube");
                 createVertexBuffer();
                 createIndexBuffer();
             }
@@ -1656,7 +1678,7 @@ void VulkanApp::createDescriptorSets() {
                 uint32_t textureId = loadModelTextures();
                 if (textureId != textureLoader.getDefaultTextureId()) {
                     currentModel.textureId = textureId;
-                    std::cout << "Loaded texture for model: " << textureId << std::endl;
+                    LOG_INFO("Loaded texture for model: %u", textureId);
                 }
 
                 // Create vertex and index buffers from the loaded model
@@ -2061,7 +2083,7 @@ float VulkanApp::processGamepadStickValue(SHORT value, float deadzone) {
 
 // Load a BlockBench model from a JSON file
 bool VulkanApp::loadBlockBenchModel(const std::string &filename) {
-    std::cout << "Loading BlockBench model: " << filename << std::endl;
+    LOG_DEBUG("Loading BlockBench model: %s", filename.c_str());
 
     // Format the model path based on the new directory structure
     std::string modelPath;
@@ -2077,25 +2099,25 @@ bool VulkanApp::loadBlockBenchModel(const std::string &filename) {
         modelPath = "assets/minecraft/models/" + filename + ".json";
     }
 
-    std::cout << "Resolved model path: " << modelPath << std::endl;
+    LOG_DEBUG("Resolved model path: %s", modelPath.c_str());
 
     // Try to load the model
     auto modelOpt = modelLoader.loadModel(modelPath);
 
     if (!modelOpt.has_value()) {
-        std::cerr << "Failed to load model from " << filename << std::endl;
+        LOG_ERROR("Failed to load model from %s", filename.c_str());
         return false;
     }
 
     // Store the loaded model
     currentModel = modelOpt.value();
-    std::cout << "Model loaded successfully. Vertices: " << currentModel.vertices.size()
-            << ", Indices: " << currentModel.indices.size() << std::endl;
+    LOG_INFO("Model loaded successfully. Vertices: %zu, Indices: %zu",
+             currentModel.vertices.size(), currentModel.indices.size());
 
     // Log all resolved texture mappings
-    std::cout << "Model texture mappings:" << std::endl;
+    LOG_DEBUG("Model texture mappings:");
     for (const auto& [key, path] : currentModel.textureMap) {
-        std::cout << "  " << key << " -> " << path << std::endl;
+        LOG_DEBUG("  %s -> %s", key.c_str(), path.c_str());
     }
 
     return true;
@@ -2262,7 +2284,7 @@ uint32_t VulkanApp::loadModelTextures() {
             auto it = currentModel.textureMap.find(texName);
             if (it != currentModel.textureMap.end()) {
                 textureId = textureLoader.loadTexture(it->second);
-                std::cout << "Using texture for model: " << it->first << " -> " << it->second << std::endl;
+                LOG_INFO("Using texture for model: %s -> %s", it->first.c_str(), it->second.c_str());
                 return textureId;
             }
         }
@@ -2270,9 +2292,9 @@ uint32_t VulkanApp::loadModelTextures() {
         // Fall back to the first texture in the map
         auto it = currentModel.textureMap.begin();
         textureId = textureLoader.loadTexture(it->second);
-        std::cout << "Using fallback texture for model: " << it->first << " -> " << it->second << std::endl;
+        LOG_INFO("Using fallback texture for model: %s -> %s", it->first.c_str(), it->second.c_str());
     } else {
-        std::cout << "Model has no textures, using default texture" << std::endl;
+        LOG_INFO("Model has no textures, using default texture");
     }
 
     return textureId;
@@ -2553,7 +2575,7 @@ void VulkanApp::createRenderLayerPipelines() {
         vkDestroyShaderModule(device, vertShaderModule, nullptr);
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
     } catch (const std::exception &e) {
-        std::cerr << "Error in createRenderLayerPipelines: " << e.what() << std::endl;
+        LOG_ERROR("Error in createRenderLayerPipelines: %s", e.what());
         throw;
     }
 }
@@ -2667,7 +2689,7 @@ void VulkanApp::setupChunkSystem() {
     // Initial update based on player position
     updateLoadedChunks();
 
-    std::cout << "Chunk system initialized with load radius: " << chunkLoadRadius << std::endl;
+    LOG_INFO("Chunk system initialized with load radius: %d", chunkLoadRadius);
 }
 
 // Implementation for updateLoadedChunks (add to VulkanApp.cpp)

@@ -6,6 +6,8 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "Logger.hpp"
+
 TextureLoader::TextureLoader(VkDevice device, VkPhysicalDevice physicalDevice, VkCommandPool commandPool, VkQueue graphicsQueue) {
     init(device, physicalDevice, commandPool, graphicsQueue);
 }
@@ -42,12 +44,12 @@ uint32_t TextureLoader::loadTexture(const std::string& filename) {
         textures.push_back(texture);
         texturePathToId[filename] = textureId;
         
-        std::cout << "Loaded texture: " << filename << " (ID: " << textureId << ")" << std::endl;
+        LOG_INFO("Loaded texture: %s (ID: %u)", filename.c_str(), textureId);
         return textureId;
     }
     catch (const std::exception& e) {
-        std::cerr << "Failed to load texture " << filename << ": " << e.what() << std::endl;
-        std::cerr << "Using default texture instead" << std::endl;
+        LOG_ERROR("Failed to load texture %s: %s", filename.c_str(), e.what());
+        LOG_WARN("Using default texture instead");
         return getDefaultTextureId();
     }
 }
@@ -227,8 +229,8 @@ void TextureLoader::createDefaultTexture() {
     // Clean up staging buffer
     vkDestroyBuffer(device, stagingBuffer, nullptr);
     vkFreeMemory(device, stagingBufferMemory, nullptr);
-    
-    std::cout << "Created default texture" << std::endl;
+
+    LOG_INFO("Created default texture");
 }
 
 void TextureLoader::createTextureImage(const std::string& filename, Texture& texture) {
@@ -247,7 +249,7 @@ void TextureLoader::createTextureImage(const std::string& filename, Texture& tex
     texture.channels = 4; // We requested RGBA
     texture.path = filename;
     
-    std::cout << "Loaded image: " << filename << " (" << texWidth << "x" << texHeight << ")" << std::endl;
+    LOG_DEBUG("Loaded image: %s (%dx%d)", filename.c_str(), texWidth, texHeight);
     
     // Create a staging buffer
     VkBuffer stagingBuffer;
@@ -542,9 +544,9 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
     }
 
     // Log which textures we're loading
-    std::cout << "Creating texture array with " << filenames.size() << " textures:" << std::endl;
+    LOG_INFO("Creating texture array with %zu textures:", filenames.size());
     for (const auto& name : filenames) {
-        std::cout << "  - " << name << std::endl;
+        LOG_DEBUG("  - %s", name.c_str());
     }
 
     // Load all textures to get dimensions and pixel data
@@ -578,7 +580,7 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
         maxWidth = std::max(maxWidth, static_cast<uint32_t>(data.width));
         maxHeight = std::max(maxHeight, static_cast<uint32_t>(data.height));
 
-        std::cout << "Loaded texture for array: " << filename << " (" << data.width << "x" << data.height << ")" << std::endl;
+        LOG_DEBUG("Loaded texture for array: %s (%dx%d)", filename.c_str(), data.width, data.height);
     }
 
     // Create the texture array image
@@ -692,7 +694,7 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
         vkDestroyBuffer(device, stagingBuffer, nullptr);
         vkFreeMemory(device, stagingBufferMemory, nullptr);
 
-        std::cout << "Successfully loaded texture: " << filenames[i] << " into array layer " << i << std::endl;
+        LOG_DEBUG("Successfully loaded texture: %s into array layer %zu", filenames[i].c_str(), i);
     }
 
     // Transition layout for shader access
@@ -730,7 +732,7 @@ VkDescriptorImageInfo TextureLoader::createTextureArray(const std::vector<std::s
     textureArray.height = maxHeight;
     hasTextureArray = true;
 
-    std::cout << "Created texture array with " << filenames.size() << " layers" << std::endl;
+    LOG_INFO("Created texture array with %zu layers", filenames.size());
 
     // Return the descriptor image info for this texture array
     VkDescriptorImageInfo descriptorInfo{};
