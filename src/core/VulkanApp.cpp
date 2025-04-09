@@ -2678,7 +2678,7 @@ void VulkanApp::setupChunkSystem() {
     chunkManager.setChunkLoadRadius(chunkLoadRadius);
 
     // Set max chunks to load per frame
-    chunkManager.setMaxChunksPerFrame(2);
+    chunkManager.setMaxChunksPerFrame(MAXINT);
 
     // Set Vulkan resources for buffer creation
     chunkManager.setVulkanResources(device, physicalDevice, commandPool, graphicsQueue);
