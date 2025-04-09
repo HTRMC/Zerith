@@ -221,7 +221,7 @@ private:
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
 
     // Camera properties
-    glm::vec3 cameraPos = glm::vec3(1.5f, 1.5f, 1.5f);
+    glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 32.0f);
     glm::vec3 cameraFront = glm::vec3(-0.5f, -0.5f, -0.5f); // Normalized in constructor
     glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
     float cameraSpeed = 2.0f;
