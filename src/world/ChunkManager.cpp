@@ -434,19 +434,19 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
     // We'll skip ID 0 (air) since it's transparent
 
     // 1: Stone
-    texturePaths.push_back("assets/minecraft/textures/block/stone.png");
+    texturePaths.emplace_back("assets/minecraft/textures/block/stone.png");
 
-    // 2: Grass Block (using top texture for simplicity)
-    texturePaths.push_back("assets/minecraft/textures/block/grass_block_top.png");
+    // 2: Grass Block
+    texturePaths.emplace_back("assets/minecraft/textures/block/grass_block_top.png");
 
     // 3: Dirt
-    texturePaths.push_back("assets/minecraft/textures/block/oak_planks.png");
+    texturePaths.emplace_back("assets/minecraft/textures/block/oak_planks.png");
 
     // 4: Cobblestone
-    texturePaths.push_back("assets/minecraft/textures/block/cobblestone.png");
+    texturePaths.emplace_back("assets/minecraft/textures/block/cobblestone.png");
 
     // 5: Glass (translucent)
-    texturePaths.push_back("assets/minecraft/textures/block/green_stained_glass.png");
+    texturePaths.emplace_back("assets/minecraft/textures/block/green_stained_glass.png");
 
     // Create texture array from these textures
     VkDescriptorImageInfo textureArrayInfo = textureLoader.createTextureArray(texturePaths);
