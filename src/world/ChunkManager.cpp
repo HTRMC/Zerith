@@ -4,12 +4,13 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Blocks.hpp"
 #include "Logger.hpp"
 #include "core/VulkanApp.hpp"
 
 ChunkManager::ChunkManager() {
     // Initialize block registry
-    initializeBlockRegistry();
+    Blocks::registerAllBlocks(blockRegistry);
 
     // Initialize render data for each layer
     layerRenderData[BlockRenderLayer::LAYER_OPAQUE] = LayerRenderData{};
@@ -23,18 +24,6 @@ ChunkManager::ChunkManager() {
 ChunkManager::~ChunkManager() {
     // Clear all loaded chunks
     chunks.clear();
-}
-
-void ChunkManager::initializeBlockRegistry() {
-    // Register block types with IDs and appropriate render layers
-    blockRegistry.registerBlock(0, "air", BlockRenderLayer::LAYER_CUTOUT);                      // Air (transparent)
-    blockRegistry.registerBlock(1, "stone", BlockRenderLayer::LAYER_OPAQUE);                    // Stone
-    blockRegistry.registerBlock(2, "grass_block", BlockRenderLayer::LAYER_OPAQUE);              // Grass block
-    blockRegistry.registerBlock(3, "oak_fence_post", BlockRenderLayer::LAYER_CUTOUT);           // Oak Fence Post
-    blockRegistry.registerBlock(4, "cobblestone", BlockRenderLayer::LAYER_OPAQUE);              // Cobblestone
-    blockRegistry.registerBlock(5, "green_stained_glass", BlockRenderLayer::LAYER_TRANSLUCENT); // Green Stained Glass (translucent)
-
-    LOG_INFO("Initialized block registry with %d block types", blockRegistry.getBlockCount());
 }
 
 void ChunkManager::setVulkanResources(VkDevice device, VkPhysicalDevice physicalDevice,
@@ -447,6 +436,9 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
 
     // 5: Glass (translucent)
     texturePaths.emplace_back("assets/minecraft/textures/block/green_stained_glass.png");
+
+    // 6: Oak Log
+    texturePaths.emplace_back("assets/minecraft/textures/block/oak_log.png");
 
     // Create texture array from these textures
     VkDescriptorImageInfo textureArrayInfo = textureLoader.createTextureArray(texturePaths);
