@@ -43,3 +43,4 @@
 Thumbs.db
 *.spv
 /assets
+/vcpkg_installed
