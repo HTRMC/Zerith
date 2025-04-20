@@ -225,6 +225,9 @@ private:
     glm::vec3 cameraFront = glm::vec3(-0.5f, -0.5f, -0.5f); // Normalized in constructor
     glm::vec3 cameraUp = glm::vec3(0.0f, 0.0f, 1.0f);
     float cameraSpeed = 2.0f;
+    float minCameraSpeed = 0.5f;  // Minimum camera speed
+    float maxCameraSpeed = 50.0f; // Maximum camera speed
+    float cameraSpeedMultiplier = 1.5f; // How much to multiply/divide speed by on scroll
 
     // Input handling
     struct KeyState {
@@ -242,6 +245,7 @@ private:
     // Process key input (add to private methods)
     void processInput();
     void updateCamera();
+    void adjustCameraSpeed(int scrollDelta);
 
     static VulkanApp* appInstance;
 

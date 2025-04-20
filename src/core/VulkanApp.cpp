@@ -124,6 +124,13 @@ LRESULT CALLBACK VulkanApp::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPAR
                 appInstance->processMouseInput(xPos, yPos);
             }
             return 0;
+        case WM_MOUSEWHEEL:
+            if (appInstance) {
+                // GET_WHEEL_DELTA_WPARAM returns positive for scroll up, negative for scroll down
+                int scrollDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+                appInstance->adjustCameraSpeed(scrollDelta);
+            }
+            return 0;
         default:
             return DefWindowProc(hwnd, uMsg, wParam, lParam);
     }
@@ -2691,5 +2698,31 @@ void VulkanApp::updateLoadedChunks() {
     if (anyLayerUpdated) {
         vkDeviceWaitIdle(device);
         createMultiLayerCommandBuffers();
+    }
+}
+
+// Adjust camera speed based on mouse wheel input
+void VulkanApp::adjustCameraSpeed(int scrollDelta) {
+    // Scrolling up (positive delta) increases speed, scrolling down (negative delta) decreases speed
+    if (scrollDelta > 0) {
+        // Increase speed by multiplier
+        cameraSpeed *= cameraSpeedMultiplier;
+        
+        // Clamp to maximum speed
+        if (cameraSpeed > maxCameraSpeed) {
+            cameraSpeed = maxCameraSpeed;
+        }
+        
+        LOG_INFO("Increased movement speed to %.2f", cameraSpeed);
+    } else if (scrollDelta < 0) {
+        // Decrease speed by dividing by multiplier
+        cameraSpeed /= cameraSpeedMultiplier;
+        
+        // Clamp to minimum speed
+        if (cameraSpeed < minCameraSpeed) {
+            cameraSpeed = minCameraSpeed;
+        }
+        
+        LOG_INFO("Decreased movement speed to %.2f", cameraSpeed);
     }
 }
