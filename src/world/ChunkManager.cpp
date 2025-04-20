@@ -93,12 +93,12 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
     }
 }
 
-void ChunkManager::updateChunkMeshes(ModelLoader& modelLoader) {
+void ChunkManager::updateChunkMeshes(ModelLoader& modelLoader, TextureLoader& textureLoader) {
     // Process the chunk load queue
     processChunkQueue(modelLoader);
 
     // Generate meshes for chunks that need it
-    generateChunkMeshes(modelLoader);
+    generateChunkMeshes(modelLoader, textureLoader);
 }
 
 bool ChunkManager::getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) const {
@@ -520,14 +520,14 @@ void ChunkManager::processChunkQueue(ModelLoader& modelLoader) {
     }
 }
 
-void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader) {
+void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader, TextureLoader& textureLoader) {
     bool anyChunkUpdated = false;
     size_t meshGenerationCount = 0;
 
     // Update meshes for all chunks that need it
     for (auto& [pos, chunk] : chunks) {
         if (chunk->isAnyMeshDirty()) {
-            chunk->generateMesh(blockRegistry, modelLoader);
+            chunk->generateMesh(blockRegistry, modelLoader, textureLoader);
             anyChunkUpdated = true;
             meshGenerationCount++;
         }
@@ -556,15 +556,22 @@ void ChunkManager::preloadBlockModels(ModelLoader& modelLoader) {
         "assets/minecraft/models/block/grass_block.json",
         "assets/minecraft/models/block/oak_fence_post.json",
         "assets/minecraft/models/block/cobblestone.json",
-        "assets/minecraft/models/block/green_stained_glass.json"
+        "assets/minecraft/models/block/green_stained_glass.json",
+        "assets/minecraft/models/block/oak_log.json"
     };
 
+    // Keep track of loaded models to pass to texture loader
+    std::vector<ModelData> loadedModels;
+
     for (const auto& modelPath : blockModels) {
-        modelLoader.loadModel(modelPath);
+        auto modelOpt = modelLoader.loadModel(modelPath);
+        if (modelOpt.has_value()) {
+            loadedModels.push_back(modelOpt.value());
+        }
     }
 
     // Cache stats after preloading
-    LOG_INFO("Preloaded %d block models", blockModels.size());
+    LOG_INFO("Preloaded %zu block models", loadedModels.size());
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& position) {

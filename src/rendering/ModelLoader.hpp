@@ -8,6 +8,8 @@
 #include <fstream>
 #include <sstream>
 #include <nlohmann/json.hpp>
+
+#include "TextureLoader.hpp"
 #include "Vertex.hpp"
 
 // Model data structures
@@ -51,6 +53,8 @@ public:
     size_t getCacheSize() const { return modelCache.size(); }
     size_t getCacheHits() const { return cacheHits; }
     size_t getCacheMisses() const { return cacheMisses; }
+
+    void loadTexturesForModel(ModelData& model, TextureLoader& textureLoader);
 
 private:
     // Model cache

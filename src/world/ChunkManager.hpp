@@ -47,15 +47,12 @@ class ChunkManager {
 public:
     ChunkManager();
     ~ChunkManager();
-
-    // Initialize the block registry with block types
-    void initializeBlockRegistry();
     
     // Load chunks around the given player position
     void updateLoadedChunks(const glm::vec3& playerPosition);
     
     // Update chunk meshes that need regeneration
-    void updateChunkMeshes(ModelLoader& modelLoader);
+    void updateChunkMeshes(ModelLoader& modelLoader, TextureLoader& textureLoader);
     
     // Get mesh data for each render layer
     bool getLayerMeshData(BlockRenderLayer layer, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices) const;
@@ -154,5 +151,5 @@ private:
     void unloadChunk(const glm::ivec3& position);
     bool isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& playerChunkPos, int radius) const;
     void processChunkQueue(ModelLoader& modelLoader);
-    void generateChunkMeshes(ModelLoader& modelLoader);
+    void generateChunkMeshes(ModelLoader& modelLoader, TextureLoader& textureLoader);
 };

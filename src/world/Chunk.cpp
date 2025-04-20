@@ -112,7 +112,7 @@ void Chunk::markMeshClean(BlockRenderLayer layer) {
     }
 }
 
-void Chunk::generateMesh(const BlockRegistry &registry, ModelLoader &modelLoader) {
+void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader, TextureLoader& textureLoader) {
     // Clear previous mesh data for all layers
     for (auto &[layer, mesh]: layerMeshes) {
         mesh.vertices.clear();
@@ -137,7 +137,10 @@ void Chunk::generateMesh(const BlockRegistry &registry, ModelLoader &modelLoader
         auto modelOpt = modelLoader.loadModel(modelPath);
 
         if (modelOpt.has_value()) {
-            blockModels[blockId] = modelOpt.value();
+            // Get the model and automatically load its textures
+            auto model = modelOpt.value();
+            modelLoader.loadTexturesForModel(model, textureLoader);
+            blockModels[blockId] = model;
         } else {
             LOG_ERROR("Failed to load model for block %d (%s) at %s", blockId, registry.getBlockName(blockId).c_str(),
                       modelPath.c_str());

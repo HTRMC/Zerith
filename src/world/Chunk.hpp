@@ -39,7 +39,7 @@ public:
     void generateTestPattern();
     
     // Generate mesh data for rendering
-    void generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader);
+    void generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader, TextureLoader& textureLoader);
 
     // Get chunk position in world coordinates
     glm::ivec3 getPosition() const { return chunkPosition; }

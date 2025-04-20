@@ -141,6 +141,45 @@ void ModelLoader::clearCache() {
     cacheMisses = 0;
 }
 
+void ModelLoader::loadTexturesForModel(ModelData& modelData, TextureLoader& textureLoader) {
+    // Make sure texture references are resolved first
+    resolveTextureReferences(modelData);
+
+    // Keep track of which textures have been loaded
+    std::unordered_map<std::string, uint32_t> loadedTextures;
+
+    // Process each texture in the model's texture map
+    for (const auto& [texName, texPath] : modelData.textureMap) {
+        // Skip if already loaded
+        if (loadedTextures.find(texPath) != loadedTextures.end()) {
+            continue;
+        }
+
+        // Load the texture and store its ID
+        uint32_t textureId = textureLoader.loadTexture(texPath);
+        loadedTextures[texPath] = textureId;
+
+        LOG_DEBUG("Loaded texture for model %s: %s -> ID %u",
+                 modelData.name.c_str(), texPath.c_str(), textureId);
+    }
+
+    // If we have at least one texture, use the first one as the model's default texture
+    if (!loadedTextures.empty()) {
+        // Get the first texture path and its ID
+        const auto& firstTexture = *modelData.textureMap.begin();
+        uint32_t textureId = loadedTextures[firstTexture.second];
+
+        // Set as the model's main texture
+        modelData.textureId = textureId;
+        LOG_INFO("Set default texture for model %s: %s (ID: %u)",
+                modelData.name.c_str(), firstTexture.first.c_str(), textureId);
+    } else {
+        // No textures found, use default texture
+        modelData.textureId = textureLoader.getDefaultTextureId();
+        LOG_WARN("No textures found for model %s, using default texture", modelData.name.c_str());
+    }
+}
+
 bool ModelLoader::processModelFile(const std::string& filename, ModelData& modelData) {
     // Read the file
     std::string jsonContent;

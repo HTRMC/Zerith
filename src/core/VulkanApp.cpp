@@ -2114,11 +2114,8 @@ bool VulkanApp::loadBlockBenchModel(const std::string &filename) {
     LOG_INFO("Model loaded successfully. Vertices: %zu, Indices: %zu",
              currentModel.vertices.size(), currentModel.indices.size());
 
-    // Log all resolved texture mappings
-    LOG_DEBUG("Model texture mappings:");
-    for (const auto& [key, path] : currentModel.textureMap) {
-        LOG_DEBUG("  %s -> %s", key.c_str(), path.c_str());
-    }
+    // Automatically load textures for the model
+    modelLoader.loadTexturesForModel(currentModel, textureLoader);
 
     return true;
 }
@@ -2266,38 +2263,16 @@ void VulkanApp::createIndexBufferFromModel() {
 }
 
 uint32_t VulkanApp::loadModelTextures() {
-    uint32_t textureId = textureLoader.getDefaultTextureId();
-
-    // If we have a texture map in the model
-    if (!currentModel.textureMap.empty()) {
-        // Try loading textures in order of preference:
-        // 1. 'all' texture (used for all faces)
-        // 2. 'side' texture (commonly used)
-        // 3. Any of bottom/top/north/south/east/west
-        // 4. First texture in the map as fallback
-
-        const std::array<std::string, 8> preferredTextures = {
-            "all", "side", "bottom", "top", "north", "south", "east", "west"
-        };
-
-        for (const auto& texName : preferredTextures) {
-            auto it = currentModel.textureMap.find(texName);
-            if (it != currentModel.textureMap.end()) {
-                textureId = textureLoader.loadTexture(it->second);
-                LOG_INFO("Using texture for model: %s -> %s", it->first.c_str(), it->second.c_str());
-                return textureId;
-            }
-        }
-
-        // Fall back to the first texture in the map
-        auto it = currentModel.textureMap.begin();
-        textureId = textureLoader.loadTexture(it->second);
-        LOG_INFO("Using fallback texture for model: %s -> %s", it->first.c_str(), it->second.c_str());
-    } else {
-        LOG_INFO("Model has no textures, using default texture");
+    // If the model already has a texture ID assigned from automatic loading, use it
+    if (currentModel.textureId != 0) {
+        return currentModel.textureId;
     }
 
-    return textureId;
+    // Otherwise, load the textures now
+    modelLoader.loadTexturesForModel(currentModel, textureLoader);
+
+    // Return the texture ID (will be default texture if none were loaded)
+    return currentModel.textureId;
 }
 
 // Cleanup swap chain resources
@@ -2698,7 +2673,7 @@ void VulkanApp::updateLoadedChunks() {
     chunkManager.updateLoadedChunks(cameraPos);
 
     // Update chunk meshes
-    chunkManager.updateChunkMeshes(modelLoader);
+    chunkManager.updateChunkMeshes(modelLoader, textureLoader);
 
     bool anyLayerUpdated = false;
 
