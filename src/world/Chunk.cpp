@@ -137,10 +137,17 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
         auto modelOpt = modelLoader.loadModel(modelPath);
 
         if (modelOpt.has_value()) {
-            // Get the model and automatically load its textures
-            auto model = modelOpt.value();
-            modelLoader.loadTexturesForModel(model, textureLoader);
-            blockModels[blockId] = model;
+            // Store a reference to the model in the ModelLoader's cache
+            // This ensures we're using the cached model with already assigned textures
+            auto& modelRef = modelLoader.getCachedModel(modelPath);
+            
+            // If the model doesn't have a texture assigned, load it
+            if (modelRef.textureId == 0) {
+                modelLoader.loadTexturesForModel(modelRef, textureLoader);
+            }
+            
+            // Use the model with properly assigned textures
+            blockModels[blockId] = modelRef;
         } else {
             LOG_ERROR("Failed to load model for block %d (%s) at %s", blockId, registry.getBlockName(blockId).c_str(),
                       modelPath.c_str());

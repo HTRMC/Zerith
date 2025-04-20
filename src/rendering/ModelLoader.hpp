@@ -46,6 +46,9 @@ public:
     // Load a model from a BlockBench JSON file, using cache if available
     std::optional<ModelData> loadModel(const std::string& filename);
 
+    // Get a reference to a model from the cache (the model must already exist in the cache)
+    ModelData& getCachedModel(const std::string& filename);
+
     // Clear the model cache
     void clearCache();
 

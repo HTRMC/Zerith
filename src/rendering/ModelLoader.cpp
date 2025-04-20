@@ -142,6 +142,11 @@ void ModelLoader::clearCache() {
 }
 
 void ModelLoader::loadTexturesForModel(ModelData& modelData, TextureLoader& textureLoader) {
+    // First check if texture is already set - if so, just return
+    if (modelData.textureId > 0) {
+        return;
+    }
+
     // Make sure texture references are resolved first
     resolveTextureReferences(modelData);
 
@@ -687,4 +692,19 @@ glm::vec3 ModelLoader::parseColor(int colorIndex) {
         // Add more colors as needed
         default: return {1.0f, 1.0f, 1.0f}; // Default white
     }
+}
+
+ModelData& ModelLoader::getCachedModel(const std::string& filename) {
+    // Handle the filename - if it doesn't start with "assets/", assume a simple path
+    std::string fullPath = resolveModelPath(filename);
+    
+    // Check if the model is already in the cache
+    auto it = modelCache.find(fullPath);
+    if (it != modelCache.end()) {
+        // Return a reference to the cached model
+        return it->second;
+    }
+    
+    // If not found, we have a problem - this method should only be called for models that exist in the cache
+    throw std::runtime_error("Model not found in cache: " + fullPath);
 }
