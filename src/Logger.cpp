@@ -130,8 +130,8 @@ std::string Logger::levelToString(LogLevel level) const {
     switch (level) {
         case LogLevel::FATAL: return "FATAL";
         case LogLevel::ERROR: return "ERROR";
-        case LogLevel::WARN:  return "WARN ";
-        case LogLevel::INFO:  return "INFO ";
+        case LogLevel::WARN:  return "WARN";  // Removed extra space
+        case LogLevel::INFO:  return "INFO";  // Removed extra space
         case LogLevel::DEBUG: return "DEBUG";
         case LogLevel::TRACE: return "TRACE";
         default:              return "UNKNOWN";
