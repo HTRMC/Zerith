@@ -18,8 +18,7 @@ struct BlockVariant {
     bool uvlock = false;     // Whether to lock UV coordinates during rotation
     bool mirrored = false;   // Whether the model is mirrored (x-axis flipped)
     std::string property;    // Property value this variant corresponds to (e.g., "snowy=false")
-
-    // Support for additional transformations can be added here
+    bool isFromMultipart = false; // Whether this variant comes from a multipart blockstate
 };
 
 // Represents a blockstate, which may have multiple variants
@@ -34,8 +33,16 @@ public:
     // Parse blockstate JSON data
     bool parseJson(const nlohmann::json& json);
 
+    // Parse the different blockstate formats
+    bool parseMultipartFormat(const nlohmann::json& json);
+    bool parseVariantsFormat(const nlohmann::json& json);
+    bool parseSingleModelFormat(const nlohmann::json& json);
+
     // Parse a single variant object from JSON
     BlockVariant parseVariantObject(const nlohmann::json& variantJson);
+
+    // Parse an "apply" object from multipart format
+    BlockVariant parseApplyObject(const nlohmann::json& applyJson);
 
     // Get a random variant based on weights
     const BlockVariant& getRandomVariant() const;
@@ -52,9 +59,17 @@ public:
     // Get the blockstate path
     const std::string& getPath() const { return blockstatePath; }
 
+    // Check if this is a multipart blockstate
+    bool isMultipartState() const;
+
+    // Get the raw multipart data
+    const nlohmann::json& getMultipartData() const;
+
 private:
     std::string blockstatePath;
     std::vector<BlockVariant> variants;
+    bool isMultipart = false;
+    nlohmann::json multipartData;
 
     // Random number generator for variant selection
     static std::mt19937 rng;
