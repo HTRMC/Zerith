@@ -11,7 +11,6 @@
 ChunkManager::ChunkManager() {
     // Initialize block registry with blockstates support
     BlocksWithStates::registerAllBlocks(blockRegistry);
-    BlocksWithStates::initBlockStates(blockRegistry);
 
     // Initialize render data for each layer
     layerRenderData[BlockRenderLayer::LAYER_OPAQUE] = LayerRenderData{};
