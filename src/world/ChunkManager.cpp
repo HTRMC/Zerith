@@ -4,13 +4,14 @@
 #include <algorithm>
 #include <cmath>
 
-#include "Blocks.hpp"
+#include "BlocksWithStates.hpp"
 #include "Logger.hpp"
 #include "core/VulkanApp.hpp"
 
 ChunkManager::ChunkManager() {
-    // Initialize block registry
-    Blocks::registerAllBlocks(blockRegistry);
+    // Initialize block registry with blockstates support
+    BlocksWithStates::registerAllBlocks(blockRegistry);
+    BlocksWithStates::initBlockStates(blockRegistry);
 
     // Initialize render data for each layer
     layerRenderData[BlockRenderLayer::LAYER_OPAQUE] = LayerRenderData{};

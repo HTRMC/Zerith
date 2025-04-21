@@ -708,3 +708,183 @@ ModelData& ModelLoader::getCachedModel(const std::string& filename) {
     // If not found, we have a problem - this method should only be called for models that exist in the cache
     throw std::runtime_error("Model not found in cache: " + fullPath);
 }
+
+std::optional<ModelData> ModelLoader::loadModelWithVariant(const std::string& modelPath, const BlockVariant& variant) {
+    // Generate a unique cache key for this model + variant combination
+    std::string cacheKey = generateVariantCacheKey(modelPath, variant);
+
+    // Check if this specific variant is already in the cache
+    auto cacheIt = modelCache.find(cacheKey);
+    if (cacheIt != modelCache.end()) {
+        // Found in cache
+        cacheHits++;
+        return cacheIt->second;
+    }
+
+    // Not in cache, need to load the base model first
+    std::string resolvedPath = resolveModelPath(variant.modelPath);
+    LOG_DEBUG("Loading model with variant: %s (rotationX=%d, rotationY=%d, mirrored=%d)",
+              resolvedPath.c_str(), variant.rotationX, variant.rotationY, variant.mirrored);
+
+    // Special handling for _mirrored models - try to load the base model
+    // and apply mirroring if the mirrored version doesn't exist as a file
+    std::string basePath = resolvedPath;
+    bool shouldManuallyMirror = false;
+
+    if (variant.mirrored || resolvedPath.find("_mirrored") != std::string::npos) {
+        // If this is a mirrored model, try to get the base model path
+        size_t mirroredPos = resolvedPath.find("_mirrored");
+        if (mirroredPos != std::string::npos) {
+            // Extract the base path by removing "_mirrored"
+            basePath = resolvedPath.substr(0, mirroredPos) +
+                      resolvedPath.substr(mirroredPos + 9); // 9 is length of "_mirrored"
+
+            // First try loading the mirrored file directly
+            std::ifstream mirroredFile(resolvedPath);
+            if (!mirroredFile.is_open()) {
+                // If the mirrored file doesn't exist, we'll load the base and mirror it manually
+                LOG_DEBUG("Mirrored model %s not found, will mirror %s manually",
+                         resolvedPath.c_str(), basePath.c_str());
+                shouldManuallyMirror = true;
+                resolvedPath = basePath; // Use the base path for loading
+            }
+        }
+    }
+
+    // Load the base model
+    auto baseModelOpt = loadModel(resolvedPath);
+    if (!baseModelOpt.has_value()) {
+        // If we're trying to load a mirrored model that doesn't exist,
+        // try the base model instead
+        if (shouldManuallyMirror) {
+            LOG_DEBUG("Trying to load base model %s instead", basePath.c_str());
+            baseModelOpt = loadModel(basePath);
+            if (!baseModelOpt.has_value()) {
+                LOG_ERROR("Failed to load base model for variant: %s", basePath.c_str());
+                return std::nullopt;
+            }
+        } else {
+            LOG_ERROR("Failed to load base model for variant: %s", resolvedPath.c_str());
+            return std::nullopt;
+        }
+    }
+
+    // Create a copy of the base model for this variant
+    ModelData variantModel = baseModelOpt.value();
+
+    // Apply transformations based on the variant properties
+    if (shouldManuallyMirror || variant.mirrored) {
+        // Apply mirroring if needed
+        mirrorModel(variantModel, true);
+    }
+
+    // Apply rotations if specified
+    if (variant.rotationX != 0 || variant.rotationY != 0) {
+        rotateModel(variantModel, variant.rotationX, variant.rotationY);
+    }
+
+    // Add the transformed model to the cache with the unique key
+    modelCache[cacheKey] = variantModel;
+
+    return variantModel;
+}
+
+void ModelLoader::applyVariantTransformations(ModelData& modelData, const BlockVariant& variant) {
+    // Apply X and Y rotations if needed
+    if (variant.rotationX != 0 || variant.rotationY != 0) {
+        rotateModel(modelData, variant.rotationX, variant.rotationY);
+    }
+
+    // Apply mirroring if needed
+    if (variant.mirrored) {
+        mirrorModel(modelData, true); // Mirror along X axis
+    }
+
+    // The model is already transformed so we don't need to do
+    // anything with UVs if uvlock is set
+}
+
+void ModelLoader::rotateModel(ModelData& modelData, int rotationX, int rotationY) {
+    // Apply rotations in model space, before the vertices are generated
+    // This allows us to work with just the element definitions
+
+    // Convert angles to radians
+    float xRadians = glm::radians(static_cast<float>(rotationX));
+    float yRadians = glm::radians(static_cast<float>(rotationY));
+
+    // Create rotation matrices
+    glm::mat4 rotationMatrix = glm::mat4(1.0f);
+
+    // Apply Y rotation first (around vertical axis)
+    if (rotationY != 0) {
+        rotationMatrix = glm::rotate(rotationMatrix, yRadians, glm::vec3(0.0f, 0.0f, 1.0f));
+    }
+
+    // Then apply X rotation (around horizontal axis)
+    if (rotationX != 0) {
+        rotationMatrix = glm::rotate(rotationMatrix, xRadians, glm::vec3(1.0f, 0.0f, 0.0f));
+    }
+
+    // Apply rotation to each element's from and to vectors
+    for (auto& element : modelData.elements) {
+        // Translate the element to be centered at the origin
+        glm::vec3 center = (element.from + element.to) * 0.5f;
+
+        // Transform the from and to points
+        glm::vec4 fromCentered = glm::vec4(element.from - center, 1.0f);
+        glm::vec4 toCentered = glm::vec4(element.to - center, 1.0f);
+
+        // Apply rotation
+        glm::vec4 fromRotated = rotationMatrix * fromCentered;
+        glm::vec4 toRotated = rotationMatrix * toCentered;
+
+        // Translate back
+        element.from = glm::vec3(fromRotated) + center;
+        element.to = glm::vec3(toRotated) + center;
+
+        // Note: This simplified rotation doesn't handle face UVs correctly
+        // For a complete implementation, we would also need to update face UVs
+        // based on the rotation and whether uvlock is set
+    }
+
+    // Note: This doesn't handle already-generated vertices
+    // We assume this is called before geometry is created
+}
+
+void ModelLoader::mirrorModel(ModelData& modelData, bool mirrorX) {
+    // Only handle X mirroring for now (that's what "_mirrored" means in blockstates)
+    if (mirrorX) {
+        for (auto& element : modelData.elements) {
+            // Mirror coordinates
+            float temp = 1.0f - element.from.x;
+            element.from.x = 1.0f - element.to.x;
+            element.to.x = temp;
+
+            // Swap face directions that are affected by X mirroring
+            if (element.faces.find("east") != element.faces.end() &&
+                element.faces.find("west") != element.faces.end()) {
+                std::swap(element.faces["east"], element.faces["west"]);
+            }
+
+            // Note: To properly implement mirroring, we'd also need to transform UVs
+            // For a complete implementation, each face's UV coordinates would need
+            // to be updated based on the mirroring
+        }
+    }
+}
+
+std::string ModelLoader::generateVariantCacheKey(const std::string& modelPath, const BlockVariant& variant) {
+    // Create a unique key that includes the model path and all variant properties
+    std::stringstream key;
+    key << modelPath << "_rot" << variant.rotationX << "x" << variant.rotationY;
+
+    if (variant.mirrored) {
+        key << "_mirrored";
+    }
+
+    if (variant.uvlock) {
+        key << "_uvlock";
+    }
+
+    return key.str();
+}

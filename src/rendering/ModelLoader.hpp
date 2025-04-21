@@ -11,6 +11,7 @@
 
 #include "TextureLoader.hpp"
 #include "Vertex.hpp"
+#include "world/BlockState.hpp"
 
 // Model data structures
 struct Face {
@@ -45,6 +46,9 @@ public:
 
     // Load a model from a BlockBench JSON file, using cache if available
     std::optional<ModelData> loadModel(const std::string& filename);
+
+    // Load a model with a specific blockstate variant
+    std::optional<ModelData> loadModelWithVariant(const std::string& modelPath, const BlockVariant& variant);
 
     // Get a reference to a model from the cache (the model must already exist in the cache)
     ModelData& getCachedModel(const std::string& filename);
@@ -91,4 +95,14 @@ private:
 
     // Resolves a full file path for a model
     std::string resolveModelPath(const std::string& path);
+
+    // Apply transformations (rotation, mirroring) to a model
+    void applyVariantTransformations(ModelData& modelData, const BlockVariant& variant);
+
+    // Helper methods for transformations
+    void rotateModel(ModelData& modelData, int rotationX, int rotationY);
+    void mirrorModel(ModelData& modelData, bool mirrorX);
+
+    // Generate a unique cache key for a model with variant transformations
+    std::string generateVariantCacheKey(const std::string& modelPath, const BlockVariant& variant);
 };

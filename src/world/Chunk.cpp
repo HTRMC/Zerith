@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <algorithm>
 
+#include "BlockStateLoader.hpp"
 #include "Logger.hpp"
 #include "core/VulkanApp.hpp"
 
@@ -133,12 +134,39 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
 
     // Load models for each unique block type
     for (uint16_t blockId: uniqueBlocks) {
-        std::string modelPath = registry.getModelPath(blockId);
-        auto modelOpt = modelLoader.loadModel(modelPath);
+        // Get the blockstate ID from the registry
+        std::string blockStateId = registry.getBlockName(blockId); // Use name as the blockstate ID
+
+        // Try to load the model with blockstate support
+        std::optional<ModelData> modelOpt;
+
+        // First try to load the blockstate
+        auto blockStateLoader = std::make_shared<BlockStateLoader>();
+        auto blockStateOpt = blockStateLoader->loadBlockState(blockStateId);
+
+        if (blockStateOpt.has_value()) {
+            // Successfully loaded the blockstate, get a random variant
+            const auto& blockState = blockStateOpt->get();
+            const auto& variant = blockState.getRandomVariant();
+
+            // Try to load the model with this variant
+            modelOpt = modelLoader.loadModelWithVariant(variant.modelPath, variant);
+
+            LOG_DEBUG("Using blockstate variant for block %d (%s): model=%s, rotX=%d, rotY=%d, mirrored=%d",
+                      blockId, registry.getBlockName(blockId).c_str(), variant.modelPath.c_str(),
+                      variant.rotationX, variant.rotationY, variant.mirrored);
+        } else {
+            // Fallback to direct model loading
+            std::string modelPath = registry.getModelPath(blockId);
+            modelOpt = modelLoader.loadModel(modelPath);
+
+            LOG_DEBUG("Using direct model for block %d (%s): %s",
+                      blockId, registry.getBlockName(blockId).c_str(), modelPath.c_str());
+        }
 
         if (modelOpt.has_value()) {
             // Store a reference to the model in the ModelLoader's cache
-            // This ensures we're using the cached model with already assigned textures
+            std::string modelPath = registry.getModelPath(blockId);
             auto& modelRef = modelLoader.getCachedModel(modelPath);
             
             // If the model doesn't have a texture assigned, load it
@@ -149,8 +177,7 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
             // Use the model with properly assigned textures
             blockModels[blockId] = modelRef;
         } else {
-            LOG_ERROR("Failed to load model for block %d (%s) at %s", blockId, registry.getBlockName(blockId).c_str(),
-                      modelPath.c_str());
+            LOG_ERROR("Failed to load model for block %d (%s)", blockId, registry.getBlockName(blockId).c_str());
         }
     }
 
@@ -207,7 +234,10 @@ void Chunk::generateMesh(const BlockRegistry& registry, ModelLoader& modelLoader
                         visibleFaces["up"] = shouldRenderFace(x, y, z, "up", registry);
                         visibleFaces["down"] = shouldRenderFace(x, y, z, "down", registry);
 
-                        translucentBlocks.push_back({blockId, blockPosition, &blockModels[blockId], visibleFaces});
+                        // Get a pointer to the model
+                        ModelData* modelPtr = &blockModels[blockId];
+
+                        translucentBlocks.push_back({blockId, blockPosition, modelPtr, visibleFaces});
                     }
                 }
             }

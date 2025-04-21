@@ -8,13 +8,16 @@
 enum class BlockRenderLayer {
     LAYER_OPAQUE,      // Solid blocks (stone, dirt, etc.)
     LAYER_CUTOUT,      // Blocks with parts that are fully transparent (glass, leaves)
-    LAYER_TRANSLUCENT    // Blocks with partially transparent parts (colored glass, water)
+    LAYER_TRANSLUCENT  // Blocks with partially transparent parts (colored glass, water)
 };
+
+// Forward declaration
+class BlockStateLoader;
 
 // Block registry to manage block types, IDs, and their model paths
 class BlockRegistry {
 public:
-    BlockRegistry() = default;
+    BlockRegistry();
     ~BlockRegistry() = default;
 
     // Register a new block type
@@ -29,7 +32,10 @@ public:
     // Check if a block ID is transparent (e.g., air, glass)
     bool isBlockTransparent(uint16_t id) const;
     
-    // Get the model path for a block
+    // Get the blockstate ID for a block (e.g., "minecraft:stone")
+    std::string getBlockStateId(uint16_t id) const;
+
+    // Get the model path for a block (legacy method, uses random blockstate variant)
     std::string getModelPath(uint16_t id) const;
 
     // Get the render layer for a block
@@ -40,8 +46,17 @@ public:
         return blockNames.size();
     }
 
+    // Initialize the block registry with a blockstate loader
+    void setBlockStateLoader(std::shared_ptr<BlockStateLoader> loader) {
+        blockStateLoader = loader;
+    }
+
 private:
     std::unordered_map<uint16_t, std::string> blockNames;
+    std::unordered_map<uint16_t, std::string> blockStateIds;
     std::unordered_map<uint16_t, bool> blockTransparency;
     std::unordered_map<uint16_t, BlockRenderLayer> blockRenderLayers;
+
+    // Reference to the blockstate loader
+    std::shared_ptr<BlockStateLoader> blockStateLoader;
 };
