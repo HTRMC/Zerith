@@ -1,6 +1,5 @@
 #include "VulkanApp.hpp"
 
-#include "windows_wrapper.hpp"
 #include "Logger.hpp"
 #include <windowsx.h>
 #include <iostream>

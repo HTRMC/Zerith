@@ -8,6 +8,7 @@
 #include <array>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include "windows_wrapper.hpp"
 #include <Xinput.h>
 
 #include "rendering/Vertex.hpp"
