@@ -359,7 +359,7 @@ bool ModelLoader::resolveTextureReference(const std::string& key, const std::str
     // Check if the reference points to a direct texture path
     if (modelData.textureMap.find(refName) != modelData.textureMap.end()) {
         modelData.textureMap[key] = modelData.textureMap[refName];
-        LOG_DEBUG("Resolved texture reference: %s -> %s", key.c_str(), modelData.textureMap[key].c_str());
+        // LOG_DEBUG("Resolved texture reference: %s -> %s", key.c_str(), modelData.textureMap[key].c_str());
         return true;
     }
 

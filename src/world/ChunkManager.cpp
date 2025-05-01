@@ -19,6 +19,12 @@ ChunkManager::ChunkManager() {
 
     // Initialize player chunk position to an invalid position
     lastPlayerChunkPos = glm::ivec3(INT_MAX, INT_MAX, INT_MAX);
+
+    // Create thread pool with hardware concurrency AFTER everything else is initialized
+    // This ensures all member variables are properly set up before any thread pool tasks run
+    threadPool = std::make_shared<Zerith::ThreadPool>();
+
+    LOG_INFO("ChunkManager initialized with thread pool (%zu threads)", threadPool->size());
 }
 
 ChunkManager::~ChunkManager() {
@@ -450,42 +456,89 @@ VkDescriptorImageInfo ChunkManager::loadChunkTextures(TextureLoader& textureLoad
 
 void ChunkManager::loadChunk(const glm::ivec3& position) {
     // Check if chunk already exists
-    if (chunks.find(position) != chunks.end()) {
-        return;
+    {
+        std::lock_guard<std::mutex> lock(chunksMutex);
+        if (chunks.find(position) != chunks.end()) {
+            return;
+        }
     }
 
-    // Create new chunk
-    auto chunk = std::make_unique<Chunk>(position);
-
-    // Initialize chunk data - generate terrain
-    chunk->generateTestPattern();
-
-    // Insert into chunks map
-    chunks[position] = std::move(chunk);
-
-    // Mark all render layers as dirty
-    for (auto& [layer, data] : layerRenderData) {
-        data.dirty = true;
+    // Check if this chunk is already being loaded
+    {
+        std::lock_guard<std::mutex> lock(pendingOpsMutex);
+        if (pendingOperations.find(position) != pendingOperations.end()) {
+            return;
+        }
     }
 
-    LOG_DEBUG("Loaded chunk at position (%d, %d, %d)", position.x, position.y, position.z);
+    // Submit chunk generation task to thread pool
+    auto future = threadPool->enqueue([this, position]() {
+        try {
+            // Create new chunk
+            auto chunk = std::make_unique<Chunk>(position);
+
+            // Initialize chunk data - generate terrain
+            chunk->generateTestPattern();
+
+            // Insert into chunks map
+            {
+                std::lock_guard<std::mutex> lock(chunksMutex);
+                chunks[position] = std::move(chunk);
+            }
+
+            // Mark all render layers as dirty
+            for (auto& [layer, data] : layerRenderData) {
+                data.dirty = true;
+            }
+
+            LOG_DEBUG("Loaded chunk at position (%d, %d, %d)", position.x, position.y, position.z);
+        }
+        catch (const std::exception& e) {
+            LOG_ERROR("Exception loading chunk at (%d, %d, %d): %s",
+                      position.x, position.y, position.z, e.what());
+        }
+
+        // Remove from pending operations
+        {
+            std::lock_guard<std::mutex> lock(pendingOpsMutex);
+            pendingOperations.erase(position);
+        }
+    });
+
+    // Store the future
+    {
+        std::lock_guard<std::mutex> lock(pendingOpsMutex);
+        pendingOperations[position] = std::move(future);
+    }
 }
 
 void ChunkManager::unloadChunk(const glm::ivec3& position) {
     // Remove chunk from map
-    auto it = chunks.find(position);
-    if (it != chunks.end()) {
-        chunks.erase(it);
+    {
+        std::lock_guard<std::mutex> lock(chunksMutex);
+        auto it = chunks.find(position);
+        if (it != chunks.end()) {
+            chunks.erase(it);
 
-        // Also remove from queuedChunks set if it's there - THIS LINE IS MISSING
-        queuedChunks.erase(position);
+            // Mark all render layers as dirty
+            for (auto& [layer, data] : layerRenderData) {
+                data.dirty = true;
+            }
 
-        // Mark all render layers as dirty
-        for (auto& [layer, data] : layerRenderData) {
-            data.dirty = true;
+            LOG_DEBUG("Unloaded chunk at position (%d, %d, %d)", position.x, position.y, position.z);
         }
+    }
 
-        LOG_DEBUG("Unloaded chunk at position (%d, %d, %d)", position.x, position.y, position.z);
+    // Also remove from queuedChunks set if it's there
+    {
+        std::lock_guard<std::mutex> lock(queuedChunksMutex);
+        queuedChunks.erase(position);
+    }
+
+    // Cancel any pending operations for this chunk
+    {
+        std::lock_guard<std::mutex> lock(pendingOpsMutex);
+        pendingOperations.erase(position);
     }
 }
 
@@ -505,18 +558,34 @@ void ChunkManager::processChunkQueue(ModelLoader& modelLoader) {
     // Process a limited number of chunks per frame
     int processedCount = 0;
 
-    while (!chunkLoadQueue.empty() && processedCount < maxChunksPerFrame) {
-        // Get highest priority chunk
-        ChunkLoadRequest request = chunkLoadQueue.front();
-        chunkLoadQueue.pop();
+    // Chunks to load this frame
+    std::vector<glm::ivec3> chunksToLoadThisFrame;
 
-        // Remove from queued set
-        queuedChunks.erase(request.position);
+    // Get chunks from the queue
+    {
+        std::lock_guard<std::mutex> lock(queueMutex);
+        while (!chunkLoadQueue.empty() && processedCount < maxChunksPerFrame) {
+            // Get the chunk position from the queue
+            ChunkLoadRequest request = chunkLoadQueue.front();
+            chunkLoadQueue.pop();
+
+            // Add to the list of chunks to load this frame
+            chunksToLoadThisFrame.push_back(request.position);
+            processedCount++;
+        }
+    }
+
+    // Process chunks in parallel
+    std::vector<std::future<void>> futures;
+    for (const auto& position : chunksToLoadThisFrame) {
+        // Remove from queued chunks set
+        {
+            std::lock_guard<std::mutex> lock(queuedChunksMutex);
+            queuedChunks.erase(position);
+        }
 
         // Load the chunk
-        loadChunk(request.position);
-
-        processedCount++;
+        loadChunk(position);
     }
 }
 
@@ -524,12 +593,50 @@ void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader, TextureLoader& 
     bool anyChunkUpdated = false;
     size_t meshGenerationCount = 0;
 
-    // Update meshes for all chunks that need it
-    for (auto& [pos, chunk] : chunks) {
-        if (chunk->isAnyMeshDirty()) {
-            chunk->generateMesh(blockRegistry, modelLoader, textureLoader);
-            anyChunkUpdated = true;
-            meshGenerationCount++;
+    // Collect chunks that need mesh generation
+    std::vector<Chunk*> chunksToProcess;
+    {
+        std::lock_guard<std::mutex> lock(chunksMutex);
+        for (const auto& [pos, chunk] : chunks) {
+            if (chunk->isAnyMeshDirty()) {
+                chunksToProcess.push_back(chunk.get());
+            }
+        }
+    }
+
+    if (chunksToProcess.empty()) {
+        return;
+    }
+
+    // Process chunks in parallel
+    std::vector<std::future<bool>> results;
+    for (Chunk* chunk : chunksToProcess) {
+        auto future = threadPool->enqueue([this, chunk, &modelLoader, &textureLoader]() {
+            try {
+                // Generate mesh for this chunk
+                chunk->generateMesh(blockRegistry, modelLoader, textureLoader);
+                return true;
+            }
+            catch (const std::exception& e) {
+                LOG_ERROR("Exception generating mesh for chunk at %d,%d,%d: %s",
+                          chunk->getPosition().x, chunk->getPosition().y, chunk->getPosition().z, e.what());
+                return false;
+            }
+        });
+
+        results.push_back(std::move(future));
+    }
+
+    // Wait for all mesh generation tasks to complete
+    for (auto& result : results) {
+        try {
+            if (result.valid() && result.get()) {
+                anyChunkUpdated = true;
+                meshGenerationCount++;
+            }
+        }
+        catch (const std::exception& e) {
+            LOG_ERROR("Exception waiting for chunk mesh generation: %s", e.what());
         }
     }
 
@@ -563,10 +670,25 @@ void ChunkManager::preloadBlockModels(ModelLoader& modelLoader) {
     // Keep track of loaded models to pass to texture loader
     std::vector<ModelData> loadedModels;
 
+    // Preload models in parallel
+    std::vector<std::future<std::optional<ModelData>>> futures;
     for (const auto& modelPath : blockModels) {
-        auto modelOpt = modelLoader.loadModel(modelPath);
-        if (modelOpt.has_value()) {
-            loadedModels.push_back(modelOpt.value());
+        auto future = threadPool->enqueue([&modelLoader, modelPath]() {
+            return modelLoader.loadModel(modelPath);
+        });
+        futures.push_back(std::move(future));
+    }
+
+    // Collect results
+    for (auto& future : futures) {
+        try {
+            auto modelOpt = future.get();
+            if (modelOpt.has_value()) {
+                loadedModels.push_back(modelOpt.value());
+            }
+        }
+        catch (const std::exception& e) {
+            LOG_ERROR("Exception preloading model: %s", e.what());
         }
     }
 
@@ -575,11 +697,17 @@ void ChunkManager::preloadBlockModels(ModelLoader& modelLoader) {
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& position) {
+    std::lock_guard<std::mutex> lock(chunksMutex);
     auto it = chunks.find(position);
     if (it != chunks.end()) {
         return it->second.get();
     }
     return nullptr;
+}
+
+size_t ChunkManager::getLoadedChunkCount() const {
+    std::lock_guard<std::mutex> lock(chunksMutex);
+    return chunks.size();
 }
 
 glm::ivec3 ChunkManager::worldToChunkPos(const glm::vec3& worldPos) {
@@ -611,6 +739,7 @@ uint16_t ChunkManager::getBlockAt(const glm::vec3& worldPos) const {
     if (localPos.z < 0) localPos.z += CHUNK_SIZE_Z;
 
     // Find the chunk
+    std::lock_guard<std::mutex> lock(chunksMutex);
     auto it = chunks.find(chunkPos);
     if (it != chunks.end()) {
         // Get block from chunk
@@ -634,6 +763,7 @@ void ChunkManager::setBlockAt(const glm::vec3& worldPos, uint16_t blockId) {
     if (localPos.z < 0) localPos.z += CHUNK_SIZE_Z;
 
     // Find the chunk
+    std::lock_guard<std::mutex> lock(chunksMutex);
     auto it = chunks.find(chunkPos);
     if (it != chunks.end()) {
         // Set block in chunk
@@ -647,4 +777,37 @@ void ChunkManager::setBlockAt(const glm::vec3& worldPos, uint16_t blockId) {
         // Chunk isn't loaded, we could queue it for loading or ignore
         // For now, we'll just ignore blocks set outside loaded chunks
     }
+}
+
+void ChunkManager::waitForPendingOperations() {
+    // Get all current pending operations
+    std::vector<std::future<void>> pendingOps;
+    {
+        std::lock_guard<std::mutex> lock(pendingOpsMutex);
+        for (auto& [pos, future] : pendingOperations) {
+            if (future.valid()) {
+                pendingOps.push_back(std::move(future));
+            }
+        }
+        pendingOperations.clear();
+    }
+
+    // Wait for all operations to complete
+    for (auto& future : pendingOps) {
+        try {
+            if (future.valid()) {
+                future.wait();
+            }
+        }
+        catch (const std::exception& e) {
+            LOG_ERROR("Exception waiting for pending operation: %s", e.what());
+        }
+    }
+
+    // Also wait for the thread pool to finish all tasks
+    if (threadPool) {
+        threadPool->waitForCompletion();
+    }
+
+    LOG_DEBUG("All pending chunk operations completed");
 }

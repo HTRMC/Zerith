@@ -13,6 +13,7 @@
 #include "rendering/ModelLoader.hpp"
 #include "rendering/TextureLoader.hpp"
 #include "Chunk.hpp"
+#include "core/ThreadPool.hpp"
 
 // Structure to hold mesh data for a specific render layer across all chunks
 struct LayerRenderData {
@@ -106,10 +107,13 @@ public:
     int getMaxChunksPerFrame() const { return maxChunksPerFrame; }
 
     // Get the total number of loaded chunks
-    size_t getLoadedChunkCount() const { return chunks.size(); }
+    size_t getLoadedChunkCount() const;
 
     // Preload common block models to improve performance
     void preloadBlockModels(ModelLoader& modelLoader);
+
+    // Wait for all pending chunk operations to complete
+    void waitForPendingOperations();
 
 private:
     // Block registry to manage block types and properties
@@ -121,6 +125,16 @@ private:
     // Render data for each layer
     std::map<BlockRenderLayer, LayerRenderData> layerRenderData;
 
+    // Thread pool for chunk loading/generation
+    std::shared_ptr<Zerith::ThreadPool> threadPool;
+
+    // Mutex for thread-safe access to chunks map
+    mutable std::mutex chunksMutex;
+
+    // Map to track pending async operations
+    std::unordered_map<glm::ivec3, std::future<void>, IVec3Hash, IVec3Equal> pendingOperations;
+    std::mutex pendingOpsMutex;
+
     // Chunk that needs to be loaded
     struct ChunkLoadRequest {
         glm::ivec3 position;
@@ -129,12 +143,15 @@ private:
 
     // Queue for chunks to load
     std::queue<ChunkLoadRequest> chunkLoadQueue;
+    std::mutex queueMutex;
 
     // Set of chunk positions currently in the load queue
     std::unordered_set<glm::ivec3, IVec3Hash, IVec3Equal> queuedChunks;
+    std::mutex queuedChunksMutex;
 
     // Last known player chunk position
     glm::ivec3 lastPlayerChunkPos;
+    std::mutex playerPosMutex;
 
     // Configuration
     int chunkLoadRadius = 8; // How many chunks to load in each direction
