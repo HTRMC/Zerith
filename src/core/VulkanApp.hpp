@@ -11,6 +11,7 @@
 #include "windows_wrapper.hpp"
 #include <Xinput.h>
 
+#include "TimeManager.hpp"
 #include "rendering/Vertex.hpp"
 #include "rendering/ModelLoader.hpp"
 #include "rendering/TextureLoader.hpp"
@@ -295,6 +296,12 @@ private:
 
     // Update loaded chunks based on camera position
     void updateLoadedChunks();
+
+    // Add this to your existing member variables
+    Zerith::TimeManager timeManager;
+
+    // Add this game tick callback method
+    void gameTick(float deltaTime);
 };
 
 // Debug messenger callback function
