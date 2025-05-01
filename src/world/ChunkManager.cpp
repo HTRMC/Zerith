@@ -608,19 +608,21 @@ void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader, TextureLoader& 
         return;
     }
 
+    // Use atomic for thread-safe counter
+    std::atomic<int> successCount(0);
+
     // Process chunks in parallel
-    std::vector<std::future<bool>> results;
+    std::vector<std::future<void>> results;
     for (Chunk* chunk : chunksToProcess) {
-        auto future = threadPool->enqueue([this, chunk, &modelLoader, &textureLoader]() {
+        auto future = threadPool->enqueue([this, chunk, &modelLoader, &textureLoader, &successCount]() {
             try {
                 // Generate mesh for this chunk
                 chunk->generateMesh(blockRegistry, modelLoader, textureLoader);
-                return true;
+                successCount++; // Atomic increment
             }
             catch (const std::exception& e) {
                 LOG_ERROR("Exception generating mesh for chunk at %d,%d,%d: %s",
                           chunk->getPosition().x, chunk->getPosition().y, chunk->getPosition().z, e.what());
-                return false;
             }
         });
 
@@ -630,15 +632,18 @@ void ChunkManager::generateChunkMeshes(ModelLoader& modelLoader, TextureLoader& 
     // Wait for all mesh generation tasks to complete
     for (auto& result : results) {
         try {
-            if (result.valid() && result.get()) {
-                anyChunkUpdated = true;
-                meshGenerationCount++;
+            if (result.valid()) {
+                result.wait();
             }
         }
         catch (const std::exception& e) {
             LOG_ERROR("Exception waiting for chunk mesh generation: %s", e.what());
         }
     }
+
+    // Check if any chunk was updated
+    meshGenerationCount = successCount.load();
+    anyChunkUpdated = meshGenerationCount > 0;
 
     // If any chunk was updated, mark all layer render data as dirty
     if (anyChunkUpdated) {
