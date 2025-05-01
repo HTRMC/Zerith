@@ -6,6 +6,7 @@
 #include <glm/glm.hpp>
 #include <optional>
 #include <fstream>
+#include <mutex>
 #include <sstream>
 #include <nlohmann/json.hpp>
 
@@ -105,4 +106,6 @@ private:
 
     // Generate a unique cache key for a model with variant transformations
     std::string generateVariantCacheKey(const std::string& modelPath, const BlockVariant& variant);
+
+    std::mutex modelCacheMutex;
 };

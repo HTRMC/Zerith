@@ -713,6 +713,9 @@ std::optional<ModelData> ModelLoader::loadModelWithVariant(const std::string& mo
     // Generate a unique cache key for this model + variant combination
     std::string cacheKey = generateVariantCacheKey(modelPath, variant);
 
+    // Add a mutex lock for thread safety
+    std::lock_guard<std::mutex> lock(modelCacheMutex);
+
     // Check if this specific variant is already in the cache
     auto cacheIt = modelCache.find(cacheKey);
     if (cacheIt != modelCache.end()) {
@@ -751,14 +754,43 @@ std::optional<ModelData> ModelLoader::loadModelWithVariant(const std::string& mo
         }
     }
 
-    // Load the base model
-    auto baseModelOpt = loadModel(resolvedPath);
+    // Check for base model in cache first - while still holding the lock
+    std::optional<ModelData> baseModelOpt;
+    auto baseIt = modelCache.find(resolvedPath);
+    if (baseIt != modelCache.end()) {
+        // Found base model in cache
+        baseModelOpt = baseIt->second;
+    } else {
+        // Release lock while loading from disk
+        lock.~lock_guard(); // Explicitly release the lock
+
+        // Load base model (expensive file IO operation)
+        baseModelOpt = loadModel(resolvedPath);
+
+        // Re-acquire lock after loading
+        new (&lock) std::lock_guard<std::mutex>(modelCacheMutex);
+
+        // Check if another thread already loaded and cached it while we were loading
+        baseIt = modelCache.find(resolvedPath);
+        if (!baseModelOpt.has_value() && baseIt != modelCache.end()) {
+            baseModelOpt = baseIt->second;
+        }
+    }
+
     if (!baseModelOpt.has_value()) {
         // If we're trying to load a mirrored model that doesn't exist,
         // try the base model instead
         if (shouldManuallyMirror) {
             LOG_DEBUG("Trying to load base model %s instead", basePath.c_str());
+
+            // Release lock before expensive IO
+            lock.~lock_guard();
+
             baseModelOpt = loadModel(basePath);
+
+            // Re-acquire lock
+            new (&lock) std::lock_guard<std::mutex>(modelCacheMutex);
+
             if (!baseModelOpt.has_value()) {
                 LOG_ERROR("Failed to load base model for variant: %s", basePath.c_str());
                 return std::nullopt;
