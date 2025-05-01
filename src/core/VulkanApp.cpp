@@ -1876,8 +1876,8 @@ void VulkanApp::updateCamera() {
     glm::vec3 horizontalFront = glm::normalize(glm::vec3(cameraFront.x, cameraFront.y, 0.0f));
 
     // If the camera is looking straight up or down, horizontalFront might be zero
+    // In that case, use the right vector crossed with the world up to get a forward direction
     if (glm::length(horizontalFront) < 0.1f) {
-        // Use the right vector crossed with the world up to get a forward direction
         glm::vec3 worldUp = glm::vec3(0.0f, 0.0f, 1.0f);
         glm::vec3 right = glm::cross(cameraFront, worldUp);
         horizontalFront = glm::normalize(glm::cross(worldUp, right));
@@ -1886,19 +1886,60 @@ void VulkanApp::updateCamera() {
     // Calculate right vector for horizontal movement
     glm::vec3 right = glm::normalize(glm::cross(horizontalFront, glm::vec3(0.0f, 0.0f, 1.0f)));
 
-    // Apply movement based on key state
+    // === Keyboard movement ===
+    // Forward/backward movement (along horizontal plane)
     if (keys.w)
         cameraPos += horizontalFront * velocity;
     if (keys.s)
         cameraPos -= horizontalFront * velocity;
+
+    // Left/right movement (along horizontal plane)
     if (keys.a)
         cameraPos -= right * velocity;
     if (keys.d)
         cameraPos += right * velocity;
+
+    // Vertical movement only (along world up axis)
     if (keys.space)
         cameraPos += glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
     if (keys.shift)
         cameraPos -= glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+
+    // === Gamepad movement ===
+    if (gamepadState.connected) {
+        // Left stick - movement
+        if (fabs(gamepadState.leftStickY) > 0.0f)
+            cameraPos += horizontalFront * velocity * gamepadState.leftStickY;
+        if (fabs(gamepadState.leftStickX) > 0.0f)
+            cameraPos += right * velocity * gamepadState.leftStickX;
+
+        // Bottom button (A/X) for flying up
+        if (gamepadState.bottomButton)
+            cameraPos += glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+
+        // Right stick button for flying down
+        if (gamepadState.rightStickButton)
+            cameraPos -= glm::vec3(0.0f, 0.0f, 1.0f) * velocity;
+
+        // Right stick - camera rotation
+        if (fabs(gamepadState.rightStickX) > 0.0f || fabs(gamepadState.rightStickY) > 0.0f) {
+            // Scale rotation speed based on frame time for consistency
+            float rotationSpeed = 2.0f * timeManager.getDeltaTime();
+
+            // Apply input with sensitivity adjustment
+            mouseState.yaw -= gamepadState.rightStickX * 45.0f * rotationSpeed;
+            mouseState.pitch += gamepadState.rightStickY * 45.0f * rotationSpeed;
+
+            // Clamp pitch to avoid flipping
+            if (mouseState.pitch > 89.0f)
+                mouseState.pitch = 89.0f;
+            if (mouseState.pitch < -89.0f)
+                mouseState.pitch = -89.0f;
+
+            // Update camera direction based on new angles
+            updateCameraDirection();
+        }
+    }
 }
 
 // Toggle mouse capture state
