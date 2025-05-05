@@ -8,6 +8,9 @@
 #include "Block.hpp"
 #include "rendering/Vertex.hpp"
 
+// Forward declaration
+class ChunkManager;
+
 // Constants for chunk dimensions
 constexpr int CHUNK_SIZE_X = 16;
 constexpr int CHUNK_SIZE_Y = 16;
@@ -56,6 +59,11 @@ public:
     // Check if any mesh layer is dirty
     bool isAnyMeshDirty() const;
 
+    // Set reference to the chunk manager (for neighbor access)
+    void setChunkManager(ChunkManager* manager) {
+        chunkManager = manager;
+    }
+
 private:
     // Convert 3D coordinates to 1D index
     int coordsToIndex(int x, int y, int z) const;
@@ -80,6 +88,9 @@ private:
 
     // Tracking visible blocks for optimization
     std::vector<bool> visibleBlocks;
+
+    // Reference to the chunk manager (for neighbor access)
+    ChunkManager* chunkManager = nullptr;
 
     // Check if a face should be rendered
     bool shouldRenderFace(int x, int y, int z, const std::string& face, const BlockRegistry& registry) const;

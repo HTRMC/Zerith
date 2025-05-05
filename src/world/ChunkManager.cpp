@@ -477,6 +477,9 @@ void ChunkManager::loadChunk(const glm::ivec3& position) {
             // Create new chunk
             auto chunk = std::make_unique<Chunk>(position);
 
+            // Set the chunk manager reference so the chunk can query neighbors
+            chunk->setChunkManager(this);
+
             // Initialize chunk data - generate terrain
             chunk->generateTestPattern();
 
@@ -736,12 +739,12 @@ uint16_t ChunkManager::getBlockAt(const glm::vec3& worldPos) const {
     glm::ivec3 chunkPos = worldToChunkPos(worldPos);
 
     // Convert world position to local position within the chunk
-    glm::ivec3 localPos = worldToLocalPos(worldPos);
+    glm::ivec3 localPos;
 
-    // Make sure local coordinates are non-negative
-    if (localPos.x < 0) localPos.x += CHUNK_SIZE_X;
-    if (localPos.y < 0) localPos.y += CHUNK_SIZE_Y;
-    if (localPos.z < 0) localPos.z += CHUNK_SIZE_Z;
+    // Ensure correct calculation for negative coordinates
+    localPos.x = static_cast<int>(std::floor(worldPos.x)) - chunkPos.x * CHUNK_SIZE_X;
+    localPos.y = static_cast<int>(std::floor(worldPos.y)) - chunkPos.y * CHUNK_SIZE_Y;
+    localPos.z = static_cast<int>(std::floor(worldPos.z)) - chunkPos.z * CHUNK_SIZE_Z;
 
     // Find the chunk
     std::lock_guard<std::mutex> lock(chunksMutex);

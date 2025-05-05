@@ -410,39 +410,13 @@ bool Chunk::isBlockVisible(int x, int y, int z, const BlockRegistry &registry) c
     // Check the six adjacent blocks
     // If any adjacent face is not occluded, the block is visible
 
-    // North face (-Y)
-    uint16_t northId = getBlockAt(x, y - 1, z);
-    if (!isFaceOccluded(blockId, northId, registry)) {
-        return true;
-    }
-
-    // South face (+Y)
-    uint16_t southId = getBlockAt(x, y + 1, z);
-    if (!isFaceOccluded(blockId, southId, registry)) {
-        return true;
-    }
-
-    // East face (+X)
-    uint16_t eastId = getBlockAt(x + 1, y, z);
-    if (!isFaceOccluded(blockId, eastId, registry)) {
-        return true;
-    }
-
-    // West face (-X)
-    uint16_t westId = getBlockAt(x - 1, y, z);
-    if (!isFaceOccluded(blockId, westId, registry)) {
-        return true;
-    }
-
-    // Up face (+Z)
-    uint16_t upId = getBlockAt(x, y, z + 1);
-    if (!isFaceOccluded(blockId, upId, registry)) {
-        return true;
-    }
-
-    // Down face (-Z)
-    uint16_t downId = getBlockAt(x, y, z - 1);
-    if (!isFaceOccluded(blockId, downId, registry)) {
+    // Check each face
+    if (shouldRenderFace(x, y, z, "north", registry) ||
+        shouldRenderFace(x, y, z, "south", registry) ||
+        shouldRenderFace(x, y, z, "east", registry) ||
+        shouldRenderFace(x, y, z, "west", registry) ||
+        shouldRenderFace(x, y, z, "up", registry) ||
+        shouldRenderFace(x, y, z, "down", registry)) {
         return true;
     }
 
@@ -517,8 +491,40 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string &face, const
         dz = -1;
     }
 
-    // Get the adjacent block
-    uint16_t adjacentBlockId = getBlockAt(x + dx, y + dy, z + dz);
+    // Calculate adjacent coordinates
+    int adjX = x + dx;
+    int adjY = y + dy;
+    int adjZ = z + dz;
+
+    // Get the adjacent block ID - checking for chunk boundaries
+    uint16_t adjacentBlockId = 0; // Default to air
+
+    if (isInBounds(adjX, adjY, adjZ)) {
+        // Adjacent block is in the same chunk
+        adjacentBlockId = getBlockAt(adjX, adjY, adjZ);
+    } else if (chunkManager != nullptr) {
+        // Adjacent block is in a neighboring chunk
+
+        // Calculate world coordinates for the adjacent block
+        glm::vec3 worldPos(
+            chunkPosition.x * CHUNK_SIZE_X + adjX,
+            chunkPosition.y * CHUNK_SIZE_Y + adjY,
+            chunkPosition.z * CHUNK_SIZE_Z + adjZ
+        );
+
+        // Fix coordinates that are out of bounds
+        if (adjX < 0) worldPos.x -= CHUNK_SIZE_X;
+        else if (adjX >= CHUNK_SIZE_X) worldPos.x += 0;
+
+        if (adjY < 0) worldPos.y -= CHUNK_SIZE_Y;
+        else if (adjY >= CHUNK_SIZE_Y) worldPos.y += 0;
+
+        if (adjZ < 0) worldPos.z -= CHUNK_SIZE_Z;
+        else if (adjZ >= CHUNK_SIZE_Z) worldPos.z += 0;
+
+        // Ask the chunk manager for the block at this world position
+        adjacentBlockId = chunkManager->getBlockAt(worldPos);
+    }
 
     // If the adjacent block is air, always render the face
     if (adjacentBlockId == 0) {
@@ -535,9 +541,10 @@ bool Chunk::shouldRenderFace(int x, int y, int z, const std::string &face, const
         return false;
     }
 
-    // Rule 2: Cull faces between two translucent blocks
+    // Rule 2: Cull faces between two translucent blocks of the same type
     if (currentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
-        adjacentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT) {
+        adjacentBlockLayer == BlockRenderLayer::LAYER_TRANSLUCENT &&
+        blockId == adjacentBlockId) {
         return false;
     }
 
