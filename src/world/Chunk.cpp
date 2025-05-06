@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <algorithm>
 
+#include "Blocks.hpp"
 #include "BlockStateLoader.hpp"
 #include "Logger.hpp"
 #include "core/VulkanApp.hpp"
@@ -48,16 +49,35 @@ void Chunk::fill(uint16_t blockId) {
 }
 
 void Chunk::generateTestPattern() {
-    // Fill the chunk with stone blocks (ID 1) up to vertical block world coordinate 62
+    // Fill the chunk with appropriate block types based on elevation
     for (int x = 0; x < CHUNK_SIZE_X; x++) {
         for (int y = 0; y < CHUNK_SIZE_Y; y++) {
             for (int z = 0; z < CHUNK_SIZE_Z; z++) {
-                // Set blocks to stone (ID 1) if below or at vertical block world coordinate 62
-                if (chunkPosition.z * CHUNK_SIZE_Z + z <= 18) {
-                    setBlockAt(x, y, z, 1); // 1 is the ID for stone
-                } else {
-                    setBlockAt(x, y, z, 0); // 0 is the ID for air
+                // Calculate absolute world Y coordinate
+                int worldZ = chunkPosition.y * CHUNK_SIZE_Y + y;
+
+                // Determine block type based on elevation
+                uint16_t blockId = Blocks::AIR; // Default to air
+
+                if (worldZ == -64) {
+                    // Bedrock layer at and below Y = -64
+                    blockId = Blocks::BEDROCK;
                 }
+                else if (worldZ <= 60) {
+                    // Stone layer from Y = -63 to Y = 60
+                    blockId = Blocks::STONE;
+                }
+                else if (worldZ <= 61) {
+                    // Dirt layer from Y = 61 to Y = 61
+                    blockId = Blocks::DIRT;
+                }
+                else if (worldZ == 62) {
+                    // Grass block at Y = 62
+                    blockId = Blocks::GRASS_BLOCK;
+                }
+                // Above 62 remains air (blockId = 0)
+
+                setBlockAt(x, y, z, blockId);
             }
         }
     }
