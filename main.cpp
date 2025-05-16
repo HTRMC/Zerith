@@ -1,8 +1,11 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #include <iostream>
 #include <stdexcept>
@@ -37,11 +40,26 @@ const bool enableValidationLayers = true;
 #endif
 
 // Uniform buffer object
-struct UniformBufferObject {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
+struct CompressedUBO {
+    // Time value for animation (4 bytes)
+    alignas(4) float time;
+
+    // Camera data (8 bytes) - packed as 4 half-precision floats
+    alignas(8) uint32_t packedCamera[2];
+
+    // Projection data (8 bytes) - packed as 4 half-precision floats
+    alignas(8) uint32_t packedProjection[2];
+
+    // Total: 20 bytes (vs original 192 bytes)
 };
+
+uint32_t packHalf2(float a, float b) {
+    return glm::packHalf2x16(glm::vec2(a, b));
+}
+
+uint32_t packUnorm2(float a, float b) {
+    return glm::packUnorm2x16(glm::vec2(a, b));
+}
 
 // Queue family indices helper
 struct QueueFamilyIndices {
@@ -817,7 +835,7 @@ private:
     }
 
     void createUniformBuffers() {
-        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        VkDeviceSize bufferSize = sizeof(CompressedUBO);
 
         uniformBuffers.resize(swapChainImages.size());
         uniformBuffersMemory.resize(swapChainImages.size());
@@ -906,7 +924,7 @@ private:
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = uniformBuffers[i];
             bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(UniformBufferObject);
+            bufferInfo.range = sizeof(CompressedUBO);
 
             VkWriteDescriptorSet descriptorWrite{};
             descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -958,21 +976,29 @@ private:
 
     void updateUniformBuffer(uint32_t currentImage) {
         static auto startTime = std::chrono::high_resolution_clock::now();
-
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        UniformBufferObject ubo{};
-        // Rotation matrix around the Y axis
-        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        // Look at the cube from a bit of a distance
-        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        // Perspective projection
-        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
-        // GLM was designed for OpenGL where the Y coordinate of the clip coordinates is inverted
-        ubo.proj[1][1] *= -1;
+        CompressedUBO compressedUbo{};
+        compressedUbo.time = time;  // Just send the time to the shader!
 
-        memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        // Camera parameters (unchanged)
+        float camDistance = 2.0f * 1.732f;
+        float camPitch = 0.955f;
+        float camYaw = 0.785f;
+
+        // Projection parameters (unchanged)
+        float aspect = swapChainExtent.width / (float)swapChainExtent.height;
+        float fov = 0.785f;
+
+        // Pack camera and projection data (unchanged)
+        compressedUbo.packedCamera[0] = packHalf2(camDistance, camPitch);
+        compressedUbo.packedCamera[1] = packHalf2(camYaw, 0.0f);
+        compressedUbo.packedProjection[0] = packHalf2(fov, aspect);
+        compressedUbo.packedProjection[1] = packHalf2(0.1f, 10.0f);
+
+        // Copy compressed data to buffer
+        memcpy(uniformBuffersMapped[currentImage], &compressedUbo, sizeof(compressedUbo));
     }
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
