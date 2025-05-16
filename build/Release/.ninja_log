@@ -1,0 +1,13 @@
+# ninja log v6
+1	79	7691345430770538	shaders/task_shader.spv	4fa1cb6d757424f
+1	79	7691345430770538	C:/Users/HTRMC/Dev/Projects/MeshShader/build/Release/shaders/task_shader.spv	4fa1cb6d757424f
+6	84	7691345430821938	shaders/mesh_shader.spv	af21c28b9cb6d266
+6	84	7691345430821938	C:/Users/HTRMC/Dev/Projects/MeshShader/build/Release/shaders/mesh_shader.spv	af21c28b9cb6d266
+2	79	7691346958407745	shaders/fragment_shader.spv	89aa50b9d2cf3daa
+2	79	7691346958407745	C:/Users/HTRMC/Dev/Projects/MeshShader/build/Release/shaders/fragment_shader.spv	89aa50b9d2cf3daa
+79	213	7691346958483161	CMakeFiles/MeshShader.dir/main.cpp.obj.ddi	3395b9a150cb9cf3
+214	234	7691346959986613	CMakeFiles/MeshShader.dir/CXX.dd	751e01b7c9982158
+214	234	7691346959986613	C:/Users/HTRMC/Dev/Projects/MeshShader/build/Release/CMakeFiles/MeshShader.dir/CXXModules.json	751e01b7c9982158
+214	234	7691346959986613	CMakeFiles/MeshShader.dir/main.cpp.obj.modmap	751e01b7c9982158
+234	1637	7691346960036826	CMakeFiles/MeshShader.dir/main.cpp.obj	67a6814ba5b8b2b4
+1637	2093	7691346974057553	MeshShader.exe	f2b9a1d94c52ed8b
