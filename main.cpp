@@ -443,7 +443,7 @@ private:
         
         // Update camera angles
         app->cameraYaw += glm::radians(xoffset);
-        app->cameraPitch += glm::radians(yoffset); // Not inverted anymore
+        app->cameraPitch -= glm::radians(yoffset);
         
         // Constrain pitch to avoid gimbal lock
         app->cameraPitch = glm::clamp(app->cameraPitch, -glm::radians(89.0f), glm::radians(89.0f));
