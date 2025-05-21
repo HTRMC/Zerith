@@ -1886,10 +1886,10 @@ private:
         
         // Optional: Up/down movement (Space/Ctrl)
         if (keysPressed[GLFW_KEY_SPACE]) {
-            cameraPosition += cameraUp * velocity;
+            cameraPosition -= cameraUp * velocity;
         }
         if (keysPressed[GLFW_KEY_LEFT_CONTROL]) {
-            cameraPosition -= cameraUp * velocity;
+            cameraPosition += cameraUp * velocity;
         }
     }
     
