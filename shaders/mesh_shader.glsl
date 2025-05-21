@@ -257,6 +257,7 @@ void main() {
     mat4 mvp = vp * cubeModel;
     
     // Set texture coordinates for the quad
+    // Note: In texture coordinates, (0,0) is top-left in Vulkan
     vec2 texCoords[4] = {
         vec2(0.0, 0.0),  // Bottom-left
         vec2(1.0, 0.0),  // Bottom-right

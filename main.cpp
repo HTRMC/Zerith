@@ -103,27 +103,17 @@ TextureData loadPNG(const std::string& filename) {
     texture.width = ihdr.width;
     texture.height = ihdr.height;
     
-    // Determine format based on color type and bit depth
-    int fmt;
-    switch (ihdr.color_type) {
-        case SPNG_COLOR_TYPE_GRAYSCALE:
-            texture.channels = 1;
-            fmt = ihdr.bit_depth <= 8 ? SPNG_FMT_G8 : SPNG_FMT_PNG;
-            break;
-        case SPNG_COLOR_TYPE_TRUECOLOR:
-            texture.channels = 3;
-            fmt = SPNG_FMT_RGB8;
-            break;
-        case SPNG_COLOR_TYPE_TRUECOLOR_ALPHA:
-            texture.channels = 4;
-            fmt = SPNG_FMT_RGBA8;
-            break;
-        default:
-            fmt = SPNG_FMT_PNG; // Let libspng handle the conversion
-            texture.channels = 4; // Convert to RGBA
-            break;
-    }
-
+    // Print image info for debugging
+    std::cout << "PNG Info: " << filename << std::endl;
+    std::cout << "  - Width: " << ihdr.width << std::endl;
+    std::cout << "  - Height: " << ihdr.height << std::endl;
+    std::cout << "  - Bit depth: " << (int)ihdr.bit_depth << std::endl;
+    std::cout << "  - Color type: " << (int)ihdr.color_type << std::endl;
+    
+    // Always decode to RGBA8 for consistency with Vulkan
+    int fmt = SPNG_FMT_RGBA8;
+    texture.channels = 4;  // Always use 4 channels (RGBA)
+    
     // Calculate output size
     size_t out_size;
     ret = spng_decoded_image_size(ctx, fmt, &out_size);
@@ -143,12 +133,75 @@ TextureData loadPNG(const std::string& filename) {
         fclose(fp);
         throw std::runtime_error("Failed to decode image: " + std::string(spng_strerror(ret)));
     }
+    
+    // Verify image data (check first few pixels)
+    if (!texture.pixels.empty()) {
+        std::cout << "  - First 4 pixels (RGBA values):" << std::endl;
+        for (int i = 0; i < 4 && i * 4 < texture.pixels.size(); i++) {
+            std::cout << "    Pixel " << i << ": "
+                      << (int)texture.pixels[i*4] << ", "
+                      << (int)texture.pixels[i*4+1] << ", "
+                      << (int)texture.pixels[i*4+2] << ", "
+                      << (int)texture.pixels[i*4+3] << std::endl;
+        }
+    }
 
     // Clean up
     spng_ctx_free(ctx);
     fclose(fp);
-
+    
+    // Flip the image vertically (Vulkan expects images to be top-to-bottom, but many image formats are bottom-to-top)
+    std::vector<uint8_t> flipped(texture.pixels.size());
+    const int stride = texture.width * texture.channels;
+    
+    for (uint32_t y = 0; y < texture.height; y++) {
+        // Copy each row to its vertically flipped position
+        memcpy(
+            flipped.data() + (texture.height - 1 - y) * stride,  // Destination: flipped position
+            texture.pixels.data() + y * stride,                  // Source: original position
+            stride                                               // Size: one row
+        );
+    }
+    
+    // Replace original pixels with flipped pixels
+    texture.pixels = std::move(flipped);
+    
     return texture;
+}
+
+// Helper function to save a debug image in PPM format (a simple uncompressed format)
+void saveDebugImage(const TextureData& texture, const std::string& filename) {
+    // Only save if we have pixel data
+    if (texture.pixels.empty() || texture.width == 0 || texture.height == 0) {
+        std::cerr << "Cannot save debug image: No valid pixel data" << std::endl;
+        return;
+    }
+    
+    // Open output file
+    FILE* fp = fopen(filename.c_str(), "wb");
+    if (!fp) {
+        std::cerr << "Failed to open file for writing debug image: " << filename << std::endl;
+        return;
+    }
+    
+    // Write PPM header
+    fprintf(fp, "P6\n%d %d\n255\n", texture.width, texture.height);
+    
+    // Write pixel data (convert RGBA to RGB for PPM)
+    for (uint32_t y = 0; y < texture.height; y++) {
+        for (uint32_t x = 0; x < texture.width; x++) {
+            // Get pixel position in our buffer (RGBA format)
+            size_t pixelIndex = (y * texture.width + x) * texture.channels;
+            
+            // Write only RGB components (PPM doesn't support alpha)
+            fputc(texture.pixels[pixelIndex + 0], fp); // R
+            fputc(texture.pixels[pixelIndex + 1], fp); // G
+            fputc(texture.pixels[pixelIndex + 2], fp); // B
+        }
+    }
+    
+    fclose(fp);
+    std::cout << "Debug image saved to: " << filename << std::endl;
 }
 
 // Constants
