@@ -12,12 +12,12 @@ const vec3 quadVertices[4] = {
 
 // Define cube face colors
 const vec3 faceColors[6] = {
-    vec3(1.0, 0.0, 0.0), // red - top
-    vec3(0.0, 1.0, 0.0), // green - bottom
-    vec3(0.0, 0.0, 1.0), // blue - front
-    vec3(1.0, 1.0, 0.0), // yellow - back
-    vec3(1.0, 0.0, 1.0), // magenta - left
-    vec3(0.0, 1.0, 1.0)  // cyan - right
+    vec3(1.0, 0.0, 0.0), // RED - TOP FACE (Y+)
+    vec3(0.0, 1.0, 0.0), // GREEN - BOTTOM FACE (Y-)
+    vec3(0.0, 0.0, 1.0), // BLUE - FRONT FACE (Z+)
+    vec3(1.0, 1.0, 0.0), // YELLOW - BACK FACE (Z-)
+    vec3(1.0, 0.0, 1.0), // MAGENTA - LEFT FACE (X-)
+    vec3(0.0, 1.0, 1.0)  // CYAN - RIGHT FACE (X+)
 };
 
 // Face instance data for each of the 6 cube faces
@@ -28,37 +28,37 @@ struct FaceInstance {
 
 // Fixed face definitions for a perfect unit cube from (0,0,0) to (1,1,1)
 const FaceInstance faceInstances[6] = {
-    // Top face (Y+)
+    // Top face (Y+) - RED
     FaceInstance(
         vec3(0.0, 1.0, 0.0),  // position at top
         vec4(0.7071, 0.0, 0.0, 0.7071)  // 90° around X
     ),
     
-    // Bottom face (Y-)
+    // Bottom face (Y-) - GREEN
     FaceInstance(
         vec3(0.0, 0.0, 1.0),  // position at bottom
         vec4(-0.7071, 0.0, 0.0, 0.7071)  // -90° around X
     ),
     
-    // Front face (Z+)
+    // Front face (Z+) - BLUE
     FaceInstance(
         vec3(0.0, 0.0, 0.0),  // position at front
         vec4(0.0, 0.0, 0.0, 1.0)  // no rotation
     ),
     
-    // Back face (Z-)
+    // Back face (Z-) - YELLOW
     FaceInstance(
-        vec3(0.0, 0.0, 1.0),  // position at back
+        vec3(1.0, 0.0, 1.0),  // position at back
         vec4(0.0, 1.0, 0.0, 0.0)  // 180° rotation
     ),
     
-    // Left face (X-)
+    // Left face (X-) - MAGENTA
     FaceInstance(
-        vec3(0.0, 0.0, 0.0),  // position at left
+        vec3(0.0, 0.0, 1.0),  // position at left
         vec4(0.0, 0.7071, 0.0, 0.7071)  // 90° around Y
     ),
     
-    // Right face (X+)
+    // Right face (X+) - CYAN
     FaceInstance(
         vec3(1.0, 0.0, 0.0),  // position at right
         vec4(0.0, -0.7071, 0.0, 0.7071)  // -90° around Y
