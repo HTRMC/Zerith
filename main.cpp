@@ -1888,7 +1888,7 @@ private:
         if (keysPressed[GLFW_KEY_SPACE]) {
             cameraPosition -= cameraUp * velocity;
         }
-        if (keysPressed[GLFW_KEY_LEFT_CONTROL]) {
+        if (keysPressed[GLFW_KEY_LEFT_SHIFT]) {
             cameraPosition += cameraUp * velocity;
         }
     }
