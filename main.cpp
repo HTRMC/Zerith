@@ -645,6 +645,13 @@ private:
     }
     
     void createTextureSampler() {
+        // Get device features to check for anisotropy support
+        VkPhysicalDeviceFeatures deviceFeatures{};
+        vkGetPhysicalDeviceFeatures(physicalDevice, &deviceFeatures);
+        
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
+        
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
         samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -652,11 +659,11 @@ private:
         samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_TRUE;
         
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-        samplerInfo.maxAnisotropy = properties.limits.maxSamplerAnisotropy;
+        // Only enable anisotropy if the device supports it
+        samplerInfo.anisotropyEnable = deviceFeatures.samplerAnisotropy ? VK_TRUE : VK_FALSE;
+        samplerInfo.maxAnisotropy = deviceFeatures.samplerAnisotropy ? 
+                                   properties.limits.maxSamplerAnisotropy : 1.0f;
         
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
         samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -901,7 +908,20 @@ private:
             queueCreateInfos.push_back(queueCreateInfo);
         }
 
+        // Get available physical device features
+        VkPhysicalDeviceFeatures availableFeatures{};
+        vkGetPhysicalDeviceFeatures(physicalDevice, &availableFeatures);
+        
+        // Enable the features we want to use
         VkPhysicalDeviceFeatures deviceFeatures{};
+        
+        // Enable anisotropic filtering if available
+        if (availableFeatures.samplerAnisotropy) {
+            deviceFeatures.samplerAnisotropy = VK_TRUE;
+            std::cout << "Anisotropic filtering enabled" << std::endl;
+        } else {
+            std::cout << "Anisotropic filtering not available" << std::endl;
+        }
 
         // Enable mesh shader features
         VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
