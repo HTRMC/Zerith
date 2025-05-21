@@ -133,18 +133,6 @@ TextureData loadPNG(const std::string& filename) {
         fclose(fp);
         throw std::runtime_error("Failed to decode image: " + std::string(spng_strerror(ret)));
     }
-    
-    // Verify image data (check first few pixels)
-    if (!texture.pixels.empty()) {
-        std::cout << "  - First 4 pixels (RGBA values):" << std::endl;
-        for (int i = 0; i < 4 && i * 4 < texture.pixels.size(); i++) {
-            std::cout << "    Pixel " << i << ": "
-                      << (int)texture.pixels[i*4] << ", "
-                      << (int)texture.pixels[i*4+1] << ", "
-                      << (int)texture.pixels[i*4+2] << ", "
-                      << (int)texture.pixels[i*4+3] << std::endl;
-        }
-    }
 
     // Clean up
     spng_ctx_free(ctx);
