@@ -17,6 +17,51 @@
 #include <chrono>
 #include <algorithm>
 
+// Face instance struct for cube faces
+struct FaceInstance {
+    glm::vec3 position;
+    glm::quat rotation;
+};
+
+// Array of face instances in Vulkan coordinates (Y-up, right-handed)
+const std::array<FaceInstance, 6> faceInstances = {
+    // Top (Y+): Blender: Pos(0.5, 0.5, 1), Rot(0, 0, 90)
+    FaceInstance{
+        glm::vec3(0.5f, 1.0f, -0.5f),
+        glm::quat(glm::vec3(glm::radians(-90.0f), 0.0f, glm::radians(90.0f)))
+    },
+    
+    // Bottom (Y-): Blender: Pos(0.5, 0.5, 0), Rot(180, 0, 90)
+    FaceInstance{
+        glm::vec3(0.5f, 0.0f, -0.5f),
+        glm::quat(glm::vec3(glm::radians(90.0f), 0.0f, glm::radians(90.0f)))
+    },
+    
+    // Front (Z+): Blender: Pos(0, 0.5, 0.5), Rot(-90, 180, 90)
+    FaceInstance{
+        glm::vec3(0.0f, 0.5f, -0.5f),
+        glm::quat(glm::vec3(glm::radians(0.0f), glm::radians(180.0f), 0.0f))
+    },
+    
+    // Back (Z-): Blender: Pos(1, 0.5, 0.5), Rot(-90, 180, -90)
+    FaceInstance{
+        glm::vec3(1.0f, 0.5f, -0.5f),
+        glm::quat(glm::vec3(glm::radians(0.0f), 0.0f, 0.0f))
+    },
+    
+    // Left (X-): Blender: Pos(0.5, 0, 0.5), Rot(90, 0, 0)
+    FaceInstance{
+        glm::vec3(0.5f, 0.5f, -0.0f),
+        glm::quat(glm::vec3(0.0f, glm::radians(-90.0f), 0.0f))
+    },
+    
+    // Right (X+): Blender: Pos(0.5, 1, 0.5), Rot(-90, 180, 0)
+    FaceInstance{
+        glm::vec3(0.5f, 0.5f, -1.0f),
+        glm::quat(glm::vec3(0.0f, glm::radians(90.0f), 0.0f))
+    }
+};
+
 // Constants
 const uint32_t WIDTH = 800;
 const uint32_t HEIGHT = 600;
@@ -180,7 +225,7 @@ private:
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Mesh Shader Cube", nullptr, nullptr);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Mesh Shader Face-Instanced Cube", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
     }
@@ -1016,7 +1061,7 @@ private:
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChainExtent;
 
-        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        VkClearValue clearColor = {{{0.05f, 0.05f, 0.05f, 1.0f}}}; // Slightly darker background
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
@@ -1041,8 +1086,8 @@ private:
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
-        // Draw the cube using mesh shaders
-        // For a cube, we need only a single workgroup
+        // Draw the cube using a single task shader workgroup
+        // The mesh shader will create all 6 faces from a single quad
         vkCmdDrawMeshTasksEXT(commandBuffer, 1, 1, 1);
 
         vkCmdEndRenderPass(commandBuffer);
