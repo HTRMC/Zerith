@@ -156,35 +156,52 @@ vec2 unpackHalf2(uint packedValue) {
 // Reconstruct the view matrix from packed camera data
 mat4 reconstructViewMatrix() {
     // Unpack camera parameters
-    vec2 distPitch = unpackHalf2(ubo.packedCamera[0]);
-    vec2 yawUnused = unpackHalf2(ubo.packedCamera[1]);
-
-    float distance = distPitch.x;
-    float pitch = distPitch.y;
-    float yaw = yawUnused.x;
-
-    // For a straight-on view of the front face (Z+), position camera on negative Z-axis
-    vec3 cameraPos = vec3(0.5, 0.5, -distance);
+    vec2 posXPitch = unpackHalf2(ubo.packedCamera[0]);
+    vec2 posYYaw = unpackHalf2(ubo.packedCamera[1]);
+    vec2 posZFar = unpackHalf2(ubo.packedProj[1]);
     
-    // Look at the center of the cube
-    vec3 target = vec3(0.5, 0.5, 0.5);  // Center of the cube
-    vec3 up = vec3(0.0, 1.0, 0.0);      // Keep Y-up for level horizon
-
-    vec3 f = normalize(target - cameraPos);
-    vec3 s = normalize(cross(f, up));
-    vec3 u = cross(s, f);
-
-    mat4 view = mat4(
-        vec4(s, 0.0),
-        vec4(u, 0.0),
-        vec4(-f, 0.0),
-        vec4(0.0, 0.0, 0.0, 1.0)
-    );
-
-    view[3][0] = -dot(s, cameraPos);
-    view[3][1] = -dot(u, cameraPos);
-    view[3][2] = dot(f, cameraPos);
-
+    // Camera position in 3D space
+    vec3 cameraPos = vec3(posXPitch.x, posYYaw.x, posZFar.x);
+    
+    // Camera orientation angles
+    float pitch = posXPitch.y;
+    float yaw = posYYaw.y;
+    
+    // Calculate the three camera basis vectors using the standard view space convention
+    
+    // Forward vector (camera looks down the negative z-axis in view space)
+    vec3 forward;
+    forward.x = sin(yaw) * cos(pitch);
+    forward.y = sin(pitch);
+    forward.z = -cos(yaw) * cos(pitch);
+    forward = normalize(forward);
+    
+    // Right vector (positive x-axis in view space)
+    // Use a fixed world up vector for stability
+    vec3 worldUp = vec3(0.0, 1.0, 0.0);
+    vec3 right = normalize(cross(forward, worldUp));
+    
+    // Camera's up vector (positive y-axis in view space)
+    vec3 up = normalize(cross(right, forward));
+    
+    // Build view matrix directly using GLM conventions
+    // For a camera view matrix, we need the inverse of the camera transform
+    // This is equivalent to:
+    // 1. The rows of the rotation matrix are the camera's local basis vectors
+    // 2. The translation is -position transformed by the rotation
+    
+    // First, create the rotation part (transpose of the camera's orientation)
+    mat4 view;
+    view[0][0] = right.x;   view[0][1] = up.x;   view[0][2] = -forward.x;   view[0][3] = 0.0;
+    view[1][0] = right.y;   view[1][1] = up.y;   view[1][2] = -forward.y;   view[1][3] = 0.0;
+    view[2][0] = right.z;   view[2][1] = up.z;   view[2][2] = -forward.z;   view[2][3] = 0.0;
+    
+    // Then add the translation part (negated and rotated camera position)
+    view[3][0] = -dot(right, cameraPos);
+    view[3][1] = -dot(up, cameraPos);
+    view[3][2] = dot(forward, cameraPos);
+    view[3][3] = 1.0;
+    
     return view;
 }
 
@@ -192,12 +209,12 @@ mat4 reconstructViewMatrix() {
 mat4 reconstructProjMatrix() {
     // Unpack projection parameters
     vec2 fovAspect = unpackHalf2(ubo.packedProj[0]);
-    vec2 nearFar = unpackHalf2(ubo.packedProj[1]);
+    vec2 posZFar = unpackHalf2(ubo.packedProj[1]);
 
     float fov = fovAspect.x;
     float aspect = fovAspect.y;
-    float near = nearFar.x;
-    float far = nearFar.y;
+    float near = 0.1;  // Use fixed near plane
+    float far = posZFar.y;   // Far plane from the packed data
 
     // Create projection matrix
     float tanHalfFov = tan(fov / 2.0);

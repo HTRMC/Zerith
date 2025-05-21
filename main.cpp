@@ -351,6 +351,27 @@ private:
     bool framebufferResized = false;
 
     size_t currentFrame = 0;
+    
+    // Camera parameters
+    float cameraPitch = 0.0f;                      // Vertical angle in radians (-π/2 to π/2)
+    float cameraYaw = 0.0f;                        // Horizontal angle in radians (start facing -Z)
+    float cameraSpeed = 2.0f;                      // Units per second
+    
+    // Camera position in 3D space - positioned in front of cube
+    glm::vec3 cameraPosition = glm::vec3(0.5f, 0.5f, 3.0f);
+    
+    // Camera orientation vectors - these will be updated in updateCameraVectors()
+    glm::vec3 cameraFront;  // Direction camera is facing
+    glm::vec3 cameraUp;     // Camera's up direction
+    glm::vec3 cameraRight;  // Camera's right direction
+    
+    // Mouse input tracking
+    bool firstMouse = true;
+    float lastX = 0.0f, lastY = 0.0f;
+    float mouseSensitivity = 0.1f;
+    
+    // Input state tracking
+    bool keysPressed[348] = { false };  // GLFW supports up to KEY_LAST (348)
 
     void initWindow() {
         glfwInit();
@@ -360,12 +381,75 @@ private:
 
         window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Mesh Shader Face-Instanced Cube", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
+        
+        // Set up callbacks
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+        glfwSetKeyCallback(window, keyCallback);
+        glfwSetCursorPosCallback(window, cursorPositionCallback);
+        
+        // Capture mouse cursor
+        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        
+        // Initialize mouse position to center of the window
+        lastX = WIDTH / 2.0f;
+        lastY = HEIGHT / 2.0f;
+        
+        // Initialize camera vectors based on starting pitch/yaw
+        updateCameraVectors();
     }
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
         auto app = reinterpret_cast<MeshShaderApplication*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
+    }
+    
+    static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+        auto app = reinterpret_cast<MeshShaderApplication*>(glfwGetWindowUserPointer(window));
+        
+        // Only track keys we care about (prevents array access issues)
+        if (key >= 0 && key < 348) {
+            if (action == GLFW_PRESS) {
+                app->keysPressed[key] = true;
+            } else if (action == GLFW_RELEASE) {
+                app->keysPressed[key] = false;
+            }
+        }
+        
+        // Allow escape key to exit
+        if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+            glfwSetWindowShouldClose(window, true);
+        }
+    }
+    
+    static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
+        auto app = reinterpret_cast<MeshShaderApplication*>(glfwGetWindowUserPointer(window));
+        
+        if (app->firstMouse) {
+            app->lastX = static_cast<float>(xpos);
+            app->lastY = static_cast<float>(ypos);
+            app->firstMouse = false;
+        }
+        
+        // Calculate cursor movement
+        float xoffset = static_cast<float>(xpos) - app->lastX;
+        float yoffset = app->lastY - static_cast<float>(ypos); // Reversed so that moving up increases pitch
+        
+        app->lastX = static_cast<float>(xpos);
+        app->lastY = static_cast<float>(ypos);
+        
+        // Apply sensitivity
+        xoffset *= app->mouseSensitivity;
+        yoffset *= app->mouseSensitivity;
+        
+        // Update camera angles
+        app->cameraYaw += glm::radians(xoffset);
+        app->cameraPitch += glm::radians(yoffset); // Not inverted anymore
+        
+        // Constrain pitch to avoid gimbal lock
+        app->cameraPitch = glm::clamp(app->cameraPitch, -glm::radians(89.0f), glm::radians(89.0f));
+        
+        // Update camera direction vectors
+        app->updateCameraVectors();
     }
 
     void initVulkan() {
@@ -1572,22 +1656,29 @@ private:
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
         CompressedUBO compressedUbo{};
-        compressedUbo.time = time;  // Just send the time to the shader!
+        compressedUbo.time = time;  // Send the time to the shader for animation
 
-        // Camera parameters - positioned directly in front of the cube
-        float camDistance = 3.0f;
-        float camPitch = 0.0f;  // 0 degrees pitch (level with horizon)
-        float camYaw = 0.0f;    // 0 degrees yaw (looking straight at front face)
+        // Camera parameters for free-look camera
+        // First value is now X position
+        float camPosX = cameraPosition.x;
+        float camPitch = cameraPitch;
+        
+        // Second pair is Y position and Yaw
+        float camPosY = cameraPosition.y;
+        float camYaw = cameraYaw;
+        
+        // Third pair (using time field temporarily) is Z position
+        float camPosZ = cameraPosition.z;
 
-        // Projection parameters (unchanged)
+        // Projection parameters
         float aspect = swapChainExtent.width / (float)swapChainExtent.height;
-        float fov = 0.785f;
+        float fov = 0.785f; // 45 degrees in radians
 
-        // Pack camera and projection data (unchanged)
-        compressedUbo.packedCamera[0] = packHalf2(camDistance, camPitch);
-        compressedUbo.packedCamera[1] = packHalf2(camYaw, 0.0f);
+        // Pack camera position, orientation and projection data
+        compressedUbo.packedCamera[0] = packHalf2(camPosX, camPitch);
+        compressedUbo.packedCamera[1] = packHalf2(camPosY, camYaw);
         compressedUbo.packedProjection[0] = packHalf2(fov, aspect);
-        compressedUbo.packedProjection[1] = packHalf2(0.1f, 10.0f);
+        compressedUbo.packedProjection[1] = packHalf2(camPosZ, 10.0f); // Use near value to store Z position
 
         // Copy compressed data to buffer
         memcpy(uniformBuffersMapped[currentImage], &compressedUbo, sizeof(compressedUbo));
@@ -1754,12 +1845,76 @@ private:
     }
 
     void mainLoop() {
+        // For calculating delta time
+        auto lastFrameTime = std::chrono::high_resolution_clock::now();
+        
         while (!glfwWindowShouldClose(window)) {
+            // Calculate delta time
+            auto currentTime = std::chrono::high_resolution_clock::now();
+            float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastFrameTime).count();
+            lastFrameTime = currentTime;
+            
+            // Process input
+            processInput(deltaTime);
+            
+            // Poll events and render
             glfwPollEvents();
             drawFrame();
         }
 
         vkDeviceWaitIdle(device);
+    }
+    
+    void processInput(float deltaTime) {
+        float velocity = cameraSpeed * deltaTime;
+        
+        // Forward/backward movement (W/S)
+        if (keysPressed[GLFW_KEY_W]) {
+            cameraPosition += cameraFront * velocity;
+        }
+        if (keysPressed[GLFW_KEY_S]) {
+            cameraPosition -= cameraFront * velocity;
+        }
+        
+        // Strafe left/right movement (A/D)
+        if (keysPressed[GLFW_KEY_A]) {
+            cameraPosition -= cameraRight * velocity;
+        }
+        if (keysPressed[GLFW_KEY_D]) {
+            cameraPosition += cameraRight * velocity;
+        }
+        
+        // Optional: Up/down movement (Space/Ctrl)
+        if (keysPressed[GLFW_KEY_SPACE]) {
+            cameraPosition += cameraUp * velocity;
+        }
+        if (keysPressed[GLFW_KEY_LEFT_CONTROL]) {
+            cameraPosition -= cameraUp * velocity;
+        }
+    }
+    
+    void updateCameraVectors() {
+        // Calculate the new front vector using standard OpenGL/Vulkan convention
+        // - Yaw 0 = looking along negative Z
+        // - Yaw π/2 = looking along positive X
+        // - Pitch 0 = looking horizontally
+        // - Positive pitch = looking up
+        glm::vec3 direction;
+        direction.x = sin(cameraYaw) * cos(cameraPitch);
+        direction.y = sin(cameraPitch);
+        direction.z = -cos(cameraYaw) * cos(cameraPitch);
+        
+        cameraFront = glm::normalize(direction);
+        
+        // Use a fixed world up vector for stability
+        glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
+        
+        // Recalculate the right vector
+        cameraRight = glm::normalize(glm::cross(cameraFront, worldUp));
+        
+        // Recalculate the up vector
+        // This ensures the up vector is orthogonal to both front and right
+        cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
     }
 
     void cleanup() {
