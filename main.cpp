@@ -810,14 +810,29 @@ private:
         VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
         meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
 
+        // Check for maintenance4 feature support
+        VkPhysicalDeviceMaintenance4Features maintenance4Features{};
+        maintenance4Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES;
+        maintenance4Features.pNext = nullptr;
+        
+        // Chain the structs for the query
+        meshShaderFeatures.pNext = &maintenance4Features;
+
         VkPhysicalDeviceFeatures2 deviceFeatures2{};
         deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
         deviceFeatures2.pNext = &meshShaderFeatures;
 
         vkGetPhysicalDeviceFeatures2(device, &deviceFeatures2);
 
+        // Display feature support info
+        std::cout << "Device features:" << std::endl;
+        std::cout << "  - Mesh shader: " << (meshShaderFeatures.meshShader ? "supported" : "not supported") << std::endl;
+        std::cout << "  - Task shader: " << (meshShaderFeatures.taskShader ? "supported" : "not supported") << std::endl;
+        std::cout << "  - Maintenance4: " << (maintenance4Features.maintenance4 ? "supported" : "not supported") << std::endl;
+
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
-               meshShaderFeatures.meshShader && meshShaderFeatures.taskShader;
+               meshShaderFeatures.meshShader && meshShaderFeatures.taskShader && 
+               maintenance4Features.maintenance4; // Now also require maintenance4
     }
 
     bool checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -928,6 +943,32 @@ private:
         meshShaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_FEATURES_EXT;
         meshShaderFeatures.taskShader = VK_TRUE;
         meshShaderFeatures.meshShader = VK_TRUE;
+        
+        // Check for and enable maintenance4 feature (needed for LocalSizeId execution mode in SPIR-V)
+        VkPhysicalDeviceMaintenance4Features availableMaintenance4Features{};
+        availableMaintenance4Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES;
+        availableMaintenance4Features.pNext = nullptr;
+        
+        VkPhysicalDeviceFeatures2 features2{};
+        features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        features2.pNext = &availableMaintenance4Features;
+        
+        vkGetPhysicalDeviceFeatures2(physicalDevice, &features2);
+        
+        VkPhysicalDeviceMaintenance4Features maintenance4Features{};
+        maintenance4Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_4_FEATURES;
+        maintenance4Features.pNext = nullptr;
+        
+        if (availableMaintenance4Features.maintenance4) {
+            maintenance4Features.maintenance4 = VK_TRUE;
+            std::cout << "Maintenance4 feature enabled" << std::endl;
+        } else {
+            maintenance4Features.maintenance4 = VK_FALSE;
+            std::cout << "Warning: Maintenance4 feature not available, shader may not work properly" << std::endl;
+        }
+        
+        // Chain the feature structs
+        meshShaderFeatures.pNext = &maintenance4Features;
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
