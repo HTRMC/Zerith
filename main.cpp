@@ -150,21 +150,6 @@ TextureData loadPNG(const std::string& filename) {
     spng_ctx_free(ctx);
     fclose(fp);
     
-    // Flip the image vertically (Vulkan expects images to be top-to-bottom, but many image formats are bottom-to-top)
-    std::vector<uint8_t> flipped(texture.pixels.size());
-    const int stride = texture.width * texture.channels;
-    
-    for (uint32_t y = 0; y < texture.height; y++) {
-        // Copy each row to its vertically flipped position
-        memcpy(
-            flipped.data() + (texture.height - 1 - y) * stride,  // Destination: flipped position
-            texture.pixels.data() + y * stride,                  // Source: original position
-            stride                                               // Size: one row
-        );
-    }
-    
-    // Replace original pixels with flipped pixels
-    texture.pixels = std::move(flipped);
     
     return texture;
 }
@@ -707,8 +692,8 @@ private:
         
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.magFilter = VK_FILTER_NEAREST; // Changed to NEAREST for pixelated look
+        samplerInfo.minFilter = VK_FILTER_NEAREST; // Changed to NEAREST for pixelated look
         samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
         samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
