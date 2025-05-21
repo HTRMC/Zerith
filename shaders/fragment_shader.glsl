@@ -17,10 +17,10 @@ void main() {
     // Sample texture
     vec4 texColor = texture(texSampler, v_in.texCoord);
     
-    // Mix with face color to allow for face identification
-    // Use face color as a subtle tint (20%)
-    vec3 finalColor = mix(texColor.rgb, v_in.color, 0.2);
+    // Just output the texture color without mixing with face color
+    // Original code with color mixing (commented out):
+    // vec3 finalColor = mix(texColor.rgb, v_in.color, 0.2);
     
-    // Output final color
-    outColor = vec4(finalColor, 1.0);
+    // Output final color directly from texture
+    outColor = vec4(texColor.rgb, 1.0);
 }
