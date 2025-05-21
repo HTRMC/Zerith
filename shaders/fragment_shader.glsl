@@ -4,14 +4,23 @@
 layout(location = 0) in PerVertexData {
     vec3 color;
     vec2 texCoord;
+    flat uint faceIndex;
 } v_in;
+
+// Add texture sampler
+layout(binding = 1) uniform sampler2D texSampler;
 
 // Output color
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    // Simple color output with slight shading based on texture coordinates
-    // This creates a subtle gradient across each face
-    float shade = 0.8 + 0.2 * dot(v_in.texCoord, vec2(0.5, 0.5));
-    outColor = vec4(v_in.color * shade, 1.0);
+    // Sample texture
+    vec4 texColor = texture(texSampler, v_in.texCoord);
+    
+    // Mix with face color to allow for face identification
+    // Use face color as a subtle tint (20%)
+    vec3 finalColor = mix(texColor.rgb, v_in.color, 0.2);
+    
+    // Output final color
+    outColor = vec4(finalColor, 1.0);
 }

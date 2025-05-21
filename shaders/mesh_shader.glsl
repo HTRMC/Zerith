@@ -81,6 +81,7 @@ taskPayloadSharedEXT MeshTaskPayload payload;
 layout(location = 0) out PerVertexData {
     vec3 color;
     vec2 texCoord;
+    flat uint faceIndex;
 } v_out[];
 
 // Updated uniform buffer with packed data
@@ -276,6 +277,7 @@ void main() {
         // Set per-vertex data
         v_out[vertexIndex].color = faceColors[faceIndex];
         v_out[vertexIndex].texCoord = texCoords[i];
+        v_out[vertexIndex].faceIndex = faceIndex;
     }
     
     // Output triangles for this face
