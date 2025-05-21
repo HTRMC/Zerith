@@ -137,10 +137,15 @@ vec4 generateRotationQuat() {
     return vec4(0.0, sin(halfAngle), 0.0, cos(halfAngle));
 }
 
-// Reconstruct the model matrix including rotation animation
+// Model matrix with no rotation (identity matrix)
 mat4 reconstructModelMatrix() {
-    vec4 rotQuat = generateRotationQuat();
-    return quatToMat4(rotQuat);
+    // Return identity matrix (no rotation)
+    return mat4(
+        vec4(1.0, 0.0, 0.0, 0.0),
+        vec4(0.0, 1.0, 0.0, 0.0),
+        vec4(0.0, 0.0, 1.0, 0.0),
+        vec4(0.0, 0.0, 0.0, 1.0)
+    );
 }
 
 // Function to unpack 2 half-float values from a uint
@@ -158,15 +163,12 @@ mat4 reconstructViewMatrix() {
     float pitch = distPitch.y;
     float yaw = yawUnused.x;
 
-    // Calculate camera position from spherical coordinates
-    vec3 cameraPos;
-    cameraPos.x = distance * sin(pitch) * cos(yaw);
-    cameraPos.y = distance * cos(pitch);
-    cameraPos.z = distance * sin(pitch) * sin(yaw);
-
-    // Create view matrix (look at origin)
+    // For a straight-on view of the front face (Z+), position camera on negative Z-axis
+    vec3 cameraPos = vec3(0.5, 0.5, -distance);
+    
+    // Look at the center of the cube
     vec3 target = vec3(0.5, 0.5, 0.5);  // Center of the cube
-    vec3 up = vec3(0.0, 1.0, 0.0);
+    vec3 up = vec3(0.0, 1.0, 0.0);      // Keep Y-up for level horizon
 
     vec3 f = normalize(target - cameraPos);
     vec3 s = normalize(cross(f, up));

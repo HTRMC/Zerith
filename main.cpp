@@ -1574,10 +1574,10 @@ private:
         CompressedUBO compressedUbo{};
         compressedUbo.time = time;  // Just send the time to the shader!
 
-        // Camera parameters (unchanged)
-        float camDistance = 2.0f * 1.732f;
-        float camPitch = 0.955f;
-        float camYaw = 0.785f;
+        // Camera parameters - positioned directly in front of the cube
+        float camDistance = 3.0f;
+        float camPitch = 0.0f;  // 0 degrees pitch (level with horizon)
+        float camYaw = 0.0f;    // 0 degrees yaw (looking straight at front face)
 
         // Projection parameters (unchanged)
         float aspect = swapChainExtent.width / (float)swapChainExtent.height;
