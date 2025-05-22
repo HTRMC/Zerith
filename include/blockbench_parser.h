@@ -129,9 +129,12 @@ BlockbenchModel::Model parseFromString(const std::string& jsonString) {
                 
                 std::string elementsArray = jsonString.substr(arrayStart + 1, arrayEnd - arrayStart - 2);
                 
-                // Parse each element (simplified - assumes one element per model for now)
-                size_t elementStart = elementsArray.find("{");
-                if (elementStart != std::string::npos) {
+                // Parse all elements in the array
+                size_t currentPos = 0;
+                while (true) {
+                    size_t elementStart = elementsArray.find("{", currentPos);
+                    if (elementStart == std::string::npos) break;
+                    
                     size_t elementEnd = elementStart + 1;
                     int braceCount = 1;
                     
@@ -176,6 +179,9 @@ BlockbenchModel::Model parseFromString(const std::string& jsonString) {
                     }
                     
                     model.elements.push_back(element);
+                    
+                    // Move to next element
+                    currentPos = elementEnd;
                 }
             }
         }

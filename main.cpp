@@ -421,17 +421,17 @@ private:
     void loadBlockbenchModel() {
         std::cout << "Loading Blockbench models..." << std::endl;
         
-        // Try to load cube.json first, fallback to slab.json
+        // Try to load stairs.json first, fallback to stairs.json
         try {
-            currentModel = BlockbenchParser::parseFromFile("assets/slab.json");
-            std::cout << "Successfully loaded cube.json" << std::endl;
+            currentModel = BlockbenchParser::parseFromFile("assets/stairs.json");
+            std::cout << "Successfully loaded stairs.json" << std::endl;
         } catch (const std::exception& e) {
-            std::cerr << "Failed to load cube.json: " << e.what() << std::endl;
+            std::cerr << "Failed to load stairs.json: " << e.what() << std::endl;
             try {
-                currentModel = BlockbenchParser::parseFromFile("assets/slab.json");
-                std::cout << "Successfully loaded slab.json as fallback" << std::endl;
+                currentModel = BlockbenchParser::parseFromFile("assets/stairs.json");
+                std::cout << "Successfully loaded stairs.json as fallback" << std::endl;
             } catch (const std::exception& e2) {
-                std::cerr << "Failed to load slab.json: " << e2.what() << std::endl;
+                std::cerr << "Failed to load stairs.json: " << e2.what() << std::endl;
                 // Create a default cube if both fail
                 createDefaultCube();
                 return;
