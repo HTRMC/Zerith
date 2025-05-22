@@ -42,9 +42,9 @@ namespace Generator {
             case 1: // Up face (Y+)
                 return glm::angleAxis(glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
             case 2: // North face (Z-)
-                return glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-            case 3: // South face (Z+)
                 return glm::quat(1.0f, 0.0f, 0.0f, 0.0f); // Identity (no rotation)
+            case 3: // South face (Z+)
+                return glm::angleAxis(glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             case 4: // West face (X-)
                 return glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
             case 5: // East face (X+)
@@ -63,9 +63,9 @@ namespace Generator {
             case 1: // Up face (Y+) - position at top corner of element  
                 return glm::vec3(vulkanElement.from.x, vulkanElement.to.y, vulkanElement.from.z);
             case 2: // North face (Z-) - position at north corner of element
-                return glm::vec3(vulkanElement.to.x, vulkanElement.from.y, vulkanElement.from.z);
+                return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.from.z);
             case 3: // South face (Z+) - position at south corner of element
-                return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.to.z);
+                return glm::vec3(vulkanElement.to.x, vulkanElement.from.y, vulkanElement.to.z);
             case 4: // West face (X-) - position at west corner of element
                 return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.to.z);
             case 5: // East face (X+) - position at east corner of element
