@@ -9,8 +9,6 @@ layout(binding = 0) uniform CompressedUBO {
     float time;           // Time for animation
     uvec2 packedCamera;   // packed camera position and orientation
     uvec2 packedProj;     // packed projection parameters
-    vec3 elementFrom;     // Model element from coordinates (Vulkan space)
-    vec3 elementTo;       // Model element to coordinates (Vulkan space)
 } ubo;
 
 // Declare an empty payload structure
