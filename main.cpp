@@ -15,7 +15,6 @@
 #include <chrono>
 #include <algorithm>
 #include <spng.h>  // libspng for PNG loading
-#include "model_loader.h"
 
 // Texture data structure
 struct TextureData {
@@ -314,10 +313,6 @@ private:
     
     // Input state tracking
     bool keysPressed[348] = { false };  // GLFW supports up to KEY_LAST (348)
-    
-    // Model loading
-    std::unique_ptr<ModelLoader> modelLoader;
-    std::optional<BlockModel> loadedModel;
 
     void initWindow() {
         glfwInit();
@@ -399,17 +394,6 @@ private:
     }
 
     void initVulkan() {
-        // Initialize model loader
-        modelLoader = std::make_unique<ModelLoader>("assets");
-        
-        // Load the oak_planks model
-        loadedModel = modelLoader->loadModel("block/oak_planks");
-        if (!loadedModel.has_value()) {
-            std::cerr << "Failed to load oak_planks model, using default cube" << std::endl;
-        } else {
-            std::cout << "Successfully loaded oak_planks model with " << loadedModel->elements.size() << " elements" << std::endl;
-        }
-        
         createInstance();
         setupDebugMessenger();
         createSurface();

@@ -8,7 +8,6 @@ find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(SPNG CONFIG REQUIRED)
-find_package(simdjson CONFIG REQUIRED)
 
 # Find glslangValidator for shader compilation
 find_program(GLSLANG_VALIDATOR glslangValidator HINTS $ENV{VULKAN_SDK}/bin)
@@ -48,16 +47,15 @@ compile_shader(
 
 # Include directories
 include_directories(${Vulkan_INCLUDE_DIRS})
-include_directories(include)
 
 # Add executable
-add_executable(MeshShader main.cpp src/model_loader.cpp)
+add_executable(MeshShader main.cpp)
 
 # Add shader dependencies
 add_dependencies(MeshShader task_shader mesh_shader fragment_shader)
 
 # Link libraries
-target_link_libraries(MeshShader PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> simdjson::simdjson)
+target_link_libraries(MeshShader PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>)
 
 # Create directories for shader output and assets
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)
