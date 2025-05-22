@@ -78,6 +78,21 @@ namespace Conversion {
         return glm::abs(vulkanElement.to - vulkanElement.from);
     }
     
+    // Flip a model upside down by inverting Y coordinates
+    inline void flipModelUpsideDown(Model& model) {
+        for (auto& element : model.elements) {
+            // Flip Y coordinates: new_y = 16 - old_y
+            float newFromY = 16.0f - element.to.y;
+            float newToY = 16.0f - element.from.y;
+            
+            element.from.y = newFromY;
+            element.to.y = newToY;
+            
+            // Swap up and down faces since they're now inverted
+            std::swap(element.up, element.down);
+        }
+    }
+    
 } // namespace Conversion
 
 } // namespace BlockbenchModel

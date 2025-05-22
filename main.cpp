@@ -425,11 +425,17 @@ private:
         try {
             currentModel = BlockbenchParser::parseFromFile("assets/stairs.json");
             std::cout << "Successfully loaded stairs.json" << std::endl;
+            // Flip the stairs upside down to fix orientation
+            BlockbenchModel::Conversion::flipModelUpsideDown(currentModel);
+            std::cout << "Flipped stairs model upside down" << std::endl;
         } catch (const std::exception& e) {
             std::cerr << "Failed to load stairs.json: " << e.what() << std::endl;
             try {
                 currentModel = BlockbenchParser::parseFromFile("assets/stairs.json");
                 std::cout << "Successfully loaded stairs.json as fallback" << std::endl;
+                // Flip the stairs upside down to fix orientation
+                BlockbenchModel::Conversion::flipModelUpsideDown(currentModel);
+                std::cout << "Flipped stairs model upside down" << std::endl;
             } catch (const std::exception& e2) {
                 std::cerr << "Failed to load stairs.json: " << e2.what() << std::endl;
                 // Create a default cube if both fail
