@@ -47,6 +47,7 @@ compile_shader(
 
 # Include directories
 include_directories(${Vulkan_INCLUDE_DIRS})
+include_directories(include)
 
 # Add executable
 add_executable(MeshShader main.cpp)

@@ -16,6 +16,11 @@
 #include <algorithm>
 #include <spng.h>  // libspng for PNG loading
 
+// Blockbench model support
+#include "blockbench_model.h"
+#include "blockbench_parser.h"
+#include "blockbench_instance_generator.h"
+
 // Texture data structure
 struct TextureData {
     uint32_t width;
@@ -236,6 +241,7 @@ class MeshShaderApplication {
 public:
     void run() {
         initWindow();
+        loadBlockbenchModel();
         initVulkan();
         mainLoop();
         cleanup();
@@ -313,6 +319,10 @@ private:
     
     // Input state tracking
     bool keysPressed[348] = { false };  // GLFW supports up to KEY_LAST (348)
+    
+    // Blockbench model support
+    BlockbenchModel::Model currentModel;
+    BlockbenchInstanceGenerator::ModelInstances currentInstances;
 
     void initWindow() {
         glfwInit();
@@ -391,6 +401,60 @@ private:
         
         // Update camera direction vectors
         app->updateCameraVectors();
+    }
+    
+    void loadBlockbenchModel() {
+        std::cout << "Loading Blockbench models..." << std::endl;
+        
+        // Try to load cube.json first, fallback to slab.json
+        try {
+            currentModel = BlockbenchParser::parseFromFile("assets/slab.json");
+            std::cout << "Successfully loaded cube.json" << std::endl;
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to load cube.json: " << e.what() << std::endl;
+            try {
+                currentModel = BlockbenchParser::parseFromFile("assets/slab.json");
+                std::cout << "Successfully loaded slab.json as fallback" << std::endl;
+            } catch (const std::exception& e2) {
+                std::cerr << "Failed to load slab.json: " << e2.what() << std::endl;
+                // Create a default cube if both fail
+                createDefaultCube();
+                return;
+            }
+        }
+        
+        // Generate instances from the loaded model
+        currentInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(currentModel);
+        
+        std::cout << "Generated " << currentInstances.faces.size() << " face instances from " 
+                  << currentModel.elements.size() << " elements" << std::endl;
+        
+        // Print model bounds for debugging
+        auto bounds = BlockbenchInstanceGenerator::Generator::calculateModelBounds(currentModel);
+        std::cout << "Model bounds: min(" << bounds.min.x << ", " << bounds.min.y << ", " << bounds.min.z 
+                  << "), max(" << bounds.max.x << ", " << bounds.max.y << ", " << bounds.max.z << ")" << std::endl;
+    }
+    
+    void createDefaultCube() {
+        std::cout << "Creating default cube model" << std::endl;
+        
+        // Create a simple default cube element
+        BlockbenchModel::Element element;
+        element.from = glm::vec3(0.0f, 0.0f, 0.0f);
+        element.to = glm::vec3(16.0f, 16.0f, 16.0f);
+        
+        // Set up all faces with default texture references
+        element.down.texture = "#down";
+        element.up.texture = "#up";
+        element.north.texture = "#north";
+        element.south.texture = "#south";
+        element.west.texture = "#west";
+        element.east.texture = "#east";
+        
+        currentModel.elements.push_back(element);
+        currentInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(currentModel);
+        
+        std::cout << "Default cube created with " << currentInstances.faces.size() << " faces" << std::endl;
     }
 
     void initVulkan() {
