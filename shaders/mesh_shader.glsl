@@ -1,5 +1,6 @@
 #version 450
 #extension GL_EXT_mesh_shader : require
+#extension GL_EXT_nonuniform_qualifier : require
 
 /*
 Coordinate System Details:
@@ -32,61 +33,17 @@ const vec3 faceColors[6] = {
     vec3(0.0, 1.0, 1.0)  // CYAN - RIGHT FACE (X+)
 };
 
-// Face instance data for each of the 6 cube faces
-struct FaceInstance {
-    vec3 position;
-    vec4 rotation; // quaternion
-};
 
-// Fixed face definitions for a perfect unit cube from (0,0,0) to (1,1,1)
-const FaceInstance faceInstances[6] = {
-    // Top face (Y+) - RED
-    FaceInstance(
-        vec3(0.0, 1.0, 0.0),  // position at top
-        vec4(0.7071, 0.0, 0.0, 0.7071)  // 90° around X
-    ),
-    
-    // Bottom face (Y-) - GREEN
-    FaceInstance(
-        vec3(0.0, 0.0, 1.0),  // position at bottom
-        vec4(-0.7071, 0.0, 0.0, 0.7071)  // -90° around X
-    ),
-    
-    // Front face (Z+) - BLUE
-    FaceInstance(
-        vec3(0.0, 0.0, 0.0),  // position at front
-        vec4(0.0, 0.0, 0.0, 1.0)  // no rotation
-    ),
-    
-    // Back face (Z-) - YELLOW
-    FaceInstance(
-        vec3(1.0, 0.0, 1.0),  // position at back
-        vec4(0.0, 1.0, 0.0, 0.0)  // 180° rotation
-    ),
-    
-    // Left face (X-) - MAGENTA
-    FaceInstance(
-        vec3(0.0, 0.0, 1.0),  // position at left
-        vec4(0.0, 0.7071, 0.0, 0.7071)  // 90° around Y
-    ),
-    
-    // Right face (X+) - CYAN
-    FaceInstance(
-        vec3(1.0, 0.0, 0.0),  // position at right
-        vec4(0.0, -0.7071, 0.0, 0.7071)  // -90° around Y
-    )
-};
-
-// Constants for cube geometry
-const uint CUBE_FACES = 6;
+// Constants for geometry
 const uint VERTICES_PER_FACE = 4;
 const uint TRIANGLES_PER_FACE = 2;
-const uint TOTAL_VERTICES = CUBE_FACES * VERTICES_PER_FACE;    // 24
-const uint TOTAL_TRIANGLES = CUBE_FACES * TRIANGLES_PER_FACE;  // 12
+const uint MAX_FACES = 32;  // Maximum faces we can handle
+const uint MAX_VERTICES = MAX_FACES * VERTICES_PER_FACE;
+const uint MAX_TRIANGLES = MAX_FACES * TRIANGLES_PER_FACE;
 
-// Mesh shader configuration - one workgroup will handle all six faces
-layout(local_size_x = CUBE_FACES) in;
-layout(triangles, max_vertices = TOTAL_VERTICES, max_primitives = TOTAL_TRIANGLES) out;
+// Mesh shader configuration - dynamic face count
+layout(local_size_x = MAX_FACES) in;
+layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_TRIANGLES) out;
 
 // Must match task shader's structure
 struct MeshTaskPayload {
@@ -108,7 +65,20 @@ layout(binding = 0) uniform CompressedUBO {
     float time;           // Time for animation
     uvec2 packedCamera;   // packed camera position and orientation
     uvec2 packedProj;     // packed projection parameters
+    uint faceCount;       // Number of face instances to render
 } ubo;
+
+// Face instance structure for storage buffer
+struct FaceInstanceData {
+    vec4 position;  // vec3 + padding
+    vec4 rotation;  // quaternion
+    vec4 scale;     // face scale (width, height, 1.0, faceDirection)
+};
+
+// Storage buffer for dynamic face instances
+layout(binding = 2, std430) restrict readonly buffer FaceInstanceBuffer {
+    FaceInstanceData instances[];
+} faceInstanceBuffer;
 
 // Function to convert a quaternion to a 4x4 rotation matrix
 mat4 quatToMat4(vec4 q) {
@@ -261,8 +231,15 @@ void main() {
     // Calculate the face index from the local invocation ID
     uint faceIndex = gl_LocalInvocationID.x;
     
-    // Set the number of vertices and primitives to output
-    SetMeshOutputsEXT(TOTAL_VERTICES, TOTAL_TRIANGLES);
+    // Early exit if this invocation is beyond the actual face count
+    if (faceIndex >= ubo.faceCount) {
+        return;
+    }
+    
+    // Set the number of vertices and primitives to output based on actual face count
+    uint actualVertices = ubo.faceCount * VERTICES_PER_FACE;
+    uint actualTriangles = ubo.faceCount * TRIANGLES_PER_FACE;
+    SetMeshOutputsEXT(actualVertices, actualTriangles);
     
     // Reconstruct matrices from compressed data
     mat4 cubeModel = reconstructModelMatrix();  // Overall cube rotation
@@ -274,18 +251,20 @@ void main() {
     uint baseVertexIndex = faceIndex * VERTICES_PER_FACE;
     uint baseTriangleIndex = faceIndex * TRIANGLES_PER_FACE;
     
-    // Get face instance data
-    FaceInstance face = faceInstances[faceIndex];
+    // Get face instance data from storage buffer
+    vec3 facePosition = faceInstanceBuffer.instances[faceIndex].position.xyz;
+    vec4 faceRotation = faceInstanceBuffer.instances[faceIndex].rotation;
+    vec3 faceScale = faceInstanceBuffer.instances[faceIndex].scale.xyz;
     
     // Create model matrix for this face
-    mat4 faceRotation = quatToMat4(face.rotation);
+    mat4 faceRotationMatrix = quatToMat4(faceRotation);
     mat4 faceTranslation = mat4(
         vec4(1.0, 0.0, 0.0, 0.0),
         vec4(0.0, 1.0, 0.0, 0.0),
         vec4(0.0, 0.0, 1.0, 0.0),
-        vec4(face.position, 1.0)
+        vec4(facePosition, 1.0)
     );
-    mat4 faceModel = faceTranslation * faceRotation;
+    mat4 faceModel = faceTranslation * faceRotationMatrix;
     
     // Combine with overall cube animation
     mat4 mvp = vp * cubeModel;
@@ -303,8 +282,11 @@ void main() {
     for (int i = 0; i < VERTICES_PER_FACE; i++) {
         uint vertexIndex = baseVertexIndex + i;
         
-        // Transform quad vertex to face position and orientation
-        vec3 worldPos = transformQuadVertex(quadVertices[i], faceModel);
+        // Apply face scaling to the quad vertex
+        vec3 scaledVertex = quadVertices[i] * faceScale;
+        
+        // Transform scaled quad vertex to face position and orientation
+        vec3 worldPos = transformQuadVertex(scaledVertex, faceModel);
         
         // Apply overall cube animation and projection
         gl_MeshVerticesEXT[vertexIndex].gl_Position = mvp * vec4(worldPos, 1.0);

@@ -17,12 +17,12 @@ void main() {
     // Sample texture
     vec4 texColor = texture(texSampler, v_in.texCoord);
     
-    // Just output the texture color without mixing with face color
-    // Original code with color mixing (commented out):
-    // vec3 finalColor = mix(texColor.rgb, v_in.color, 0.2);
+    // Mix texture color with face color for side identification
+    // Use 30% face color influence to keep texture visible but add tint
+    vec3 finalColor = mix(texColor.rgb, v_in.color, 0.3);
     
-    // Output final color directly from texture, preserving alpha
-    outColor = texColor;
+    // Output final color with face color tinting, preserving alpha
+    outColor = vec4(finalColor, texColor.a);
     
     // Debug UV coordinates with a pattern
     // Uncomment these lines to see a UV debug pattern instead of the texture

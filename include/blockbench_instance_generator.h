@@ -12,9 +12,13 @@ namespace BlockbenchInstanceGenerator {
 struct FaceInstance {
     glm::vec3 position;
     glm::vec4 rotation; // quaternion
+    glm::vec3 scale;    // face scaling (width, height, depth)
+    int faceDirection;   // 0=down, 1=up, 2=north, 3=south, 4=west, 5=east
+    std::string textureName; // For debugging
     
-    FaceInstance(const glm::vec3& pos = glm::vec3(0.0f), const glm::vec4& rot = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f))
-        : position(pos), rotation(rot) {}
+    FaceInstance(const glm::vec3& pos = glm::vec3(0.0f), const glm::vec4& rot = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 
+                 const glm::vec3& scl = glm::vec3(1.0f), int dir = -1, const std::string& tex = "")
+        : position(pos), rotation(rot), scale(scl), faceDirection(dir), textureName(tex) {}
 };
 
 // Structure to hold all face instances for a complete model
@@ -51,25 +55,42 @@ namespace Generator {
     }
     
     // Calculate face position based on element bounds and face direction
+    // Positions faces at their corner origins, similar to the original hardcoded instances
     glm::vec3 calculateFacePosition(const BlockbenchModel::Element& vulkanElement, int faceIndex) {
-        glm::vec3 center = BlockbenchModel::Conversion::getElementCenter(vulkanElement);
+        switch (faceIndex) {
+            case 0: // Down face (Y-) - position at bottom corner of element
+                return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.to.z);
+            case 1: // Up face (Y+) - position at top corner of element  
+                return glm::vec3(vulkanElement.from.x, vulkanElement.to.y, vulkanElement.from.z);
+            case 2: // North face (Z-) - position at north corner of element
+                return glm::vec3(vulkanElement.to.x, vulkanElement.from.y, vulkanElement.from.z);
+            case 3: // South face (Z+) - position at south corner of element
+                return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.to.z);
+            case 4: // West face (X-) - position at west corner of element
+                return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.to.z);
+            case 5: // East face (X+) - position at east corner of element
+                return glm::vec3(vulkanElement.to.x, vulkanElement.from.y, vulkanElement.from.z);
+            default:
+                return vulkanElement.from; // Default to element origin
+        }
+    }
+    
+    // Calculate face scale based on element dimensions and face direction
+    glm::vec3 calculateFaceScale(const BlockbenchModel::Element& vulkanElement, int faceIndex) {
         glm::vec3 size = BlockbenchModel::Conversion::getElementSize(vulkanElement);
         
         switch (faceIndex) {
-            case 0: // Down face (Y-)
-                return glm::vec3(center.x, vulkanElement.from.y, center.z);
-            case 1: // Up face (Y+)
-                return glm::vec3(center.x, vulkanElement.to.y, center.z);
-            case 2: // North face (Z-)
-                return glm::vec3(center.x, center.y, vulkanElement.from.z);
-            case 3: // South face (Z+)
-                return glm::vec3(center.x, center.y, vulkanElement.to.z);
-            case 4: // West face (X-)
-                return glm::vec3(vulkanElement.from.x, center.y, center.z);
-            case 5: // East face (X+)
-                return glm::vec3(vulkanElement.to.x, center.y, center.z);
+            case 0: // Down face (Y-) - X,Z plane
+            case 1: // Up face (Y+) - X,Z plane
+                return glm::vec3(size.x, size.z, 1.0f);
+            case 2: // North face (Z-) - X,Y plane
+            case 3: // South face (Z+) - X,Y plane
+                return glm::vec3(size.x, size.y, 1.0f);
+            case 4: // West face (X-) - Z,Y plane
+            case 5: // East face (X+) - Z,Y plane
+                return glm::vec3(size.z, size.y, 1.0f);
             default:
-                return center;
+                return glm::vec3(1.0f);
         }
     }
     
@@ -92,12 +113,44 @@ namespace Generator {
         }
     }
     
+    // Face names for debugging
+    const char* getFaceName(int faceIndex) {
+        switch (faceIndex) {
+            case 0: return "down";
+            case 1: return "up";
+            case 2: return "north";
+            case 3: return "south";
+            case 4: return "west";
+            case 5: return "east";
+            default: return "unknown";
+        }
+    }
+    
+    // Get readable rotation description
+    std::string getRotationDescription(int faceIndex) {
+        switch (faceIndex) {
+            case 0: return "-90° around X (down face)";
+            case 1: return "+90° around X (up face)";
+            case 2: return "180° around Y (north face)";
+            case 3: return "0° (south face, no rotation)";
+            case 4: return "+90° around Y (west face)";
+            case 5: return "-90° around Y (east face)";
+            default: return "unknown rotation";
+        }
+    }
+
     // Generate face instances for a single Blockbench element
     void generateElementInstances(const BlockbenchModel::Element& bbElement, 
                                  std::vector<FaceInstance>& instances) {
         // Convert element to Vulkan coordinates
         BlockbenchModel::Element vulkanElement;
         BlockbenchModel::Conversion::convertElement(bbElement, vulkanElement);
+        
+        std::cout << "Processing Blockbench element:" << std::endl;
+        std::cout << "  Original BB coords: from(" << bbElement.from.x << ", " << bbElement.from.y << ", " << bbElement.from.z 
+                  << ") to(" << bbElement.to.x << ", " << bbElement.to.y << ", " << bbElement.to.z << ")" << std::endl;
+        std::cout << "  Vulkan coords: from(" << vulkanElement.from.x << ", " << vulkanElement.from.y << ", " << vulkanElement.from.z 
+                  << ") to(" << vulkanElement.to.x << ", " << vulkanElement.to.y << ", " << vulkanElement.to.z << ")" << std::endl;
         
         // Generate instances for each face
         for (int faceIndex = 0; faceIndex < 6; ++faceIndex) {
@@ -107,11 +160,22 @@ namespace Generator {
             if (shouldRenderFace(face)) {
                 glm::vec3 position = calculateFacePosition(vulkanElement, faceIndex);
                 glm::quat rotation = createFaceRotation(faceIndex);
+                glm::vec3 scale = calculateFaceScale(vulkanElement, faceIndex);
                 
                 // Convert quaternion to vec4 for shader compatibility
                 glm::vec4 rotationVec4(rotation.x, rotation.y, rotation.z, rotation.w);
                 
-                instances.emplace_back(position, rotationVec4);
+                std::cout << "  Creating face instance: " << getFaceName(faceIndex) 
+                          << " (direction=" << faceIndex << ") at position (" 
+                          << position.x << ", " << position.y << ", " << position.z 
+                          << ") scale (" << scale.x << ", " << scale.y << ", " << scale.z
+                          << ") rotation quat(" << rotation.x << ", " << rotation.y << ", " << rotation.z << ", " << rotation.w
+                          << ") with texture: " << face.texture << std::endl;
+                
+                instances.emplace_back(position, rotationVec4, scale, faceIndex, face.texture);
+            } else {
+                std::cout << "  Skipping face: " << getFaceName(faceIndex) 
+                          << " (no texture or empty texture)" << std::endl;
             }
         }
     }

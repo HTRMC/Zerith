@@ -168,7 +168,17 @@ struct CompressedUBO {
     // Projection data (8 bytes) - packed as 4 half-precision floats
     alignas(8) uint32_t packedProjection[2];
 
-    // Total: 20 bytes (vs original 192 bytes)
+    // Number of face instances to render (4 bytes)
+    alignas(4) uint32_t faceCount;
+
+    // Total: 24 bytes
+};
+
+// Face instance data for storage buffer
+struct FaceInstanceData {
+    alignas(16) glm::vec4 position; // vec3 + padding
+    alignas(16) glm::vec4 rotation; // quaternion
+    alignas(16) glm::vec4 scale;    // face scale (width, height, 1.0, faceDirection)
 };
 
 uint32_t packHalf2(float a, float b) {
@@ -282,6 +292,11 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     std::vector<void*> uniformBuffersMapped;
+
+    // Storage buffer for face instances
+    VkBuffer faceInstanceBuffer;
+    VkDeviceMemory faceInstanceBufferMemory;
+    void* faceInstanceBufferMapped;
 
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
@@ -425,10 +440,7 @@ private:
         
         // Generate instances from the loaded model
         currentInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(currentModel);
-        
-        std::cout << "Generated " << currentInstances.faces.size() << " face instances from " 
-                  << currentModel.elements.size() << " elements" << std::endl;
-        
+
         // Print model bounds for debugging
         auto bounds = BlockbenchInstanceGenerator::Generator::calculateModelBounds(currentModel);
         std::cout << "Model bounds: min(" << bounds.min.x << ", " << bounds.min.y << ", " << bounds.min.z 
@@ -453,8 +465,8 @@ private:
         
         currentModel.elements.push_back(element);
         currentInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(currentModel);
-        
-        std::cout << "Default cube created with " << currentInstances.faces.size() << " faces" << std::endl;
+
+        std::cout << "Default cube created with " << currentInstances.faces.size() << " faces (including green origin dot)" << std::endl;
     }
 
     void initVulkan() {
@@ -474,6 +486,7 @@ private:
         createGraphicsPipeline();
         createFramebuffers();
         createUniformBuffers();
+        createFaceInstanceBuffer();
         createDescriptorPool();
         createDescriptorSets();
         createCommandBuffers();
@@ -1309,8 +1322,16 @@ private:
         samplerLayoutBinding.descriptorCount = 1;
         samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         samplerLayoutBinding.pImmutableSamplers = nullptr;
+        
+        // Storage buffer binding for face instances
+        VkDescriptorSetLayoutBinding storageLayoutBinding{};
+        storageLayoutBinding.binding = 2;
+        storageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        storageLayoutBinding.descriptorCount = 1;
+        storageLayoutBinding.stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT;
+        storageLayoutBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
+        std::array<VkDescriptorSetLayoutBinding, 3> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1399,7 +1420,7 @@ private:
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.cullMode = VK_CULL_MODE_NONE;
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
@@ -1510,6 +1531,49 @@ private:
             vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
         }
     }
+    
+    void createFaceInstanceBuffer() {
+        // Calculate buffer size for all face instances
+        VkDeviceSize bufferSize = sizeof(FaceInstanceData) * currentInstances.faces.size();
+        
+        createBuffer(
+            bufferSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            faceInstanceBuffer,
+            faceInstanceBufferMemory
+        );
+        
+        // Map and populate the buffer
+        vkMapMemory(device, faceInstanceBufferMemory, 0, bufferSize, 0, &faceInstanceBufferMapped);
+        
+        // Copy face instance data
+        FaceInstanceData* mappedData = static_cast<FaceInstanceData*>(faceInstanceBufferMapped);
+        for (size_t i = 0; i < currentInstances.faces.size(); i++) {
+            const auto& face = currentInstances.faces[i];
+            mappedData[i].position = glm::vec4(face.position, 1.0f); // Add w component
+            mappedData[i].rotation = face.rotation;
+            mappedData[i].scale = glm::vec4(face.scale, static_cast<float>(face.faceDirection)); // Pack direction in w
+            
+            // Print face position for debugging
+            const char* directionNames[] = {"DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST"};
+            const char* directionName = (face.faceDirection >= 0 && face.faceDirection < 6) ? 
+                                       directionNames[face.faceDirection] : "UNKNOWN";
+            
+            std::cout << "GPU Face " << i << " (" << directionName << ") position: (" 
+                      << face.position.x << ", " 
+                      << face.position.y << ", " 
+                      << face.position.z << ") scale: (" 
+                      << face.scale.x << ", " << face.scale.y << ", " << face.scale.z 
+                      << ") rotation: (" 
+                      << face.rotation.x << ", " << face.rotation.y << ", " 
+                      << face.rotation.z << ", " << face.rotation.w 
+                      << ") texture: " << face.textureName << std::endl;
+        }
+        
+        std::cout << "Face instance buffer created with " << currentInstances.faces.size() 
+                  << " instances (" << bufferSize << " bytes)" << std::endl;
+    }
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                      VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
@@ -1553,11 +1617,13 @@ private:
     }
 
     void createDescriptorPool() {
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1595,8 +1661,14 @@ private:
             imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             imageInfo.imageView = textureImageView;
             imageInfo.sampler = textureSampler;
+            
+            // Storage buffer info
+            VkDescriptorBufferInfo storageBufferInfo{};
+            storageBufferInfo.buffer = faceInstanceBuffer;
+            storageBufferInfo.offset = 0;
+            storageBufferInfo.range = sizeof(FaceInstanceData) * currentInstances.faces.size();
 
-            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+            std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
             
             // Uniform buffer descriptor
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -1615,6 +1687,15 @@ private:
             descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             descriptorWrites[1].descriptorCount = 1;
             descriptorWrites[1].pImageInfo = &imageInfo;
+            
+            // Storage buffer descriptor
+            descriptorWrites[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[2].dstSet = descriptorSets[i];
+            descriptorWrites[2].dstBinding = 2;
+            descriptorWrites[2].dstArrayElement = 0;
+            descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[2].descriptorCount = 1;
+            descriptorWrites[2].pBufferInfo = &storageBufferInfo;
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -1684,6 +1765,9 @@ private:
         compressedUbo.packedCamera[1] = packHalf2(camPosY, camYaw);
         compressedUbo.packedProjection[0] = packHalf2(fov, aspect);
         compressedUbo.packedProjection[1] = packHalf2(camPosZ, 10.0f); // Use near value to store Z position
+        
+        // Set face count for dynamic rendering
+        compressedUbo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
 
         // Copy compressed data to buffer
         memcpy(uniformBuffersMapped[currentImage], &compressedUbo, sizeof(compressedUbo));
@@ -1930,6 +2014,13 @@ private:
         vkDestroyImageView(device, textureImageView, nullptr);
         vkDestroyImage(device, textureImage, nullptr);
         vkFreeMemory(device, textureImageMemory, nullptr);
+        
+        // Clean up storage buffer
+        if (faceInstanceBufferMapped) {
+            vkUnmapMemory(device, faceInstanceBufferMemory);
+        }
+        vkDestroyBuffer(device, faceInstanceBuffer, nullptr);
+        vkFreeMemory(device, faceInstanceBufferMemory, nullptr);
 
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 

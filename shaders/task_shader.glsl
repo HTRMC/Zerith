@@ -9,6 +9,7 @@ layout(binding = 0) uniform CompressedUBO {
     float time;           // Time for animation
     uvec2 packedCamera;   // packed camera position and orientation
     uvec2 packedProj;     // packed projection parameters
+    uint faceCount;       // Number of face instances to render
 } ubo;
 
 // Declare an empty payload structure
