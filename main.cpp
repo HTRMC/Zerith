@@ -164,7 +164,11 @@ struct CompressedUBO {
     // Projection data (8 bytes) - packed as 4 half-precision floats
     alignas(8) uint32_t packedProjection[2];
 
-    // Total: 20 bytes (vs original 192 bytes)
+    // Model element data (12 bytes) - from and to coordinates in Vulkan space
+    alignas(4) float elementFrom[3];  // from coordinates (already converted to Vulkan 0-1 space)
+    alignas(4) float elementTo[3];    // to coordinates (already converted to Vulkan 0-1 space)
+
+    // Total: 32 bytes
 };
 
 uint32_t packHalf2(float a, float b) {
@@ -403,7 +407,7 @@ private:
         modelLoader = std::make_unique<ModelLoader>("assets");
         
         // Load the oak_planks model
-        loadedModel = modelLoader->loadModel("block/oak_planks");
+        loadedModel = modelLoader->loadModel("block/oak_stairs");
         if (!loadedModel.has_value()) {
             std::cerr << "Failed to load oak_planks model, using default cube" << std::endl;
         } else {
@@ -1636,6 +1640,28 @@ private:
         compressedUbo.packedCamera[1] = packHalf2(camPosY, camYaw);
         compressedUbo.packedProjection[0] = packHalf2(fov, aspect);
         compressedUbo.packedProjection[1] = packHalf2(camPosZ, 10.0f); // Use near value to store Z position
+
+        // Set model element data - use loaded model if available, otherwise default cube
+        if (loadedModel.has_value() && !loadedModel->elements.empty()) {
+            const auto& element = loadedModel->elements[0]; // Use first element
+            glm::vec3 vulkanFrom = ModelLoader::blockbenchToVulkan(element.from);
+            glm::vec3 vulkanTo = ModelLoader::blockbenchToVulkan(element.to);
+            
+            compressedUbo.elementFrom[0] = vulkanFrom.x;
+            compressedUbo.elementFrom[1] = vulkanFrom.y;
+            compressedUbo.elementFrom[2] = vulkanFrom.z;
+            compressedUbo.elementTo[0] = vulkanTo.x;
+            compressedUbo.elementTo[1] = vulkanTo.y;
+            compressedUbo.elementTo[2] = vulkanTo.z;
+        } else {
+            // Default cube from 0,0,0 to 1,1,1
+            compressedUbo.elementFrom[0] = 0.0f;
+            compressedUbo.elementFrom[1] = 0.0f;
+            compressedUbo.elementFrom[2] = 0.0f;
+            compressedUbo.elementTo[0] = 1.0f;
+            compressedUbo.elementTo[1] = 1.0f;
+            compressedUbo.elementTo[2] = 1.0f;
+        }
 
         // Copy compressed data to buffer
         memcpy(uniformBuffersMapped[currentImage], &compressedUbo, sizeof(compressedUbo));

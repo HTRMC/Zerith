@@ -108,6 +108,8 @@ layout(binding = 0) uniform CompressedUBO {
     float time;           // Time for animation
     uvec2 packedCamera;   // packed camera position and orientation
     uvec2 packedProj;     // packed projection parameters
+    vec3 elementFrom;     // Model element from coordinates (Vulkan space)
+    vec3 elementTo;       // Model element to coordinates (Vulkan space)
 } ubo;
 
 // Function to convert a quaternion to a 4x4 rotation matrix
@@ -250,6 +252,21 @@ mat4 reconstructProjMatrix() {
     return proj;
 }
 
+// Scale face instances based on loaded model element data  
+FaceInstance scaleToElement(FaceInstance face, vec3 elementFrom, vec3 elementTo) {
+    // For now, let's not scale the face positions - just return the original face
+    // The scaling will be handled by the quad vertices
+    return face;
+}
+
+// Scale quad vertices based on element size
+vec3 scaleQuadVertex(vec3 vertex, vec3 elementFrom, vec3 elementTo) {
+    vec3 elementSize = elementTo - elementFrom;
+    
+    // Apply element offset and scaling
+    return elementFrom + (vertex * elementSize);
+}
+
 // Helper to transform a quad vertex based on face transformation
 vec3 transformQuadVertex(vec3 vertex, mat4 faceModel) {
     // Apply face transformation to get the world position
@@ -261,8 +278,18 @@ void main() {
     // Calculate the face index from the local invocation ID
     uint faceIndex = gl_LocalInvocationID.x;
     
-    // Set the number of vertices and primitives to output
-    SetMeshOutputsEXT(TOTAL_VERTICES, TOTAL_TRIANGLES);
+    // Ensure we only process valid face indices
+    if (faceIndex >= CUBE_FACES) {
+        return;
+    }
+    
+    // Set the number of vertices and primitives to output (only once per workgroup)
+    if (gl_LocalInvocationID.x == 0) {
+        SetMeshOutputsEXT(TOTAL_VERTICES, TOTAL_TRIANGLES);
+    }
+    
+    // Synchronize to ensure SetMeshOutputsEXT is called before vertex generation
+    barrier();
     
     // Reconstruct matrices from compressed data
     mat4 cubeModel = reconstructModelMatrix();  // Overall cube rotation
@@ -274,7 +301,7 @@ void main() {
     uint baseVertexIndex = faceIndex * VERTICES_PER_FACE;
     uint baseTriangleIndex = faceIndex * TRIANGLES_PER_FACE;
     
-    // Get face instance data
+    // Get face instance data - temporarily disable scaling
     FaceInstance face = faceInstances[faceIndex];
     
     // Create model matrix for this face
@@ -303,8 +330,11 @@ void main() {
     for (int i = 0; i < VERTICES_PER_FACE; i++) {
         uint vertexIndex = baseVertexIndex + i;
         
+        // Temporarily disable scaling to debug - use original hardcoded behavior
+        vec3 scaledVertex = quadVertices[i];
+        
         // Transform quad vertex to face position and orientation
-        vec3 worldPos = transformQuadVertex(quadVertices[i], faceModel);
+        vec3 worldPos = transformQuadVertex(scaledVertex, faceModel);
         
         // Apply overall cube animation and projection
         gl_MeshVerticesEXT[vertexIndex].gl_Position = mvp * vec4(worldPos, 1.0);
