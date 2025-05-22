@@ -18,51 +18,6 @@
 #include <algorithm>
 #include <spng.h>  // libspng for PNG loading
 
-// Face instance struct for cube faces
-struct FaceInstance {
-    glm::vec3 position;
-    glm::quat rotation;
-};
-
-// Array of face instances in Vulkan coordinates (Y-up, right-handed)
-const std::array<FaceInstance, 6> faceInstances = {
-    // Top (Y+): Blender: Pos(0.5, 0.5, 1), Rot(0, 0, 90) - RED
-    FaceInstance{
-        glm::vec3(0.5f, 1.0f, -0.5f),
-        glm::quat(glm::vec3(glm::radians(-90.0f), 0.0f, glm::radians(90.0f)))
-    },
-    
-    // Bottom (Y-): Blender: Pos(0.5, 0.5, 0), Rot(180, 0, 90) - GREEN
-    FaceInstance{
-        glm::vec3(0.5f, 0.0f, -0.5f),
-        glm::quat(glm::vec3(glm::radians(90.0f), 0.0f, glm::radians(90.0f)))
-    },
-    
-    // Front (Z+): Blender: Pos(0, 0.5, 0.5), Rot(-90, 180, 90) - BLUE
-    FaceInstance{
-        glm::vec3(0.0f, 0.5f, -0.5f),
-        glm::quat(glm::vec3(glm::radians(0.0f), glm::radians(180.0f), 0.0f))
-    },
-    
-    // Back (Z-): Blender: Pos(1, 0.5, 0.5), Rot(-90, 180, -90) - YELLOW
-    FaceInstance{
-        glm::vec3(1.0f, 0.5f, -0.5f),
-        glm::quat(glm::vec3(glm::radians(0.0f), 0.0f, 0.0f))
-    },
-    
-    // Left (X-): Blender: Pos(0.5, 0, 0.5), Rot(90, 0, 0) - MAGENTA
-    FaceInstance{
-        glm::vec3(0.5f, 0.5f, -0.0f),
-        glm::quat(glm::vec3(0.0f, glm::radians(-90.0f), 0.0f))
-    },
-    
-    // Right (X+): Blender: Pos(0.5, 1, 0.5), Rot(-90, 180, 0) - CYAN
-    FaceInstance{
-        glm::vec3(0.5f, 0.5f, -1.0f),
-        glm::quat(glm::vec3(0.0f, glm::radians(90.0f), 0.0f))
-    }
-};
-
 // Texture data structure
 struct TextureData {
     uint32_t width;
