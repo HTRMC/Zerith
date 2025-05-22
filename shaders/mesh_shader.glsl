@@ -1,6 +1,18 @@
 #version 450
 #extension GL_EXT_mesh_shader : require
 
+/*
+Coordinate System Details:
+
+This shader uses Vulkan's standard coordinate system (Y-up, right-handed):
+- Y is up
+- X is right  
+- Z is forward (into the screen)
+
+The face instances below define cube faces positioned from (0,0,0) to (1,1,1)
+with proper orientations for each face of a unit cube.
+*/
+
 // Define a single quad (unit square in XY plane at Z=0)
 // This will be instanced for each face
 const vec3 quadVertices[4] = {
@@ -65,9 +77,16 @@ const FaceInstance faceInstances[6] = {
     )
 };
 
+// Constants for cube geometry
+const uint CUBE_FACES = 6;
+const uint VERTICES_PER_FACE = 4;
+const uint TRIANGLES_PER_FACE = 2;
+const uint TOTAL_VERTICES = CUBE_FACES * VERTICES_PER_FACE;    // 24
+const uint TOTAL_TRIANGLES = CUBE_FACES * TRIANGLES_PER_FACE;  // 12
+
 // Mesh shader configuration - one workgroup will handle all six faces
-layout(local_size_x = 6) in;
-layout(triangles, max_vertices = 24, max_primitives = 12) out;
+layout(local_size_x = CUBE_FACES) in;
+layout(triangles, max_vertices = TOTAL_VERTICES, max_primitives = TOTAL_TRIANGLES) out;
 
 // Must match task shader's structure
 struct MeshTaskPayload {
@@ -242,12 +261,8 @@ void main() {
     // Calculate the face index from the local invocation ID
     uint faceIndex = gl_LocalInvocationID.x;
     
-    // Each face has 4 vertices and 2 triangles
-    uint verticesPerFace = 4;
-    uint trianglesPerFace = 2;
-    
     // Set the number of vertices and primitives to output
-    SetMeshOutputsEXT(24, 12); // (6 faces * 4 vertices, 6 faces * 2 triangles)
+    SetMeshOutputsEXT(TOTAL_VERTICES, TOTAL_TRIANGLES);
     
     // Reconstruct matrices from compressed data
     mat4 cubeModel = reconstructModelMatrix();  // Overall cube rotation
@@ -256,8 +271,8 @@ void main() {
     mat4 vp = proj * view;
     
     // Base index for this face's vertices in the output arrays
-    uint baseVertexIndex = faceIndex * verticesPerFace;
-    uint baseTriangleIndex = faceIndex * trianglesPerFace;
+    uint baseVertexIndex = faceIndex * VERTICES_PER_FACE;
+    uint baseTriangleIndex = faceIndex * TRIANGLES_PER_FACE;
     
     // Get face instance data
     FaceInstance face = faceInstances[faceIndex];
@@ -285,7 +300,7 @@ void main() {
     };
     
     // Output vertices for this face
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < VERTICES_PER_FACE; i++) {
         uint vertexIndex = baseVertexIndex + i;
         
         // Transform quad vertex to face position and orientation
