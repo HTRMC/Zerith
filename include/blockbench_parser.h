@@ -210,4 +210,33 @@ BlockbenchModel::Model parseFromFile(const std::string& filename) {
     return parseFromString(content);
 }
 
+// Parse a Blockbench model with parent model resolution
+BlockbenchModel::Model parseFromFileWithParents(const std::string& filename) {
+    // Parse the main model
+    BlockbenchModel::Model model = parseFromFile(filename);
+    
+    // If the model has a parent, load and merge it
+    if (!model.parent.empty()) {
+        std::string parentPath = "assets/" + model.parent + ".json";
+        
+        std::cout << "Loading parent model: " << parentPath << std::endl;
+        BlockbenchModel::Model parentModel = parseFromFile(parentPath);
+        
+        // If the current model has no elements, inherit from parent
+        if (model.elements.empty() && !parentModel.elements.empty()) {
+            model.elements = parentModel.elements;
+            std::cout << "Inherited " << parentModel.elements.size() << " elements from parent model" << std::endl;
+        }
+        
+        // Merge textures from parent (parent textures are overridden by child)
+        for (const auto& parentTexture : parentModel.textures) {
+            if (model.textures.find(parentTexture.first) == model.textures.end()) {
+                model.textures[parentTexture.first] = parentTexture.second;
+            }
+        }
+    }
+    
+    return model;
+}
+
 } // namespace BlockbenchParser

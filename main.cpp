@@ -421,17 +421,17 @@ private:
     void loadBlockbenchModel() {
         std::cout << "Loading Blockbench models..." << std::endl;
         
-        // Try to load stairs.json first, fallback to stairs.json
+        // Try to load oak_stairs.json with parent model support
         try {
-            currentModel = BlockbenchParser::parseFromFile("assets/stairs.json");
-            std::cout << "Successfully loaded stairs.json" << std::endl;
+            currentModel = BlockbenchParser::parseFromFileWithParents("assets/oak_stairs.json");
+            std::cout << "Successfully loaded oak_stairs.json" << std::endl;
             // Flip the stairs upside down to fix orientation
             BlockbenchModel::Conversion::flipModelUpsideDown(currentModel);
             std::cout << "Flipped stairs model upside down" << std::endl;
         } catch (const std::exception& e) {
-            std::cerr << "Failed to load stairs.json: " << e.what() << std::endl;
+            std::cerr << "Failed to load oak_stairs.json: " << e.what() << std::endl;
             try {
-                currentModel = BlockbenchParser::parseFromFile("assets/stairs.json");
+                currentModel = BlockbenchParser::parseFromFileWithParents("assets/stairs.json");
                 std::cout << "Successfully loaded stairs.json as fallback" << std::endl;
                 // Flip the stairs upside down to fix orientation
                 BlockbenchModel::Conversion::flipModelUpsideDown(currentModel);
