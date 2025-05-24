@@ -68,6 +68,45 @@ namespace JsonHelper {
         return result;
     }
     
+    // Extract array of 4 UV coordinates [u1, v1, u2, v2]
+    glm::vec4 extractVec4(const std::string& json, const std::string& key) {
+        std::string searchKey = "\"" + key + "\"";
+        size_t keyPos = json.find(searchKey);
+        if (keyPos == std::string::npos) return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
+        
+        size_t colonPos = json.find(":", keyPos);
+        if (colonPos == std::string::npos) return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
+        
+        size_t arrayStart = json.find("[", colonPos);
+        if (arrayStart == std::string::npos) return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
+        
+        size_t arrayEnd = json.find("]", arrayStart);
+        if (arrayEnd == std::string::npos) return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
+        
+        std::string arrayContent = json.substr(arrayStart + 1, arrayEnd - arrayStart - 1);
+        
+        // Parse the four numbers
+        std::istringstream iss(arrayContent);
+        std::string item;
+        glm::vec4 result(0.0f, 0.0f, 16.0f, 16.0f);
+        int index = 0;
+        
+        while (std::getline(iss, item, ',') && index < 4) {
+            // Remove whitespace
+            item.erase(0, item.find_first_not_of(" \t"));
+            item.erase(item.find_last_not_of(" \t") + 1);
+            
+            try {
+                result[index] = std::stof(item);
+            } catch (...) {
+                result[index] = (index < 2) ? 0.0f : 16.0f;
+            }
+            index++;
+        }
+        
+        return result;
+    }
+    
     // Extract face object from JSON
     BlockbenchModel::Face extractFace(const std::string& json, const std::string& faceKey) {
         BlockbenchModel::Face face;
@@ -97,8 +136,8 @@ namespace JsonHelper {
         face.texture = extractString(faceJson, "texture");
         face.cullface = extractString(faceJson, "cullface");
         
-        // Extract UV if present (TODO: implement UV parsing)
-        // For now, use default UV coordinates
+        // Extract UV coordinates if present
+        face.uv = extractVec4(faceJson, "uv");
         
         return face;
     }

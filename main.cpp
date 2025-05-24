@@ -179,6 +179,7 @@ struct FaceInstanceData {
     alignas(16) glm::vec4 position; // vec3 + padding
     alignas(16) glm::vec4 rotation; // quaternion
     alignas(16) glm::vec4 scale;    // face scale (width, height, 1.0, faceDirection)
+    alignas(16) glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
 };
 
 uint32_t packHalf2(float a, float b) {
@@ -1570,6 +1571,7 @@ private:
             mappedData[i].position = glm::vec4(face.position, 1.0f); // Add w component
             mappedData[i].rotation = face.rotation;
             mappedData[i].scale = glm::vec4(face.scale, static_cast<float>(face.faceDirection)); // Pack direction in w
+            mappedData[i].uv = face.uv; // Copy UV coordinates
             
             // Print face position for debugging
             const char* directionNames[] = {"DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST"};

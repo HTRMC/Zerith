@@ -14,11 +14,13 @@ struct FaceInstance {
     glm::vec4 rotation; // quaternion
     glm::vec3 scale;    // face scaling (width, height, depth)
     int faceDirection;   // 0=down, 1=up, 2=north, 3=south, 4=west, 5=east
+    glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
     std::string textureName; // For debugging
     
     FaceInstance(const glm::vec3& pos = glm::vec3(0.0f), const glm::vec4& rot = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 
-                 const glm::vec3& scl = glm::vec3(1.0f), int dir = -1, const std::string& tex = "")
-        : position(pos), rotation(rot), scale(scl), faceDirection(dir), textureName(tex) {}
+                 const glm::vec3& scl = glm::vec3(1.0f), int dir = -1, const glm::vec4& uvCoords = glm::vec4(0.0f, 0.0f, 16.0f, 16.0f),
+                 const std::string& tex = "")
+        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureName(tex) {}
 };
 
 // Structure to hold all face instances for a complete model
@@ -170,9 +172,10 @@ namespace Generator {
                           << position.x << ", " << position.y << ", " << position.z 
                           << ") scale (" << scale.x << ", " << scale.y << ", " << scale.z
                           << ") rotation quat(" << rotation.x << ", " << rotation.y << ", " << rotation.z << ", " << rotation.w
-                          << ") with texture: " << face.texture << std::endl;
+                          << ") UV[" << face.uv.x << ", " << face.uv.y << ", " << face.uv.z << ", " << face.uv.w 
+                          << "] with texture: " << face.texture << std::endl;
                 
-                instances.emplace_back(position, rotationVec4, scale, faceIndex, face.texture);
+                instances.emplace_back(position, rotationVec4, scale, faceIndex, face.uv, face.texture);
             } else {
                 std::cout << "  Skipping face: " << getFaceName(faceIndex) 
                           << " (no texture or empty texture)" << std::endl;

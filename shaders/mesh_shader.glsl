@@ -73,6 +73,7 @@ struct FaceInstanceData {
     vec4 position;  // vec3 + padding
     vec4 rotation;  // quaternion
     vec4 scale;     // face scale (width, height, 1.0, faceDirection)
+    vec4 uv;        // UV coordinates [minU, minV, maxU, maxV]
 };
 
 // Storage buffer for dynamic face instances
@@ -255,6 +256,7 @@ void main() {
     vec3 facePosition = faceInstanceBuffer.instances[faceIndex].position.xyz;
     vec4 faceRotation = faceInstanceBuffer.instances[faceIndex].rotation;
     vec3 faceScale = faceInstanceBuffer.instances[faceIndex].scale.xyz;
+    vec4 faceUV = faceInstanceBuffer.instances[faceIndex].uv;
     
     // Create model matrix for this face
     mat4 faceRotationMatrix = quatToMat4(faceRotation);
@@ -269,13 +271,19 @@ void main() {
     // Combine with overall cube animation
     mat4 mvp = vp * cubeModel;
     
-    // Set texture coordinates for the quad
+    // Set texture coordinates for the quad using the UV data from the model
+    // Convert from pixel coordinates (0-16) to normalized coordinates (0-1)
+    float minU = faceUV.x / 16.0;
+    float minV = faceUV.y / 16.0;
+    float maxU = faceUV.z / 16.0;
+    float maxV = faceUV.w / 16.0;
+    
     // Note: In texture coordinates, (0,0) is top-left in Vulkan
     vec2 texCoords[4] = {
-        vec2(0.0, 0.0),  // Bottom-left
-        vec2(1.0, 0.0),  // Bottom-right
-        vec2(1.0, 1.0),  // Top-right
-        vec2(0.0, 1.0)   // Top-left
+        vec2(minU, minV),  // Bottom-left
+        vec2(maxU, minV),  // Bottom-right
+        vec2(maxU, maxV),  // Top-right
+        vec2(minU, maxV)   // Top-left
     };
     
     // Output vertices for this face
