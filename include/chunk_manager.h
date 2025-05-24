@@ -39,6 +39,9 @@ public:
     // Get statistics
     size_t getLoadedChunkCount() const { return m_chunks.size(); }
     size_t getTotalFaceCount() const;
+    
+    // Get mesh generator for texture array access
+    const ChunkMeshGenerator* getMeshGenerator() const { return m_meshGenerator.get(); }
 
 private:
     // Convert world position to chunk position

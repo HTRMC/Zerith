@@ -185,6 +185,8 @@ struct FaceInstanceData {
     alignas(16) glm::vec4 rotation; // quaternion
     alignas(16) glm::vec4 scale;    // face scale (width, height, 1.0, faceDirection)
     alignas(16) glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
+    uint32_t textureLayer;          // Texture array layer index
+    uint32_t padding[3];            // Padding to maintain 16-byte alignment
 };
 
 uint32_t packHalf2(float a, float b) {
@@ -586,83 +588,122 @@ private:
     }
 
     void createTextureImage() {
-        // Load PNG image, use default texture if loading fails
-        TextureData textureData;
+        // Get texture array manager from chunk manager
+        auto textureArray = chunkManager->getMeshGenerator()->getTextureArray();
+        const auto& textureFiles = textureArray->getTextureFiles();
+        uint32_t layerCount = static_cast<uint32_t>(textureFiles.size());
         
-        try {
-            // Try both paths - for running from source dir or from build dir
+        // Load all textures
+        std::vector<TextureData> textures;
+        for (const auto& filename : textureFiles) {
             try {
-                textureData = loadPNG("assets/oak_planks.png");
-                std::cout << "Loaded texture: assets/oak_planks.png" << std::endl;
-            } catch (const std::runtime_error&) {
-                textureData = loadPNG("../assets/oak_planks.png");
-                std::cout << "Loaded texture: ../assets/oak_planks.png" << std::endl;
+                TextureData textureData;
+                // Try both paths - for running from source dir or from build dir
+                try {
+                    textureData = loadPNG(filename);
+                    std::cout << "Loaded texture: " << filename << std::endl;
+                } catch (const std::runtime_error&) {
+                    textureData = loadPNG("../" + filename);
+                    std::cout << "Loaded texture: ../" << filename << std::endl;
+                }
+                textures.push_back(textureData);
+            } catch (const std::runtime_error& e) {
+                std::cerr << "Failed to load texture " << filename << ", using default: " << e.what() << std::endl;
+                textures.push_back(createDefaultTexture());
             }
-        } catch (const std::runtime_error& e) {
-            std::cerr << "Failed to load texture, using default checkerboard instead: " << e.what() << std::endl;
-            textureData = createDefaultTexture();
         }
         
-        VkDeviceSize imageSize = textureData.width * textureData.height * textureData.channels;
+        // Assume all textures are the same size (16x16)
+        uint32_t textureWidth = 16;
+        uint32_t textureHeight = 16;
+        uint32_t textureChannels = 4; // RGBA
+        VkDeviceSize layerSize = textureWidth * textureHeight * textureChannels;
+        VkDeviceSize totalSize = layerSize * layerCount;
         
-        // Create a staging buffer
+        // Create a staging buffer for all texture layers
         VkBuffer stagingBuffer;
         VkDeviceMemory stagingBufferMemory;
         
         createBuffer(
-            imageSize, 
+            totalSize, 
             VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
             stagingBuffer, 
             stagingBufferMemory
         );
         
-        // Copy pixel data to staging buffer
+        // Copy all texture data to staging buffer
         void* data;
-        vkMapMemory(device, stagingBufferMemory, 0, imageSize, 0, &data);
-        memcpy(data, textureData.pixels.data(), static_cast<size_t>(imageSize));
-        vkUnmapMemory(device, stagingBufferMemory);
+        vkMapMemory(device, stagingBufferMemory, 0, totalSize, 0, &data);
         
-        // Create texture image
-        VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
-        if (textureData.channels == 3) {
-            // If the PNG doesn't have an alpha channel, we need to convert from RGB to RGBA
-            imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+        for (uint32_t i = 0; i < layerCount; ++i) {
+            void* layerData = static_cast<uint8_t*>(data) + (i * layerSize);
+            memcpy(layerData, textures[i].pixels.data(), static_cast<size_t>(layerSize));
         }
         
-        createImage(
-            textureData.width, 
-            textureData.height, 
-            imageFormat, 
-            VK_IMAGE_TILING_OPTIMAL, 
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, 
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-            textureImage, 
-            textureImageMemory
-        );
+        vkUnmapMemory(device, stagingBufferMemory);
         
-        // Transition image layout for copy operation
-        transitionImageLayout(
+        // Create texture array image
+        VkFormat imageFormat = VK_FORMAT_R8G8B8A8_SRGB;
+        
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = textureWidth;
+        imageInfo.extent.height = textureHeight;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = layerCount;  // This makes it a texture array
+        imageInfo.format = imageFormat;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        
+        if (vkCreateImage(device, &imageInfo, nullptr, &textureImage) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture array image!");
+        }
+        
+        VkMemoryRequirements memRequirements;
+        vkGetImageMemoryRequirements(device, textureImage, &memRequirements);
+        
+        VkMemoryAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+        allocInfo.allocationSize = memRequirements.size;
+        allocInfo.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        
+        if (vkAllocateMemory(device, &allocInfo, nullptr, &textureImageMemory) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate texture array image memory!");
+        }
+        
+        vkBindImageMemory(device, textureImage, textureImageMemory, 0);
+        
+        // Transition image layout for copy operation (all layers)
+        transitionImageLayoutArray(
             textureImage, 
             imageFormat, 
             VK_IMAGE_LAYOUT_UNDEFINED, 
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            layerCount
         );
         
-        // Copy from staging buffer to texture image
-        copyBufferToImage(
+        // Copy from staging buffer to texture array
+        copyBufferToImageArray(
             stagingBuffer, 
             textureImage, 
-            textureData.width, 
-            textureData.height
+            textureWidth, 
+            textureHeight,
+            layerCount
         );
         
-        // Transition image layout for shader access
-        transitionImageLayout(
+        // Transition image layout for shader access (all layers)
+        transitionImageLayoutArray(
             textureImage, 
             imageFormat, 
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            layerCount
         );
         
         // Clean up staging buffer
@@ -815,8 +856,107 @@ private:
         endSingleTimeCommands(commandBuffer);
     }
     
+    void transitionImageLayoutArray(VkImage image, VkFormat format, VkImageLayout oldLayout, 
+                                   VkImageLayout newLayout, uint32_t layerCount) {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        
+        VkImageMemoryBarrier barrier{};
+        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        barrier.oldLayout = oldLayout;
+        barrier.newLayout = newLayout;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.image = image;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = layerCount; // All layers
+        
+        VkPipelineStageFlags sourceStage;
+        VkPipelineStageFlags destinationStage;
+        
+        if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            
+            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        } else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+            barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+            
+            sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+            destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        } else {
+            throw std::invalid_argument("unsupported layout transition!");
+        }
+        
+        vkCmdPipelineBarrier(
+            commandBuffer,
+            sourceStage, destinationStage,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
+        
+        endSingleTimeCommands(commandBuffer);
+    }
+    
+    void copyBufferToImageArray(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, uint32_t layerCount) {
+        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+        
+        std::vector<VkBufferImageCopy> regions;
+        VkDeviceSize layerSize = width * height * 4; // 4 bytes per pixel (RGBA)
+        
+        for (uint32_t layer = 0; layer < layerCount; ++layer) {
+            VkBufferImageCopy region{};
+            region.bufferOffset = layer * layerSize;
+            region.bufferRowLength = 0;
+            region.bufferImageHeight = 0;
+            region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            region.imageSubresource.mipLevel = 0;
+            region.imageSubresource.baseArrayLayer = layer;
+            region.imageSubresource.layerCount = 1;
+            region.imageOffset = {0, 0, 0};
+            region.imageExtent = {width, height, 1};
+            
+            regions.push_back(region);
+        }
+        
+        vkCmdCopyBufferToImage(commandBuffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+                              static_cast<uint32_t>(regions.size()), regions.data());
+        
+        endSingleTimeCommands(commandBuffer);
+    }
+    
     void createTextureImageView() {
-        textureImageView = createImageView(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+        // Get layer count from texture array
+        auto textureArray = chunkManager->getMeshGenerator()->getTextureArray();
+        uint32_t layerCount = static_cast<uint32_t>(textureArray->getLayerCount());
+        
+        textureImageView = createImageViewArray(textureImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT, layerCount);
+    }
+    
+    VkImageView createImageViewArray(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, uint32_t layerCount) {
+        VkImageViewCreateInfo viewInfo{};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = image;
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY; // Array view type
+        viewInfo.format = format;
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = layerCount; // All layers
+        
+        VkImageView imageView;
+        if (vkCreateImageView(device, &viewInfo, nullptr, &imageView) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create texture array image view!");
+        }
+        
+        return imageView;
     }
     
     VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
@@ -1677,6 +1817,7 @@ private:
             mappedData[i].rotation = face.rotation;
             mappedData[i].scale = glm::vec4(face.scale, static_cast<float>(face.faceDirection)); // Pack direction in w
             mappedData[i].uv = face.uv; // Copy UV coordinates
+            mappedData[i].textureLayer = face.textureLayer; // Copy texture layer index
             
             // Print face position for debugging
             const char* directionNames[] = {"DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST"};

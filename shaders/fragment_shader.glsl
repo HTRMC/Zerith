@@ -5,17 +5,19 @@ layout(location = 0) in PerVertexData {
     vec3 color;
     vec2 texCoord;
     flat uint faceIndex;
+    flat uint textureLayer;
 } v_in;
 
-// Add texture sampler
-layout(binding = 1) uniform sampler2D texSampler;
+// Texture array sampler
+layout(binding = 1) uniform sampler2DArray texArraySampler;
 
 // Output color
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    // Sample texture
-    vec4 texColor = texture(texSampler, v_in.texCoord);
+    // Sample from the texture array using the layer index
+    vec3 texCoords = vec3(v_in.texCoord, float(v_in.textureLayer));
+    vec4 texColor = texture(texArraySampler, texCoords);
     
     // Output texture color directly without any tinting
     outColor = texColor;

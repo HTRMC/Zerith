@@ -58,6 +58,7 @@ layout(location = 0) out PerVertexData {
     vec3 color;
     vec2 texCoord;
     flat uint faceIndex;
+    flat uint textureLayer;
 } v_out[];
 
 // Updated uniform buffer with packed data
@@ -74,6 +75,8 @@ struct FaceInstanceData {
     vec4 rotation;  // quaternion
     vec4 scale;     // face scale (width, height, 1.0, faceDirection)
     vec4 uv;        // UV coordinates [minU, minV, maxU, maxV]
+    uint textureLayer;  // Texture array layer index
+    uint padding[3];    // Padding to maintain 16-byte alignment
 };
 
 // Storage buffer for dynamic face instances
@@ -270,6 +273,7 @@ void main() {
     vec4 faceRotation = faceInstanceBuffer.instances[faceIndex].rotation;
     vec3 faceScale = faceInstanceBuffer.instances[faceIndex].scale.xyz;
     vec4 faceUV = faceInstanceBuffer.instances[faceIndex].uv;
+    uint textureLayer = faceInstanceBuffer.instances[faceIndex].textureLayer;
     
     // Create model matrix for this face
     mat4 faceRotationMatrix = quatToMat4(faceRotation);
@@ -316,6 +320,7 @@ void main() {
         v_out[vertexIndex].color = faceColors[faceIndex];
         v_out[vertexIndex].texCoord = texCoords[i];
         v_out[vertexIndex].faceIndex = faceIndex;
+        v_out[vertexIndex].textureLayer = textureLayer;
     }
     
     // Output triangles for this face

@@ -5,6 +5,7 @@
 namespace MeshShader {
 
 ChunkMeshGenerator::ChunkMeshGenerator() {
+    m_textureArray = std::make_shared<TextureArray>();
     loadBlockModels();
 }
 
@@ -13,7 +14,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     try {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/block.json");
         m_blockGenerators[BlockType::OAK_PLANKS] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_PLANKS, m_textureArray);
         std::cout << "Loaded oak planks model" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Failed to load oak planks model: " << e.what() << std::endl;
@@ -23,7 +24,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     try {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/slab.json");
         m_blockGenerators[BlockType::OAK_SLAB] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_SLAB, m_textureArray);
         std::cout << "Loaded oak slab model" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Failed to load oak slab model: " << e.what() << std::endl;
@@ -35,7 +36,7 @@ void ChunkMeshGenerator::loadBlockModels() {
         // Flip the stairs upside down to fix orientation
         BlockbenchModel::Conversion::flipModelUpsideDown(model);
         m_blockGenerators[BlockType::OAK_STAIRS] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_STAIRS, m_textureArray);
         std::cout << "Loaded oak stairs model" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Failed to load oak stairs model: " << e.what() << std::endl;
@@ -45,7 +46,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     try {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/grass_block.json");
         m_blockGenerators[BlockType::GRASS_BLOCK] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::GRASS_BLOCK, m_textureArray);
         std::cout << "Loaded grass block model" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Failed to load grass block model: " << e.what() << std::endl;
@@ -55,7 +56,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     try {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/stone.json");
         m_blockGenerators[BlockType::STONE] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::STONE, m_textureArray);
         std::cout << "Loaded stone block model" << std::endl;
     } catch (const std::exception& e) {
         std::cerr << "Failed to load stone block model: " << e.what() << std::endl;
