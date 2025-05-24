@@ -21,6 +21,10 @@
 #include "blockbench_parser.h"
 #include "blockbench_instance_generator.h"
 
+// Chunk support
+#include "chunk.h"
+#include "chunk_mesh_generator.h"
+
 // Texture data structure
 struct TextureData {
     uint32_t width;
@@ -344,6 +348,10 @@ private:
     // Blockbench model support
     BlockbenchModel::Model currentModel;
     BlockbenchInstanceGenerator::ModelInstances currentInstances;
+    
+    // Chunk support
+    std::unique_ptr<MeshShader::Chunk> currentChunk;
+    std::unique_ptr<MeshShader::ChunkMeshGenerator> chunkMeshGenerator;
 
     void initWindow() {
         glfwInit();
@@ -425,38 +433,43 @@ private:
     }
     
     void loadBlockbenchModel() {
-        std::cout << "Loading Blockbench models..." << std::endl;
+        std::cout << "Creating chunk world..." << std::endl;
         
-        // Try to load oak_stairs.json with parent model support
-        try {
-            currentModel = BlockbenchParser::parseFromFileWithParents("assets/oak_stairs.json");
-            std::cout << "Successfully loaded oak_stairs.json" << std::endl;
-            // Flip the stairs upside down to fix orientation
-            BlockbenchModel::Conversion::flipModelUpsideDown(currentModel);
-            std::cout << "Flipped stairs model upside down" << std::endl;
-        } catch (const std::exception& e) {
-            std::cerr << "Failed to load oak_stairs.json: " << e.what() << std::endl;
-            try {
-                currentModel = BlockbenchParser::parseFromFileWithParents("assets/stairs.json");
-                std::cout << "Successfully loaded stairs.json as fallback" << std::endl;
-                // Flip the stairs upside down to fix orientation
-                BlockbenchModel::Conversion::flipModelUpsideDown(currentModel);
-                std::cout << "Flipped stairs model upside down" << std::endl;
-            } catch (const std::exception& e2) {
-                std::cerr << "Failed to load stairs.json: " << e2.what() << std::endl;
-                // Create a default cube if both fail
-                createDefaultCube();
-                return;
+        // Initialize chunk mesh generator
+        chunkMeshGenerator = std::make_unique<MeshShader::ChunkMeshGenerator>();
+        
+        // Create a chunk at origin
+        currentChunk = std::make_unique<MeshShader::Chunk>(glm::ivec3(0, 0, 0));
+        
+        // Fill chunk with some example blocks
+        // Create a simple test pattern
+        for (int y = 0; y < 4; ++y) {
+            for (int z = 0; z < 16; ++z) {
+                for (int x = 0; x < 16; ++x) {
+                    if (y == 0) {
+                        // Bottom layer - all oak planks
+                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_PLANKS);
+                    } else if (y == 1 && (x + z) % 4 == 0) {
+                        // Second layer - checkerboard of oak planks
+                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_PLANKS);
+                    } else if (y == 2 && x == 8 && z == 8) {
+                        // Third layer - single oak slab in center
+                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_SLAB);
+                    } else if (y == 3 && x >= 6 && x <= 10 && z >= 6 && z <= 10) {
+                        // Fourth layer - oak stairs in a square pattern
+                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_STAIRS);
+                    }
+                }
             }
         }
         
-        // Generate instances from the loaded model
-        currentInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(currentModel);
-
-        // Print model bounds for debugging
-        auto bounds = BlockbenchInstanceGenerator::Generator::calculateModelBounds(currentModel);
-        std::cout << "Model bounds: min(" << bounds.min.x << ", " << bounds.min.y << ", " << bounds.min.z 
-                  << "), max(" << bounds.max.x << ", " << bounds.max.y << ", " << bounds.max.z << ")" << std::endl;
+        // Generate mesh for the chunk
+        auto faceInstances = chunkMeshGenerator->generateChunkMesh(*currentChunk);
+        
+        // Convert to the format expected by the existing code
+        currentInstances.faces = std::move(faceInstances);
+        
+        std::cout << "Chunk created with " << currentInstances.faces.size() << " face instances" << std::endl;
     }
     
     void createDefaultCube() {
@@ -1839,7 +1852,7 @@ private:
         compressedUbo.packedCamera[0] = packHalf2(camPosX, camPitch);
         compressedUbo.packedCamera[1] = packHalf2(camPosY, camYaw);
         compressedUbo.packedProjection[0] = packHalf2(fov, aspect);
-        compressedUbo.packedProjection[1] = packHalf2(camPosZ, 10.0f); // Use near value to store Z position
+        compressedUbo.packedProjection[1] = packHalf2(camPosZ, 100.0f); // Use near value to store Z position
         
         // Set face count for dynamic rendering
         compressedUbo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());

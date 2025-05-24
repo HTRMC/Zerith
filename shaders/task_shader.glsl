@@ -24,7 +24,11 @@ void main() {
     // Set dummy value
     payload.dummy = 1.0;
 
-    // Emit a single mesh shader workgroup
-    // The mesh shader will handle all 6 faces with 6 local invocations
-    EmitMeshTasksEXT(1, 1, 1);
+    // Calculate how many mesh workgroups we need
+    // Each mesh workgroup can handle 32 faces
+    uint facesPerWorkgroup = 32;
+    uint numWorkgroups = (ubo.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+    
+    // Emit mesh tasks for all workgroups needed
+    EmitMeshTasksEXT(numWorkgroups, 1, 1);
 }

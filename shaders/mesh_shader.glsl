@@ -37,12 +37,12 @@ const vec3 faceColors[6] = {
 // Constants for geometry
 const uint VERTICES_PER_FACE = 4;
 const uint TRIANGLES_PER_FACE = 2;
-const uint MAX_FACES = 32;  // Maximum faces we can handle
-const uint MAX_VERTICES = MAX_FACES * VERTICES_PER_FACE;
-const uint MAX_TRIANGLES = MAX_FACES * TRIANGLES_PER_FACE;
+const uint FACES_PER_WORKGROUP = 32;  // Faces per mesh shader workgroup
+const uint MAX_VERTICES = FACES_PER_WORKGROUP * VERTICES_PER_FACE;  // 128 vertices
+const uint MAX_TRIANGLES = FACES_PER_WORKGROUP * TRIANGLES_PER_FACE;  // 64 triangles
 
 // Mesh shader configuration - dynamic face count
-layout(local_size_x = MAX_FACES) in;
+layout(local_size_x = 32) in;
 layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_TRIANGLES) out;
 
 // Must match task shader's structure
@@ -229,18 +229,31 @@ vec3 transformQuadVertex(vec3 vertex, mat4 faceModel) {
 }
 
 void main() {
-    // Calculate the face index from the local invocation ID
-    uint faceIndex = gl_LocalInvocationID.x;
+    // Calculate the face index from workgroup and local invocation
+    uint workgroupIndex = gl_WorkGroupID.x;
+    uint localIndex = gl_LocalInvocationID.x;
+    uint facesPerWorkgroup = 32;
+    uint faceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
     
     // Early exit if this invocation is beyond the actual face count
     if (faceIndex >= ubo.faceCount) {
         return;
     }
     
-    // Set the number of vertices and primitives to output based on actual face count
-    uint actualVertices = ubo.faceCount * VERTICES_PER_FACE;
-    uint actualTriangles = ubo.faceCount * TRIANGLES_PER_FACE;
-    SetMeshOutputsEXT(actualVertices, actualTriangles);
+    // Calculate how many faces this workgroup will process
+    uint startFace = workgroupIndex * facesPerWorkgroup;
+    uint endFace = min(startFace + facesPerWorkgroup, ubo.faceCount);
+    uint facesInThisWorkgroup = endFace - startFace;
+    
+    // Set the number of vertices and primitives for this workgroup
+    uint actualVertices = facesInThisWorkgroup * VERTICES_PER_FACE;
+    uint actualTriangles = facesInThisWorkgroup * TRIANGLES_PER_FACE;
+    
+    // Only the first thread in the workgroup should set the output counts
+    if (localIndex == 0) {
+        SetMeshOutputsEXT(actualVertices, actualTriangles);
+    }
+    barrier();
     
     // Reconstruct matrices from compressed data
     mat4 cubeModel = reconstructModelMatrix();  // Overall cube rotation
@@ -248,9 +261,9 @@ void main() {
     mat4 proj = reconstructProjMatrix();
     mat4 vp = proj * view;
     
-    // Base index for this face's vertices in the output arrays
-    uint baseVertexIndex = faceIndex * VERTICES_PER_FACE;
-    uint baseTriangleIndex = faceIndex * TRIANGLES_PER_FACE;
+    // Base index for this face's vertices in the output arrays (relative to workgroup)
+    uint baseVertexIndex = localIndex * VERTICES_PER_FACE;
+    uint baseTriangleIndex = localIndex * TRIANGLES_PER_FACE;
     
     // Get face instance data from storage buffer
     vec3 facePosition = faceInstanceBuffer.instances[faceIndex].position.xyz;

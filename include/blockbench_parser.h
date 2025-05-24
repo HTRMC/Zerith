@@ -12,7 +12,7 @@ namespace BlockbenchParser {
 namespace JsonHelper {
     
     // Extract string value from JSON
-    std::string extractString(const std::string& json, const std::string& key) {
+    inline std::string extractString(const std::string& json, const std::string& key) {
         std::string searchKey = "\"" + key + "\"";
         size_t keyPos = json.find(searchKey);
         if (keyPos == std::string::npos) return "";
@@ -30,7 +30,7 @@ namespace JsonHelper {
     }
     
     // Extract array of numbers [x, y, z]
-    glm::vec3 extractVec3(const std::string& json, const std::string& key) {
+    inline glm::vec3 extractVec3(const std::string& json, const std::string& key) {
         std::string searchKey = "\"" + key + "\"";
         size_t keyPos = json.find(searchKey);
         if (keyPos == std::string::npos) return glm::vec3(0.0f);
@@ -69,7 +69,7 @@ namespace JsonHelper {
     }
     
     // Extract array of 4 UV coordinates [u1, v1, u2, v2]
-    glm::vec4 extractVec4(const std::string& json, const std::string& key) {
+    inline glm::vec4 extractVec4(const std::string& json, const std::string& key) {
         std::string searchKey = "\"" + key + "\"";
         size_t keyPos = json.find(searchKey);
         if (keyPos == std::string::npos) return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
@@ -108,7 +108,7 @@ namespace JsonHelper {
     }
     
     // Extract face object from JSON
-    BlockbenchModel::Face extractFace(const std::string& json, const std::string& faceKey) {
+    inline BlockbenchModel::Face extractFace(const std::string& json, const std::string& faceKey) {
         BlockbenchModel::Face face;
         
         std::string searchKey = "\"" + faceKey + "\"";
@@ -144,7 +144,7 @@ namespace JsonHelper {
 }
 
 // Parse a Blockbench model from JSON string
-BlockbenchModel::Model parseFromString(const std::string& jsonString) {
+inline BlockbenchModel::Model parseFromString(const std::string& jsonString) {
     BlockbenchModel::Model model;
     
     try {
@@ -235,7 +235,7 @@ BlockbenchModel::Model parseFromString(const std::string& jsonString) {
 }
 
 // Parse a Blockbench model from file
-BlockbenchModel::Model parseFromFile(const std::string& filename) {
+inline BlockbenchModel::Model parseFromFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
         std::cerr << "Failed to open Blockbench model file: " << filename << std::endl;
@@ -250,7 +250,7 @@ BlockbenchModel::Model parseFromFile(const std::string& filename) {
 }
 
 // Parse a Blockbench model with parent model resolution
-BlockbenchModel::Model parseFromFileWithParents(const std::string& filename) {
+inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filename) {
     // Parse the main model
     BlockbenchModel::Model model = parseFromFile(filename);
     

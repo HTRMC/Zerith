@@ -50,7 +50,11 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 include_directories(include)
 
 # Add executable
-add_executable(MeshShader main.cpp)
+add_executable(MeshShader 
+    main.cpp
+    src/chunk.cpp
+    src/chunk_mesh_generator.cpp
+)
 
 # Add shader dependencies
 add_dependencies(MeshShader task_shader mesh_shader fragment_shader)

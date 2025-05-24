@@ -5,6 +5,7 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <vector>
+#include <iostream>
 
 namespace BlockbenchInstanceGenerator {
 
@@ -37,7 +38,7 @@ struct ModelInstances {
 namespace Generator {
     
     // Create a quaternion for a specific face orientation
-    glm::quat createFaceRotation(int faceIndex) {
+    inline glm::quat createFaceRotation(int faceIndex) {
         switch (faceIndex) {
             case 0: // Down face (Y-)
                 return glm::angleAxis(glm::radians(-90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -58,7 +59,7 @@ namespace Generator {
     
     // Calculate face position based on element bounds and face direction
     // Positions faces at their corner origins, similar to the original hardcoded instances
-    glm::vec3 calculateFacePosition(const BlockbenchModel::Element& vulkanElement, int faceIndex) {
+    inline glm::vec3 calculateFacePosition(const BlockbenchModel::Element& vulkanElement, int faceIndex) {
         switch (faceIndex) {
             case 0: // Down face (Y-) - position at bottom corner of element
                 return glm::vec3(vulkanElement.from.x, vulkanElement.from.y, vulkanElement.to.z);
@@ -78,7 +79,7 @@ namespace Generator {
     }
     
     // Calculate face scale based on element dimensions and face direction
-    glm::vec3 calculateFaceScale(const BlockbenchModel::Element& vulkanElement, int faceIndex) {
+    inline glm::vec3 calculateFaceScale(const BlockbenchModel::Element& vulkanElement, int faceIndex) {
         glm::vec3 size = BlockbenchModel::Conversion::getElementSize(vulkanElement);
         
         switch (faceIndex) {
@@ -97,13 +98,13 @@ namespace Generator {
     }
     
     // Check if a face should be rendered (has texture and isn't culled)
-    bool shouldRenderFace(const BlockbenchModel::Face& face) {
+    inline bool shouldRenderFace(const BlockbenchModel::Face& face) {
         // A face should be rendered if it has a texture reference
         return !face.texture.empty();
     }
     
     // Get the face from an element by index
-    const BlockbenchModel::Face& getFace(const BlockbenchModel::Element& element, int faceIndex) {
+    inline const BlockbenchModel::Face& getFace(const BlockbenchModel::Element& element, int faceIndex) {
         switch (faceIndex) {
             case 0: return element.down;   // Y-
             case 1: return element.up;     // Y+
@@ -116,7 +117,7 @@ namespace Generator {
     }
     
     // Face names for debugging
-    const char* getFaceName(int faceIndex) {
+    inline const char* getFaceName(int faceIndex) {
         switch (faceIndex) {
             case 0: return "down";
             case 1: return "up";
@@ -129,7 +130,7 @@ namespace Generator {
     }
     
     // Get readable rotation description
-    std::string getRotationDescription(int faceIndex) {
+    inline std::string getRotationDescription(int faceIndex) {
         switch (faceIndex) {
             case 0: return "-90° around X (down face)";
             case 1: return "+90° around X (up face)";
@@ -142,7 +143,7 @@ namespace Generator {
     }
 
     // Generate face instances for a single Blockbench element
-    void generateElementInstances(const BlockbenchModel::Element& bbElement, 
+    inline void generateElementInstances(const BlockbenchModel::Element& bbElement, 
                                  std::vector<FaceInstance>& instances) {
         // Convert element to Vulkan coordinates
         BlockbenchModel::Element vulkanElement;
@@ -184,7 +185,7 @@ namespace Generator {
     }
     
     // Generate all face instances for a complete model
-    ModelInstances generateModelInstances(const BlockbenchModel::Model& model) {
+    inline ModelInstances generateModelInstances(const BlockbenchModel::Model& model) {
         ModelInstances result;
         
         // Reserve space for potential instances (6 faces per element)
@@ -220,7 +221,7 @@ namespace Generator {
         }
     };
     
-    BoundingBox calculateModelBounds(const BlockbenchModel::Model& model) {
+    inline BoundingBox calculateModelBounds(const BlockbenchModel::Model& model) {
         BoundingBox bounds;
         
         for (const auto& bbElement : model.elements) {
