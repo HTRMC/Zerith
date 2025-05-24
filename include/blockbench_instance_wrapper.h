@@ -58,12 +58,13 @@ private:
                     
                 case MeshShader::BlockType::GRASS_BLOCK:
                     // Different texture for each face
+                    // Note: In our coordinate system, face directions might be flipped
                     switch (face.faceDirection) {
-                        case 0: // Down
-                            face.textureLayer = m_textureArray->getTextureLayer("grass_bottom");
+                        case 0: // Down (Y-) - should show dirt
+                            face.textureLayer = m_textureArray->getTextureLayer("grass_top");  // Swapped!
                             break;
-                        case 1: // Up
-                            face.textureLayer = m_textureArray->getTextureLayer("grass_top");
+                        case 1: // Up (Y+) - should show grass
+                            face.textureLayer = m_textureArray->getTextureLayer("grass_bottom");  // Swapped!
                             break;
                         default: // Sides
                             face.textureLayer = m_textureArray->getTextureLayer("grass_side");
