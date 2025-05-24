@@ -176,14 +176,14 @@ void ChunkManager::generateTerrain(Chunk& chunk) {
                 int worldY = chunkWorldPos.y + y;
                 
                 if (worldY < height - 3) {
-                    // Deep underground - stone (we'll use planks for now)
-                    chunk.setBlock(x, y, z, BlockType::OAK_PLANKS);
+                    // Deep underground - stone
+                    chunk.setBlock(x, y, z, BlockType::STONE);
                 } else if (worldY < height) {
-                    // Near surface - dirt (we'll use planks for now)
-                    chunk.setBlock(x, y, z, BlockType::OAK_PLANKS);
+                    // Near surface - dirt (we'll use stone for now since we don't have dirt)
+                    chunk.setBlock(x, y, z, BlockType::STONE);
                 } else if (worldY == height) {
-                    // Surface - grass (we'll use slabs for now)
-                    chunk.setBlock(x, y, z, BlockType::OAK_SLAB);
+                    // Surface - grass
+                    chunk.setBlock(x, y, z, BlockType::GRASS_BLOCK);
                 }
                 // Air above height
             }

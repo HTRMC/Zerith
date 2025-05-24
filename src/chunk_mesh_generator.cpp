@@ -40,6 +40,26 @@ void ChunkMeshGenerator::loadBlockModels() {
     } catch (const std::exception& e) {
         std::cerr << "Failed to load oak stairs model: " << e.what() << std::endl;
     }
+    
+    // Load grass block
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/grass_block.json");
+        m_blockGenerators[BlockType::GRASS_BLOCK] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+        std::cout << "Loaded grass block model" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to load grass block model: " << e.what() << std::endl;
+    }
+    
+    // Load stone block
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/stone.json");
+        m_blockGenerators[BlockType::STONE] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model));
+        std::cout << "Loaded stone block model" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to load stone block model: " << e.what() << std::endl;
+    }
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
