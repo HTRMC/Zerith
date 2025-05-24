@@ -24,6 +24,7 @@
 // Chunk support
 #include "chunk.h"
 #include "chunk_mesh_generator.h"
+#include "chunk_manager.h"
 
 // Texture data structure
 struct TextureData {
@@ -350,8 +351,7 @@ private:
     BlockbenchInstanceGenerator::ModelInstances currentInstances;
     
     // Chunk support
-    std::unique_ptr<MeshShader::Chunk> currentChunk;
-    std::unique_ptr<MeshShader::ChunkMeshGenerator> chunkMeshGenerator;
+    std::unique_ptr<MeshShader::ChunkManager> chunkManager;
 
     void initWindow() {
         glfwInit();
@@ -435,41 +435,66 @@ private:
     void loadBlockbenchModel() {
         std::cout << "Creating chunk world..." << std::endl;
         
-        // Initialize chunk mesh generator
-        chunkMeshGenerator = std::make_unique<MeshShader::ChunkMeshGenerator>();
+        // Initialize chunk manager
+        chunkManager = std::make_unique<MeshShader::ChunkManager>();
         
-        // Create a chunk at origin
-        currentChunk = std::make_unique<MeshShader::Chunk>(glm::ivec3(0, 0, 0));
+        // Set initial render distance
+        chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
         
-        // Fill chunk with some example blocks
-        // Create a simple test pattern
-        for (int y = 0; y < 4; ++y) {
-            for (int z = 0; z < 16; ++z) {
-                for (int x = 0; x < 16; ++x) {
-                    if (y == 0) {
-                        // Bottom layer - all oak planks
-                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_PLANKS);
-                    } else if (y == 1 && (x + z) % 4 == 0) {
-                        // Second layer - checkerboard of oak planks
-                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_PLANKS);
-                    } else if (y == 2 && x == 8 && z == 8) {
-                        // Third layer - single oak slab in center
-                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_SLAB);
-                    } else if (y == 3 && x >= 6 && x <= 10 && z >= 6 && z <= 10) {
-                        // Fourth layer - oak stairs in a square pattern
-                        currentChunk->setBlock(x, y, z, MeshShader::BlockType::OAK_STAIRS);
-                    }
-                }
-            }
+        // Don't update chunks yet - wait until after Vulkan is initialized
+        std::cout << "Chunk manager initialized" << std::endl;
+    }
+    
+    void updateChunks() {
+        if (!chunkManager) return;
+        
+        // Store previous face count
+        size_t previousFaceCount = currentInstances.faces.size();
+        
+        // Update loaded chunks based on camera position
+        chunkManager->updateLoadedChunks(cameraPosition);
+        
+        // Get reference to all face instances for rendering
+        const auto& chunkFaces = chunkManager->getAllFaceInstances();
+        currentInstances.faces = chunkFaces; // This still copies, but only when chunks change
+        
+        // If face count changed significantly, recreate the buffer
+        if (currentInstances.faces.size() != previousFaceCount) {
+            recreateFaceInstanceBuffer();
+        }
+    }
+    
+    void recreateFaceInstanceBuffer() {
+        // Wait for device to be idle
+        vkDeviceWaitIdle(device);
+        
+        // Clean up old buffer
+        if (faceInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, faceInstanceBuffer, nullptr);
+            vkFreeMemory(device, faceInstanceBufferMemory, nullptr);
         }
         
-        // Generate mesh for the chunk
-        auto faceInstances = chunkMeshGenerator->generateChunkMesh(*currentChunk);
+        // Create new buffer
+        createFaceInstanceBuffer();
         
-        // Convert to the format expected by the existing code
-        currentInstances.faces = std::move(faceInstances);
-        
-        std::cout << "Chunk created with " << currentInstances.faces.size() << " face instances" << std::endl;
+        // Update descriptor sets
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            VkDescriptorBufferInfo storageBufferInfo{};
+            storageBufferInfo.buffer = faceInstanceBuffer;
+            storageBufferInfo.offset = 0;
+            storageBufferInfo.range = sizeof(FaceInstanceData) * currentInstances.faces.size();
+
+            VkWriteDescriptorSet descriptorWrite{};
+            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrite.dstSet = descriptorSets[i];
+            descriptorWrite.dstBinding = 2;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &storageBufferInfo;
+
+            vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
+        }
     }
     
     void createDefaultCube() {
@@ -517,6 +542,10 @@ private:
         createDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
+        
+        // Now that Vulkan is initialized, we can update chunks
+        updateChunks();
+        std::cout << "World initialized with " << chunkManager->getLoadedChunkCount() << " chunks" << std::endl;
     }
     
     // Create a default checkerboard texture if PNG loading fails
@@ -1620,6 +1649,12 @@ private:
     }
     
     void createFaceInstanceBuffer() {
+        // Handle empty face list
+        if (currentInstances.faces.empty()) {
+            // Create a minimal buffer with one dummy face to avoid validation errors
+            currentInstances.faces.push_back(BlockbenchInstanceGenerator::FaceInstance());
+        }
+        
         // Calculate buffer size for all face instances
         VkDeviceSize bufferSize = sizeof(FaceInstanceData) * currentInstances.faces.size();
         
@@ -1647,16 +1682,6 @@ private:
             const char* directionNames[] = {"DOWN", "UP", "NORTH", "SOUTH", "WEST", "EAST"};
             const char* directionName = (face.faceDirection >= 0 && face.faceDirection < 6) ? 
                                        directionNames[face.faceDirection] : "UNKNOWN";
-            
-            std::cout << "GPU Face " << i << " (" << directionName << ") position: (" 
-                      << face.position.x << ", " 
-                      << face.position.y << ", " 
-                      << face.position.z << ") scale: (" 
-                      << face.scale.x << ", " << face.scale.y << ", " << face.scale.z 
-                      << ") rotation: (" 
-                      << face.rotation.x << ", " << face.rotation.y << ", " 
-                      << face.rotation.z << ", " << face.rotation.w 
-                      << ") texture: " << face.textureName << std::endl;
         }
         
         std::cout << "Face instance buffer created with " << currentInstances.faces.size() 
@@ -2052,6 +2077,7 @@ private:
     
     void processInput(float deltaTime) {
         float velocity = cameraSpeed * deltaTime;
+        glm::vec3 oldPosition = cameraPosition;
         
         // Forward/backward movement (W/S)
         if (keysPressed[GLFW_KEY_W]) {
@@ -2075,6 +2101,11 @@ private:
         }
         if (keysPressed[GLFW_KEY_LEFT_SHIFT]) {
             cameraPosition += cameraUp * velocity;
+        }
+        
+        // Update chunks if camera moved
+        if (cameraPosition != oldPosition) {
+            updateChunks();
         }
     }
     

@@ -149,11 +149,12 @@ namespace Generator {
         BlockbenchModel::Element vulkanElement;
         BlockbenchModel::Conversion::convertElement(bbElement, vulkanElement);
         
-        std::cout << "Processing Blockbench element:" << std::endl;
-        std::cout << "  Original BB coords: from(" << bbElement.from.x << ", " << bbElement.from.y << ", " << bbElement.from.z 
-                  << ") to(" << bbElement.to.x << ", " << bbElement.to.y << ", " << bbElement.to.z << ")" << std::endl;
-        std::cout << "  Vulkan coords: from(" << vulkanElement.from.x << ", " << vulkanElement.from.y << ", " << vulkanElement.from.z 
-                  << ") to(" << vulkanElement.to.x << ", " << vulkanElement.to.y << ", " << vulkanElement.to.z << ")" << std::endl;
+        // Debug output commented out for performance
+        // std::cout << "Processing Blockbench element:" << std::endl;
+        // std::cout << "  Original BB coords: from(" << bbElement.from.x << ", " << bbElement.from.y << ", " << bbElement.from.z 
+        //           << ") to(" << bbElement.to.x << ", " << bbElement.to.y << ", " << bbElement.to.z << ")" << std::endl;
+        // std::cout << "  Vulkan coords: from(" << vulkanElement.from.x << ", " << vulkanElement.from.y << ", " << vulkanElement.from.z 
+        //           << ") to(" << vulkanElement.to.x << ", " << vulkanElement.to.y << ", " << vulkanElement.to.z << ")" << std::endl;
         
         // Generate instances for each face
         for (int faceIndex = 0; faceIndex < 6; ++faceIndex) {
@@ -168,18 +169,20 @@ namespace Generator {
                 // Convert quaternion to vec4 for shader compatibility
                 glm::vec4 rotationVec4(rotation.x, rotation.y, rotation.z, rotation.w);
                 
-                std::cout << "  Creating face instance: " << getFaceName(faceIndex) 
-                          << " (direction=" << faceIndex << ") at position (" 
-                          << position.x << ", " << position.y << ", " << position.z 
-                          << ") scale (" << scale.x << ", " << scale.y << ", " << scale.z
-                          << ") rotation quat(" << rotation.x << ", " << rotation.y << ", " << rotation.z << ", " << rotation.w
-                          << ") UV[" << face.uv.x << ", " << face.uv.y << ", " << face.uv.z << ", " << face.uv.w 
-                          << "] with texture: " << face.texture << std::endl;
+                // Debug output commented out for performance
+                // std::cout << "  Creating face instance: " << getFaceName(faceIndex) 
+                //           << " (direction=" << faceIndex << ") at position (" 
+                //           << position.x << ", " << position.y << ", " << position.z 
+                //           << ") scale (" << scale.x << ", " << scale.y << ", " << scale.z
+                //           << ") rotation quat(" << rotation.x << ", " << rotation.y << ", " << rotation.z << ", " << rotation.w
+                //           << ") UV[" << face.uv.x << ", " << face.uv.y << ", " << face.uv.z << ", " << face.uv.w 
+                //           << "] with texture: " << face.texture << std::endl;
                 
                 instances.emplace_back(position, rotationVec4, scale, faceIndex, face.uv, face.texture);
             } else {
-                std::cout << "  Skipping face: " << getFaceName(faceIndex) 
-                          << " (no texture or empty texture)" << std::endl;
+                // Debug output commented out for performance
+                // std::cout << "  Skipping face: " << getFaceName(faceIndex) 
+                //           << " (no texture or empty texture)" << std::endl;
             }
         }
     }

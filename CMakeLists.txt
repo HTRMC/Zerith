@@ -54,6 +54,7 @@ add_executable(MeshShader
     main.cpp
     src/chunk.cpp
     src/chunk_mesh_generator.cpp
+    src/chunk_manager.cpp
 )
 
 # Add shader dependencies
