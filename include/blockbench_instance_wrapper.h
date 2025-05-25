@@ -7,6 +7,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <memory>
+#include <algorithm>
 
 // Wrapper class to generate instances at specific positions
 class BlockbenchInstanceWrapper
@@ -48,6 +49,15 @@ private:
 
     void assignTextureLayers()
     {
+        // Remove overlay faces for grass blocks - they'll be handled in the shader
+        if (m_blockType == MeshShader::BlockType::GRASS_BLOCK) {
+            auto it = std::remove_if(m_baseInstances.faces.begin(), m_baseInstances.faces.end(),
+                [](const BlockbenchInstanceGenerator::FaceInstance& face) {
+                    return face.textureName.find("overlay") != std::string::npos;
+                });
+            m_baseInstances.faces.erase(it, m_baseInstances.faces.end());
+        }
+        
         // Assign texture layers based on block type and face direction
         for (auto& face : m_baseInstances.faces)
         {
@@ -70,26 +80,17 @@ private:
                 // Debug output for grass block faces
                 std::cout << "Grass block face " << face.faceDirection << " texture: " << face.textureName << std::endl;
 
-                // Check if this face uses the overlay texture
-                if (face.textureName == "block/grass_block_side_overlay")
+                switch (face.faceDirection)
                 {
-                    face.textureLayer = m_textureArray->getTextureLayer("grass_overlay");
-                    std::cout << "  -> Assigned overlay texture layer " << face.textureLayer << std::endl;
-                }
-                else
-                {
-                    switch (face.faceDirection)
-                    {
-                    case 0: // Down (Y-) - should show dirt
-                        face.textureLayer = m_textureArray->getTextureLayer("grass_top"); // Swapped!
-                        break;
-                    case 1: // Up (Y+) - should show grass
-                        face.textureLayer = m_textureArray->getTextureLayer("grass_bottom"); // Swapped!
-                        break;
-                    default: // Sides
-                        face.textureLayer = m_textureArray->getTextureLayer("grass_side");
-                        break;
-                    }
+                case 0: // Down (Y-) - should show dirt
+                    face.textureLayer = m_textureArray->getTextureLayer("grass_top"); // Swapped!
+                    break;
+                case 1: // Up (Y+) - should show grass
+                    face.textureLayer = m_textureArray->getTextureLayer("grass_bottom"); // Swapped!
+                    break;
+                default: // Sides
+                    face.textureLayer = m_textureArray->getTextureLayer("grass_side");
+                    break;
                 }
                 break;
 

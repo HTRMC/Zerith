@@ -19,6 +19,17 @@ void main() {
     vec3 texCoords = vec3(v_in.texCoord, float(v_in.textureLayer));
     vec4 texColor = texture(texArraySampler, texCoords);
     
+    // Special handling for grass block sides (texture layer 4)
+    // Check if this is a grass block side face (not top/bottom)
+    if (v_in.textureLayer == 4u && v_in.faceIndex >= 2u) {
+        // Sample the overlay texture (layer 5)
+        vec3 overlayCoords = vec3(v_in.texCoord, 5.0);
+        vec4 overlayColor = texture(texArraySampler, overlayCoords);
+        
+        // Blend overlay on top of base texture using alpha blending
+        texColor.rgb = mix(texColor.rgb, overlayColor.rgb, overlayColor.a);
+    }
+    
     // Output texture color directly without any tinting
     outColor = texColor;
     
