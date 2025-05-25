@@ -225,7 +225,62 @@ inline BlockbenchModel::Model parseFromString(const std::string& jsonString) {
             }
         }
         
-        // TODO: Extract textures object if needed
+        // Extract textures object
+        size_t texturesPos = jsonString.find("\"textures\"");
+        if (texturesPos != std::string::npos) {
+            size_t objStart = jsonString.find("{", texturesPos);
+            if (objStart != std::string::npos) {
+                // Find matching closing brace
+                int braceCount = 1;
+                size_t objEnd = objStart + 1;
+                while (objEnd < jsonString.length() && braceCount > 0) {
+                    if (jsonString[objEnd] == '{') braceCount++;
+                    else if (jsonString[objEnd] == '}') braceCount--;
+                    objEnd++;
+                }
+                
+                std::string texturesJson = jsonString.substr(objStart, objEnd - objStart);
+                
+                // Parse texture entries
+                size_t currentPos = 0;
+                while (true) {
+                    // Find next texture key
+                    size_t keyStart = texturesJson.find("\"", currentPos);
+                    if (keyStart == std::string::npos) break;
+                    keyStart++; // Skip opening quote
+                    
+                    size_t keyEnd = texturesJson.find("\"", keyStart);
+                    if (keyEnd == std::string::npos) break;
+                    
+                    std::string key = texturesJson.substr(keyStart, keyEnd - keyStart);
+                    
+                    // Skip to colon
+                    size_t colonPos = texturesJson.find(":", keyEnd);
+                    if (colonPos == std::string::npos) break;
+                    
+                    // Find value
+                    size_t valueStart = texturesJson.find("\"", colonPos);
+                    if (valueStart == std::string::npos) break;
+                    valueStart++; // Skip opening quote
+                    
+                    size_t valueEnd = texturesJson.find("\"", valueStart);
+                    if (valueEnd == std::string::npos) break;
+                    
+                    std::string value = texturesJson.substr(valueStart, valueEnd - valueStart);
+                    
+                    // Store texture mapping
+                    model.textures[key] = value;
+                    
+                    // Move to next entry
+                    currentPos = valueEnd + 1;
+                    
+                    // Skip to next texture or end
+                    size_t commaPos = texturesJson.find(",", currentPos);
+                    if (commaPos == std::string::npos) break;
+                    currentPos = commaPos + 1;
+                }
+            }
+        }
         
     } catch (const std::exception& e) {
         std::cerr << "Error parsing Blockbench model: " << e.what() << std::endl;
@@ -247,6 +302,39 @@ inline BlockbenchModel::Model parseFromFile(const std::string& filename) {
     file.close();
     
     return parseFromString(content);
+}
+
+// Helper function to resolve texture references
+inline std::string resolveTextureReference(const std::string& reference, const std::unordered_map<std::string, std::string>& textures) {
+    if (reference.empty() || reference[0] != '#') {
+        // Not a reference, return as-is
+        return reference;
+    }
+    
+    // Remove the # prefix
+    std::string key = reference.substr(1);
+    
+    // Look up in texture map
+    auto it = textures.find(key);
+    if (it != textures.end()) {
+        return it->second;
+    }
+    
+    // Reference not found, return original
+    return reference;
+}
+
+// Resolve all texture references in a model
+inline void resolveModelTextures(BlockbenchModel::Model& model) {
+    for (auto& element : model.elements) {
+        // Resolve texture references for each face
+        element.down.texture = resolveTextureReference(element.down.texture, model.textures);
+        element.up.texture = resolveTextureReference(element.up.texture, model.textures);
+        element.north.texture = resolveTextureReference(element.north.texture, model.textures);
+        element.south.texture = resolveTextureReference(element.south.texture, model.textures);
+        element.west.texture = resolveTextureReference(element.west.texture, model.textures);
+        element.east.texture = resolveTextureReference(element.east.texture, model.textures);
+    }
 }
 
 // Parse a Blockbench model with parent model resolution
@@ -272,6 +360,32 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
             if (model.textures.find(parentTexture.first) == model.textures.end()) {
                 model.textures[parentTexture.first] = parentTexture.second;
             }
+        }
+    }
+    
+    // Resolve all texture references in the model
+    resolveModelTextures(model);
+    
+    // Debug: Print resolved textures
+    std::cout << "Resolved textures for " << filename << ":" << std::endl;
+    for (const auto& element : model.elements) {
+        if (!element.north.texture.empty()) {
+            std::cout << "  North face: " << element.north.texture << std::endl;
+        }
+        if (!element.south.texture.empty()) {
+            std::cout << "  South face: " << element.south.texture << std::endl;
+        }
+        if (!element.west.texture.empty()) {
+            std::cout << "  West face: " << element.west.texture << std::endl;
+        }
+        if (!element.east.texture.empty()) {
+            std::cout << "  East face: " << element.east.texture << std::endl;
+        }
+        if (!element.up.texture.empty()) {
+            std::cout << "  Up face: " << element.up.texture << std::endl;
+        }
+        if (!element.down.texture.empty()) {
+            std::cout << "  Down face: " << element.down.texture << std::endl;
         }
     }
     

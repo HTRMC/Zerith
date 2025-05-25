@@ -16,6 +16,7 @@ void TextureArray::initializeTextureMap() {
         "assets/dirt.png",                 // Layer 2
         "assets/grass_block_top.png",      // Layer 3
         "assets/grass_block_side.png",     // Layer 4
+        "assets/grass_block_side_overlay.png", // Layer 5
         // We can add more textures here as needed
     };
     
@@ -30,6 +31,7 @@ void TextureArray::initializeTextureMap() {
     m_textureIndices["grass_bottom"] = 2;  // Dirt
     m_textureIndices["grass_top"] = 3;     // Grass top
     m_textureIndices["grass_side"] = 4;    // Grass side
+    m_textureIndices["grass_overlay"] = 5;  // Grass side overlay
     
     // Oak slab (same as planks)
     m_textureIndices["oak_slab_all"] = 0;

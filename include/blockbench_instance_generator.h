@@ -167,6 +167,34 @@ namespace Generator {
                 glm::quat rotation = createFaceRotation(faceIndex);
                 glm::vec3 scale = calculateFaceScale(vulkanElement, faceIndex);
                 
+                // Add small offset for overlay textures to prevent z-fighting
+                if (face.texture.find("overlay") != std::string::npos) {
+                    const float offset = 0.001f; // Small offset to push overlay slightly outward
+                    switch (faceIndex) {
+                        case 0: // Down face (Y-)
+                            position.y -= offset;
+                            break;
+                        case 1: // Up face (Y+)
+                            position.y += offset;
+                            break;
+                        case 2: // North face (Z-)
+                            position.z -= offset;
+                            break;
+                        case 3: // South face (Z+)
+                            position.z += offset;
+                            break;
+                        case 4: // West face (X-)
+                            position.x -= offset;
+                            break;
+                        case 5: // East face (X+)
+                            position.x += offset;
+                            break;
+                    }
+                    std::cout << "  Creating overlay face: " << getFaceName(faceIndex) 
+                              << " with texture: " << face.texture 
+                              << " at offset position" << std::endl;
+                }
+                
                 // Convert quaternion to vec4 for shader compatibility
                 glm::vec4 rotationVec4(rotation.x, rotation.y, rotation.z, rotation.w);
                 
@@ -196,10 +224,15 @@ namespace Generator {
         result.faces.reserve(model.elements.size() * 6);
         result.sourceElements = model.elements;
         
+        std::cout << "Generating instances for model with " << model.elements.size() << " elements" << std::endl;
+        
         // Generate instances for each element
-        for (const auto& element : model.elements) {
-            generateElementInstances(element, result.faces);
+        for (size_t i = 0; i < model.elements.size(); ++i) {
+            std::cout << "Processing element " << i << std::endl;
+            generateElementInstances(model.elements[i], result.faces);
         }
+        
+        std::cout << "Generated " << result.faces.size() << " face instances total" << std::endl;
         
         return result;
     }
