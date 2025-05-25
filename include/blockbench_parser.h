@@ -345,7 +345,14 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
     
     // If the model has a parent, load and merge it
     if (!model.parent.empty()) {
-        std::string parentPath = "assets/" + model.parent + ".json";
+        // Remove minecraft: namespace and block/ prefix if present
+        std::string parentName = model.parent;
+        if (parentName.find("minecraft:block/") == 0) {
+            parentName = parentName.substr(16); // Remove "minecraft:block/"
+        } else if (parentName.find("minecraft:") == 0) {
+            parentName = parentName.substr(10); // Remove "minecraft:"
+        }
+        std::string parentPath = "assets/" + parentName + ".json";
         
         LOG_TRACE("Loading parent model: %s", parentPath.c_str());
         BlockbenchModel::Model parentModel = parseFromFile(parentPath);
