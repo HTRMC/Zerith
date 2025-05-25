@@ -16,6 +16,9 @@
 #include <algorithm>
 #include <spng.h>  // libspng for PNG loading
 
+// Logger
+#include "logger.h"
+
 // Blockbench model support
 #include "blockbench_model.h"
 #include "blockbench_parser.h"
@@ -36,11 +39,13 @@ struct TextureData {
 
 // Function to load PNG using libspng
 TextureData loadPNG(const std::string& filename) {
+    LOG_DEBUG("Loading PNG texture: %s", filename.c_str());
     TextureData texture;
 
     // Open the PNG file
     FILE* fp = fopen(filename.c_str(), "rb");
     if (!fp) {
+        LOG_ERROR("Failed to open PNG file: %s", filename.c_str());
         throw std::runtime_error("Failed to open PNG file: " + filename);
     }
 
@@ -2322,14 +2327,24 @@ private:
 };
 
 int main() {
+    // Initialize logger
+    Logger& logger = Logger::getInstance();
+    logger.setLogLevel(LogLevel::DEBUG);
+    logger.addLogFile("logs/meshshader.log");
+    
+    LOG_INFO("MeshShader application starting...");
+    
     MeshShaderApplication app;
 
     try {
         app.run();
     } catch (const std::exception& e) {
+        LOG_FATAL("Application crashed: %s", e.what());
         std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
+    LOG_INFO("MeshShader application shutting down gracefully");
+    logger.shutdown();
     return EXIT_SUCCESS;
 }
