@@ -4,12 +4,22 @@
 #include <filesystem>
 #include <cstdarg>
 
+#ifdef _WIN32
+#include <windows.h>
+#undef ERROR
+#include <io.h>
+#endif
+
 Logger& Logger::getInstance() {
     static Logger instance;
     return instance;
 }
 
 Logger::Logger() {
+#ifdef _WIN32
+    // Enable ANSI escape codes on Windows
+    enableWindowsAnsiSupport();
+#endif
     // Start the background logging thread
     loggerThread = std::thread(&Logger::processLogQueue, this);
 }
@@ -241,6 +251,22 @@ std::string Logger::getColorCode(LogColor color) const {
 std::string Logger::getResetCode() const {
     return "\033[0m";
 }
+
+#ifdef _WIN32
+void Logger::enableWindowsAnsiSupport() {
+    // Get handle to stdout
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut == INVALID_HANDLE_VALUE) return;
+    
+    // Get current console mode
+    DWORD dwMode = 0;
+    if (!GetConsoleMode(hOut, &dwMode)) return;
+    
+    // Enable ANSI escape sequences
+    dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+    SetConsoleMode(hOut, dwMode);
+}
+#endif
 
 // LogMessage implementation
 LogMessage::LogMessage(LogLevel level, const char* file, int line)

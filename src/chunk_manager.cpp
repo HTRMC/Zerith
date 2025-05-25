@@ -1,11 +1,12 @@
 #include "chunk_manager.h"
+#include "logger.h"
 #include <algorithm>
-#include <iostream>
 
 namespace MeshShader {
 
 ChunkManager::ChunkManager() {
     m_meshGenerator = std::make_unique<ChunkMeshGenerator>();
+    LOG_INFO("ChunkManager initialized with render distance %d", m_renderDistance);
 }
 
 void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
@@ -57,7 +58,7 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
         // Only print chunk updates occasionally for performance
         static int updateCount = 0;
         if (++updateCount % 10 == 0) {
-            std::cout << "Chunks loaded: " << m_chunks.size() << ", Total faces: " << m_allFaceInstances.size() << std::endl;
+            LOG_DEBUG("Chunks loaded: %zu, Total faces: %zu", m_chunks.size(), m_allFaceInstances.size());
         }
     }
 }
@@ -134,6 +135,7 @@ glm::ivec3 ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
 }
 
 void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
+    LOG_TRACE("Loading chunk at (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
     // Create new chunk
     auto chunk = std::make_unique<Chunk>(chunkPos);
     
@@ -149,6 +151,7 @@ void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
 }
 
 void ChunkManager::unloadChunk(const glm::ivec3& chunkPos) {
+    LOG_TRACE("Unloading chunk at (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
     m_chunks.erase(chunkPos);
     m_chunkMeshes.erase(chunkPos);
 }

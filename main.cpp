@@ -72,11 +72,8 @@ TextureData loadPNG(const std::string& filename) {
     texture.height = ihdr.height;
     
     // Print image info for debugging
-    std::cout << "PNG Info: " << filename << std::endl;
-    std::cout << "  - Width: " << ihdr.width << std::endl;
-    std::cout << "  - Height: " << ihdr.height << std::endl;
-    std::cout << "  - Bit depth: " << (int)ihdr.bit_depth << std::endl;
-    std::cout << "  - Color type: " << (int)ihdr.color_type << std::endl;
+    LOG_TRACE("PNG Info: %s - Width: %u, Height: %u, Bit depth: %d, Color type: %d", 
+              filename.c_str(), ihdr.width, ihdr.height, (int)ihdr.bit_depth, (int)ihdr.color_type);
     
     // Always decode to RGBA8 for consistency with Vulkan
     int fmt = SPNG_FMT_RGBA8;
@@ -114,14 +111,14 @@ TextureData loadPNG(const std::string& filename) {
 void saveDebugImage(const TextureData& texture, const std::string& filename) {
     // Only save if we have pixel data
     if (texture.pixels.empty() || texture.width == 0 || texture.height == 0) {
-        std::cerr << "Cannot save debug image: No valid pixel data" << std::endl;
+        LOG_ERROR("Cannot save debug image: No valid pixel data");
         return;
     }
     
     // Open output file
     FILE* fp = fopen(filename.c_str(), "wb");
     if (!fp) {
-        std::cerr << "Failed to open file for writing debug image: " << filename << std::endl;
+        LOG_ERROR("Failed to open file for writing debug image: %s", filename.c_str());
         return;
     }
     
@@ -142,7 +139,7 @@ void saveDebugImage(const TextureData& texture, const std::string& filename) {
     }
     
     fclose(fp);
-    std::cout << "Debug image saved to: " << filename << std::endl;
+    LOG_DEBUG("Debug image saved to: %s", filename.c_str());
 }
 
 // Constants
@@ -253,7 +250,11 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     void* pUserData) {
 
     if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
-        std::cerr << "Validation layer: " << pCallbackData->pMessage << std::endl;
+        if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+            LOG_ERROR("Vulkan validation layer: %s", pCallbackData->pMessage);
+        } else {
+            LOG_WARN("Vulkan validation layer: %s", pCallbackData->pMessage);
+        }
     }
 
     return VK_FALSE;
@@ -366,7 +367,7 @@ private:
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
-        window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan Mesh Shader Face-Instanced Cube", nullptr, nullptr);
+        window = glfwCreateWindow(WIDTH, HEIGHT, "Zerith", nullptr, nullptr);
         glfwSetWindowUserPointer(window, this);
         
         // Set up callbacks
@@ -440,7 +441,7 @@ private:
     }
     
     void loadBlockbenchModel() {
-        std::cout << "Creating chunk world..." << std::endl;
+        LOG_INFO("Creating chunk world...");
         
         // Initialize chunk manager
         chunkManager = std::make_unique<MeshShader::ChunkManager>();
@@ -449,7 +450,7 @@ private:
         chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
         
         // Don't update chunks yet - wait until after Vulkan is initialized
-        std::cout << "Chunk manager initialized" << std::endl;
+        LOG_INFO("Chunk manager initialized");
     }
     
     void updateChunks() {
@@ -505,7 +506,7 @@ private:
     }
     
     void createDefaultCube() {
-        std::cout << "Creating default cube model" << std::endl;
+        LOG_DEBUG("Creating default cube model");
         
         // Create a simple default cube element
         BlockbenchModel::Element element;
@@ -523,7 +524,7 @@ private:
         currentModel.elements.push_back(element);
         currentInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(currentModel);
 
-        std::cout << "Default cube created with " << currentInstances.faces.size() << " faces (including green origin dot)" << std::endl;
+        LOG_DEBUG("Default cube created with %zu faces (including green origin dot)", currentInstances.faces.size());
     }
 
     void initVulkan() {
@@ -552,7 +553,7 @@ private:
         
         // Now that Vulkan is initialized, we can update chunks
         updateChunks();
-        std::cout << "World initialized with " << chunkManager->getLoadedChunkCount() << " chunks" << std::endl;
+        LOG_INFO("World initialized with %zu chunks", chunkManager->getLoadedChunkCount());
     }
     
     // Create a default checkerboard texture if PNG loading fails
@@ -606,14 +607,14 @@ private:
                 // Try both paths - for running from source dir or from build dir
                 try {
                     textureData = loadPNG(filename);
-                    std::cout << "Loaded texture: " << filename << std::endl;
+                    LOG_DEBUG("Loaded texture: %s", filename.c_str());
                 } catch (const std::runtime_error&) {
                     textureData = loadPNG("../" + filename);
-                    std::cout << "Loaded texture: ../" << filename << std::endl;
+                    LOG_DEBUG("Loaded texture: ../%s", filename.c_str());
                 }
                 textures.push_back(textureData);
             } catch (const std::runtime_error& e) {
-                std::cerr << "Failed to load texture " << filename << ", using default: " << e.what() << std::endl;
+                LOG_WARN("Failed to load texture %s, using default: %s", filename.c_str(), e.what());
                 textures.push_back(createDefaultTexture());
             }
         }
@@ -1165,10 +1166,10 @@ private:
         vkGetPhysicalDeviceFeatures2(device, &deviceFeatures2);
 
         // Display feature support info
-        std::cout << "Device features:" << std::endl;
-        std::cout << "  - Mesh shader: " << (meshShaderFeatures.meshShader ? "supported" : "not supported") << std::endl;
-        std::cout << "  - Task shader: " << (meshShaderFeatures.taskShader ? "supported" : "not supported") << std::endl;
-        std::cout << "  - Maintenance4: " << (maintenance4Features.maintenance4 ? "supported" : "not supported") << std::endl;
+        LOG_INFO("Device features:");
+        LOG_INFO("  - Mesh shader: %s", meshShaderFeatures.meshShader ? "supported" : "not supported");
+        LOG_INFO("  - Task shader: %s", meshShaderFeatures.taskShader ? "supported" : "not supported");
+        LOG_INFO("  - Maintenance4: %s", maintenance4Features.maintenance4 ? "supported" : "not supported");
 
         return indices.isComplete() && extensionsSupported && swapChainAdequate &&
                meshShaderFeatures.meshShader && meshShaderFeatures.taskShader && 
@@ -1836,8 +1837,8 @@ private:
                                        directionNames[face.faceDirection] : "UNKNOWN";
         }
         
-        std::cout << "Face instance buffer created with " << currentInstances.faces.size() 
-                  << " instances (" << bufferSize << " bytes)" << std::endl;
+        LOG_DEBUG("Face instance buffer created with %zu instances (%zu bytes)", 
+                  currentInstances.faces.size(), bufferSize);
     }
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
@@ -2340,7 +2341,6 @@ int main() {
         app.run();
     } catch (const std::exception& e) {
         LOG_FATAL("Application crashed: %s", e.what());
-        std::cerr << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 

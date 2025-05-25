@@ -148,6 +148,11 @@ private:
 
     // Reset console text color
     std::string getResetCode() const;
+    
+#ifdef _WIN32
+    // Enable ANSI escape code support on Windows
+    void enableWindowsAnsiSupport();
+#endif
 };
 
 // Helper class for building log messages

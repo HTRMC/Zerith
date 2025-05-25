@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blockbench_model.h"
+#include "logger.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -169,8 +170,8 @@ namespace Generator {
                 
                 // Debug output for overlay textures
                 if (face.texture.find("overlay") != std::string::npos) {
-                    std::cout << "  Creating overlay face: " << getFaceName(faceIndex) 
-                              << " with texture: " << face.texture << std::endl;
+                    LOG_TRACE("  Creating overlay face: %s with texture: %s", 
+                              getFaceName(faceIndex), face.texture.c_str());
                 }
                 
                 // Convert quaternion to vec4 for shader compatibility
@@ -202,15 +203,15 @@ namespace Generator {
         result.faces.reserve(model.elements.size() * 6);
         result.sourceElements = model.elements;
         
-        std::cout << "Generating instances for model with " << model.elements.size() << " elements" << std::endl;
+        LOG_TRACE("Generating instances for model with %zu elements", model.elements.size());
         
         // Generate instances for each element
         for (size_t i = 0; i < model.elements.size(); ++i) {
-            std::cout << "Processing element " << i << std::endl;
+            LOG_TRACE("Processing element %zu", i);
             generateElementInstances(model.elements[i], result.faces);
         }
         
-        std::cout << "Generated " << result.faces.size() << " face instances total" << std::endl;
+        LOG_TRACE("Generated %zu face instances total", result.faces.size());
         
         return result;
     }

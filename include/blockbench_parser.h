@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blockbench_model.h"
+#include "logger.h"
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -283,7 +284,7 @@ inline BlockbenchModel::Model parseFromString(const std::string& jsonString) {
         }
         
     } catch (const std::exception& e) {
-        std::cerr << "Error parsing Blockbench model: " << e.what() << std::endl;
+        LOG_ERROR("Error parsing Blockbench model: %s", e.what());
     }
     
     return model;
@@ -293,7 +294,7 @@ inline BlockbenchModel::Model parseFromString(const std::string& jsonString) {
 inline BlockbenchModel::Model parseFromFile(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Failed to open Blockbench model file: " << filename << std::endl;
+        LOG_ERROR("Failed to open Blockbench model file: %s", filename.c_str());
         return BlockbenchModel::Model{};
     }
     
@@ -346,13 +347,13 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
     if (!model.parent.empty()) {
         std::string parentPath = "assets/" + model.parent + ".json";
         
-        std::cout << "Loading parent model: " << parentPath << std::endl;
+        LOG_TRACE("Loading parent model: %s", parentPath.c_str());
         BlockbenchModel::Model parentModel = parseFromFile(parentPath);
         
         // If the current model has no elements, inherit from parent
         if (model.elements.empty() && !parentModel.elements.empty()) {
             model.elements = parentModel.elements;
-            std::cout << "Inherited " << parentModel.elements.size() << " elements from parent model" << std::endl;
+            LOG_TRACE("Inherited %zu elements from parent model", parentModel.elements.size());
         }
         
         // Merge textures from parent (parent textures are overridden by child)
@@ -367,25 +368,25 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
     resolveModelTextures(model);
     
     // Debug: Print resolved textures
-    std::cout << "Resolved textures for " << filename << ":" << std::endl;
+    LOG_TRACE("Resolved textures for %s", filename.c_str());
     for (const auto& element : model.elements) {
         if (!element.north.texture.empty()) {
-            std::cout << "  North face: " << element.north.texture << std::endl;
+            LOG_TRACE("  North face: %s", element.north.texture.c_str());
         }
         if (!element.south.texture.empty()) {
-            std::cout << "  South face: " << element.south.texture << std::endl;
+            LOG_TRACE("  South face: %s", element.south.texture.c_str());
         }
         if (!element.west.texture.empty()) {
-            std::cout << "  West face: " << element.west.texture << std::endl;
+            LOG_TRACE("  West face: %s", element.west.texture.c_str());
         }
         if (!element.east.texture.empty()) {
-            std::cout << "  East face: " << element.east.texture << std::endl;
+            LOG_TRACE("  East face: %s", element.east.texture.c_str());
         }
         if (!element.up.texture.empty()) {
-            std::cout << "  Up face: " << element.up.texture << std::endl;
+            LOG_TRACE("  Up face: %s", element.up.texture.c_str());
         }
         if (!element.down.texture.empty()) {
-            std::cout << "  Down face: " << element.down.texture << std::endl;
+            LOG_TRACE("  Down face: %s", element.down.texture.c_str());
         }
     }
     

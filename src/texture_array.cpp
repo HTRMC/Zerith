@@ -1,9 +1,10 @@
 #include "texture_array.h"
-#include <iostream>
+#include "logger.h"
 
 namespace MeshShader {
 
 TextureArray::TextureArray() {
+    LOG_DEBUG("Initializing TextureArray");
     initializeTextureMap();
 }
 
@@ -46,7 +47,7 @@ uint32_t TextureArray::getTextureLayer(const std::string& textureName) const {
         return it->second;
     }
     
-    std::cerr << "Warning: Texture '" << textureName << "' not found, using default" << std::endl;
+    LOG_WARN("Texture '%s' not found, using default", textureName.c_str());
     return 0; // Default to oak planks
 }
 

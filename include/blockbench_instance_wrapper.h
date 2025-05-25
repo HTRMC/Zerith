@@ -4,6 +4,7 @@
 #include "blockbench_instance_generator.h"
 #include "texture_array.h"
 #include "chunk.h"
+#include "logger.h"
 #include <vector>
 #include <glm/glm.hpp>
 #include <memory>
@@ -78,7 +79,7 @@ private:
                 // Note: In our coordinate system, face directions might be flipped
 
                 // Debug output for grass block faces
-                std::cout << "Grass block face " << face.faceDirection << " texture: " << face.textureName << std::endl;
+                LOG_TRACE("Grass block face %d texture: %s", face.faceDirection, face.textureName.c_str());
 
                 switch (face.faceDirection)
                 {

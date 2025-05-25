@@ -1,11 +1,12 @@
 #include "chunk_mesh_generator.h"
 #include "blockbench_parser.h"
-#include <iostream>
+#include "logger.h"
 
 namespace MeshShader {
 
 ChunkMeshGenerator::ChunkMeshGenerator() {
     m_textureArray = std::make_shared<TextureArray>();
+    LOG_INFO("Initializing ChunkMeshGenerator");
     loadBlockModels();
 }
 
@@ -15,9 +16,9 @@ void ChunkMeshGenerator::loadBlockModels() {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/block.json");
         m_blockGenerators[BlockType::OAK_PLANKS] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_PLANKS, m_textureArray);
-        std::cout << "Loaded oak planks model" << std::endl;
+        LOG_DEBUG("Loaded oak planks model");
     } catch (const std::exception& e) {
-        std::cerr << "Failed to load oak planks model: " << e.what() << std::endl;
+        LOG_ERROR("Failed to load oak planks model: %s", e.what());
     }
     
     // Load oak slab
@@ -25,9 +26,9 @@ void ChunkMeshGenerator::loadBlockModels() {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/slab.json");
         m_blockGenerators[BlockType::OAK_SLAB] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_SLAB, m_textureArray);
-        std::cout << "Loaded oak slab model" << std::endl;
+        LOG_DEBUG("Loaded oak slab model");
     } catch (const std::exception& e) {
-        std::cerr << "Failed to load oak slab model: " << e.what() << std::endl;
+        LOG_ERROR("Failed to load oak slab model: %s", e.what());
     }
     
     // Load oak stairs
@@ -37,9 +38,9 @@ void ChunkMeshGenerator::loadBlockModels() {
         BlockbenchModel::Conversion::flipModelUpsideDown(model);
         m_blockGenerators[BlockType::OAK_STAIRS] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_STAIRS, m_textureArray);
-        std::cout << "Loaded oak stairs model" << std::endl;
+        LOG_DEBUG("Loaded oak stairs model");
     } catch (const std::exception& e) {
-        std::cerr << "Failed to load oak stairs model: " << e.what() << std::endl;
+        LOG_ERROR("Failed to load oak stairs model: %s", e.what());
     }
     
     // Load grass block
@@ -47,9 +48,9 @@ void ChunkMeshGenerator::loadBlockModels() {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/grass_block.json");
         m_blockGenerators[BlockType::GRASS_BLOCK] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::GRASS_BLOCK, m_textureArray);
-        std::cout << "Loaded grass block model" << std::endl;
+        LOG_DEBUG("Loaded grass block model");
     } catch (const std::exception& e) {
-        std::cerr << "Failed to load grass block model: " << e.what() << std::endl;
+        LOG_ERROR("Failed to load grass block model: %s", e.what());
     }
     
     // Load stone block
@@ -57,9 +58,9 @@ void ChunkMeshGenerator::loadBlockModels() {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/stone.json");
         m_blockGenerators[BlockType::STONE] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::STONE, m_textureArray);
-        std::cout << "Loaded stone block model" << std::endl;
+        LOG_DEBUG("Loaded stone block model");
     } catch (const std::exception& e) {
-        std::cerr << "Failed to load stone block model: " << e.what() << std::endl;
+        LOG_ERROR("Failed to load stone block model: %s", e.what());
     }
 }
 

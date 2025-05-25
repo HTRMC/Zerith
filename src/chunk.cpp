@@ -1,4 +1,5 @@
 #include "chunk.h"
+#include "logger.h"
 #include <algorithm>
 
 namespace MeshShader {
@@ -7,6 +8,7 @@ Chunk::Chunk(glm::ivec3 chunkPosition)
     : m_chunkPosition(chunkPosition) {
     // Initialize all blocks to air
     std::fill(m_blocks.begin(), m_blocks.end(), BlockType::AIR);
+    LOG_TRACE("Created chunk at position (%d, %d, %d)", chunkPosition.x, chunkPosition.y, chunkPosition.z);
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
