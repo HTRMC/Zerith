@@ -1274,9 +1274,9 @@ private:
         // Enable anisotropic filtering if available
         if (availableFeatures.samplerAnisotropy) {
             deviceFeatures.samplerAnisotropy = VK_TRUE;
-            std::cout << "Anisotropic filtering enabled" << std::endl;
+            LOG_INFO("Anisotropic filtering enabled");
         } else {
-            std::cout << "Anisotropic filtering not available" << std::endl;
+            LOG_WARN("Anisotropic filtering not available");
         }
 
         // Enable mesh shader features
@@ -1302,10 +1302,10 @@ private:
         
         if (availableMaintenance4Features.maintenance4) {
             maintenance4Features.maintenance4 = VK_TRUE;
-            std::cout << "Maintenance4 feature enabled" << std::endl;
+            LOG_INFO("Maintenance4 feature enabled");
         } else {
             maintenance4Features.maintenance4 = VK_FALSE;
-            std::cout << "Warning: Maintenance4 feature not available, shader may not work properly" << std::endl;
+            LOG_WARN("Maintenance4 feature not available, shader may not work properly");
         }
         
         // Chain the feature structs
