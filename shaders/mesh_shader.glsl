@@ -17,10 +17,10 @@ with proper orientations for each face of a unit cube.
 // Define a single quad (unit square in XY plane at Z=0)
 // This will be instanced for each face
 const vec3 quadVertices[4] = {
-    vec3(0.0, 0.0, 0.0),  // Bottom-left
-    vec3(1.0, 0.0, 0.0),  // Bottom-right
-    vec3(1.0, 1.0, 0.0),  // Top-right
-    vec3(0.0, 1.0, 0.0)   // Top-left
+    vec3(0.0, 1.0, 0.0),  // Top-left (was bottom-left)
+    vec3(1.0, 1.0, 0.0),  // Top-right (was bottom-right)
+    vec3(1.0, 0.0, 0.0),  // Bottom-right (was top-right)
+    vec3(0.0, 0.0, 0.0)   // Bottom-left (was top-left)
 };
 
 // Define cube face colors
@@ -324,11 +324,11 @@ void main() {
     }
     
     // Output triangles for this face
-    // Triangle 1: 0-2-1 (reversed winding)
+    // Triangle 1: 0-1-2
     gl_PrimitiveTriangleIndicesEXT[baseTriangleIndex] = 
-        uvec3(baseVertexIndex, baseVertexIndex + 2, baseVertexIndex + 1);
+        uvec3(baseVertexIndex, baseVertexIndex + 1, baseVertexIndex + 2);
     
-    // Triangle 2: 0-3-2 (reversed winding)
+    // Triangle 2: 0-2-3
     gl_PrimitiveTriangleIndicesEXT[baseTriangleIndex + 1] = 
-        uvec3(baseVertexIndex, baseVertexIndex + 3, baseVertexIndex + 2);
+        uvec3(baseVertexIndex, baseVertexIndex + 2, baseVertexIndex + 3);
 }

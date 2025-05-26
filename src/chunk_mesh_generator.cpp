@@ -34,8 +34,6 @@ void ChunkMeshGenerator::loadBlockModels() {
     // Load oak stairs
     try {
         auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_stairs.json");
-        // Flip the stairs upside down to fix orientation
-        BlockbenchModel::Conversion::flipModelUpsideDown(model);
         m_blockGenerators[BlockType::OAK_STAIRS] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_STAIRS, m_textureArray);
         LOG_DEBUG("Loaded oak stairs model");
