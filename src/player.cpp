@@ -76,7 +76,7 @@ void Player::handleInput(GLFWwindow* window, float deltaTime) {
     m_lastMouseY = mouseY;
     
     m_rotation.y += deltaX * MOUSE_SENSITIVITY;
-    m_rotation.x += deltaY * MOUSE_SENSITIVITY;
+    m_rotation.x -= deltaY * MOUSE_SENSITIVITY;
     
     m_rotation.x = std::clamp(m_rotation.x, -1.5f, 1.5f);
 }
