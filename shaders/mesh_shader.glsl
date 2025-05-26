@@ -216,7 +216,7 @@ mat4 reconstructProjMatrix() {
 
     mat4 proj = mat4(
         vec4(f / aspect, 0.0, 0.0, 0.0),
-        vec4(0.0, f, 0.0, 0.0),
+        vec4(0.0, -f, 0.0, 0.0),
         vec4(0.0, 0.0, far * nf, -1.0),
         vec4(0.0, 0.0, far * near * nf, 0.0)
     );
