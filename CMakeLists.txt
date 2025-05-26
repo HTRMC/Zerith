@@ -56,7 +56,10 @@ add_executable(Zerith
     src/chunk_mesh_generator.cpp
     src/chunk_manager.cpp
     src/texture_array.cpp
+    src/texture_atlas.cpp
     src/logger.cpp
+    src/aabb.cpp
+    src/player.cpp
 )
 
 # Add shader dependencies

@@ -29,6 +29,10 @@
 #include "chunk_mesh_generator.h"
 #include "chunk_manager.h"
 
+// Player and collision support
+#include "player.h"
+#include "aabb.h"
+
 // Texture data structure
 struct TextureData {
     uint32_t width;
@@ -333,23 +337,8 @@ private:
 
     size_t currentFrame = 0;
     
-    // Camera parameters
-    float cameraPitch = 0.0f;                      // Vertical angle in radians (-π/2 to π/2)
-    float cameraYaw = 0.0f;                        // Horizontal angle in radians (start facing -Z)
-    float cameraSpeed = 2.0f;                      // Units per second
-    
-    // Camera position in 3D space - positioned in front of cube
-    glm::vec3 cameraPosition = glm::vec3(0.5f, 0.5f, 3.0f);
-    
-    // Camera orientation vectors - these will be updated in updateCameraVectors()
-    glm::vec3 cameraFront;  // Direction camera is facing
-    glm::vec3 cameraUp;     // Camera's up direction
-    glm::vec3 cameraRight;  // Camera's right direction
-    
-    // Mouse input tracking
-    bool firstMouse = true;
-    float lastX = 0.0f, lastY = 0.0f;
-    float mouseSensitivity = 0.1f;
+    // Player with collision detection
+    std::unique_ptr<Zerith::Player> player;
     
     // Input state tracking
     bool keysPressed[348] = { false };  // GLFW supports up to KEY_LAST (348)
@@ -378,12 +367,8 @@ private:
         // Capture mouse cursor
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         
-        // Initialize mouse position to center of the window
-        lastX = WIDTH / 2.0f;
-        lastY = HEIGHT / 2.0f;
-        
-        // Initialize camera vectors based on starting pitch/yaw
-        updateCameraVectors();
+        // Initialize player
+        player = std::make_unique<Zerith::Player>(glm::vec3(0.5f, 10.0f, 3.0f));
     }
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -410,34 +395,7 @@ private:
     }
     
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
-        auto app = reinterpret_cast<ZerithApplication*>(glfwGetWindowUserPointer(window));
-        
-        if (app->firstMouse) {
-            app->lastX = static_cast<float>(xpos);
-            app->lastY = static_cast<float>(ypos);
-            app->firstMouse = false;
-        }
-        
-        // Calculate cursor movement
-        float xoffset = static_cast<float>(xpos) - app->lastX;
-        float yoffset = app->lastY - static_cast<float>(ypos); // Reversed so that moving up increases pitch
-        
-        app->lastX = static_cast<float>(xpos);
-        app->lastY = static_cast<float>(ypos);
-        
-        // Apply sensitivity
-        xoffset *= app->mouseSensitivity;
-        yoffset *= app->mouseSensitivity;
-        
-        // Update camera angles
-        app->cameraYaw += glm::radians(xoffset);
-        app->cameraPitch -= glm::radians(yoffset);
-        
-        // Constrain pitch to avoid gimbal lock
-        app->cameraPitch = glm::clamp(app->cameraPitch, -glm::radians(89.0f), glm::radians(89.0f));
-        
-        // Update camera direction vectors
-        app->updateCameraVectors();
+        // Mouse input is now handled directly by the Player class in handleInput()
     }
     
     void loadBlockbenchModel() {
@@ -459,8 +417,8 @@ private:
         // Store previous face count
         size_t previousFaceCount = currentInstances.faces.size();
         
-        // Update loaded chunks based on camera position
-        chunkManager->updateLoadedChunks(cameraPosition);
+        // Update loaded chunks based on player position
+        chunkManager->updateLoadedChunks(player ? player->getPosition() : glm::vec3(0.0f));
         
         // Get reference to all face instances for rendering
         const auto& chunkFaces = chunkManager->getAllFaceInstances();
@@ -2011,16 +1969,19 @@ private:
         compressedUbo.time = time;  // Send the time to the shader for animation
 
         // Camera parameters for free-look camera
+        glm::vec3 playerPos = player ? player->getPosition() + glm::vec3(0.0f, player->getEyeHeight(), 0.0f) : glm::vec3(0.0f);
+        glm::vec3 playerRot = player ? player->getRotation() : glm::vec3(0.0f);
+        
         // First value is now X position
-        float camPosX = cameraPosition.x;
-        float camPitch = cameraPitch;
+        float camPosX = playerPos.x;
+        float camPitch = playerRot.x;
         
         // Second pair is Y position and Yaw
-        float camPosY = cameraPosition.y;
-        float camYaw = cameraYaw;
+        float camPosY = playerPos.y;
+        float camYaw = playerRot.y;
         
         // Third pair (using time field temporarily) is Z position
-        float camPosZ = cameraPosition.z;
+        float camPosZ = playerPos.z;
 
         // Projection parameters
         float aspect = swapChainExtent.width / (float)swapChainExtent.height;
@@ -2229,62 +2190,20 @@ private:
     }
     
     void processInput(float deltaTime) {
-        float velocity = cameraSpeed * deltaTime;
-        glm::vec3 oldPosition = cameraPosition;
+        if (!player) return;
         
-        // Forward/backward movement (W/S)
-        if (keysPressed[GLFW_KEY_W]) {
-            cameraPosition += cameraFront * velocity;
-        }
-        if (keysPressed[GLFW_KEY_S]) {
-            cameraPosition -= cameraFront * velocity;
-        }
+        glm::vec3 oldPosition = player->getPosition();
         
-        // Strafe left/right movement (A/D)
-        if (keysPressed[GLFW_KEY_A]) {
-            cameraPosition -= cameraRight * velocity;
-        }
-        if (keysPressed[GLFW_KEY_D]) {
-            cameraPosition += cameraRight * velocity;
-        }
+        // Handle player input and physics
+        player->handleInput(window, deltaTime);
+        player->update(deltaTime, chunkManager.get());
         
-        // Optional: Up/down movement (Space/Ctrl)
-        if (keysPressed[GLFW_KEY_SPACE]) {
-            cameraPosition -= cameraUp * velocity;
-        }
-        if (keysPressed[GLFW_KEY_LEFT_SHIFT]) {
-            cameraPosition += cameraUp * velocity;
-        }
-        
-        // Update chunks if camera moved
-        if (cameraPosition != oldPosition) {
+        // Update chunks if player moved
+        if (player->getPosition() != oldPosition) {
             updateChunks();
         }
     }
     
-    void updateCameraVectors() {
-        // Calculate the new front vector using standard OpenGL/Vulkan convention
-        // - Yaw 0 = looking along negative Z
-        // - Yaw π/2 = looking along positive X
-        // - Pitch 0 = looking horizontally
-        // - Positive pitch = looking up
-        glm::vec3 direction;
-        direction.x = sin(cameraYaw) * cos(cameraPitch);
-        direction.y = sin(cameraPitch);
-        direction.z = -cos(cameraYaw) * cos(cameraPitch);
-        
-        cameraFront = glm::normalize(direction);
-        
-        // Use a fixed world up vector for stability
-        glm::vec3 worldUp = glm::vec3(0.0f, 1.0f, 0.0f);
-        
-        // Recalculate the right vector
-        cameraRight = glm::normalize(glm::cross(cameraFront, worldUp));
-        
-        // Recalculate the up vector
-        // This ensures the up vector is orthogonal to both front and right
-        cameraUp = glm::normalize(glm::cross(cameraRight, cameraFront));
-    }
 
     void cleanup() {
         cleanupSwapChain();
