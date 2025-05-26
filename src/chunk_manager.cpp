@@ -2,7 +2,7 @@
 #include "logger.h"
 #include <algorithm>
 
-namespace MeshShader {
+namespace Zerith {
 
 ChunkManager::ChunkManager() {
     m_meshGenerator = std::make_unique<ChunkMeshGenerator>();
@@ -227,4 +227,4 @@ void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
     m_chunkMeshes[chunkPos] = std::move(faces);
 }
 
-} // namespace MeshShader
+} // namespace Zerith

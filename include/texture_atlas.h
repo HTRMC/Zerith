@@ -5,7 +5,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
-namespace MeshShader {
+namespace Zerith {
 
 // Structure to hold texture region information in the atlas
 struct TextureRegion {
@@ -52,4 +52,4 @@ private:
     TextureRegion calculateRegion(int index) const;
 };
 
-} // namespace MeshShader
+} // namespace Zerith

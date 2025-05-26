@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <string>
 
-namespace MeshShader {
+namespace Zerith {
 
 class ChunkMeshGenerator {
 public:
@@ -38,4 +38,4 @@ private:
     std::shared_ptr<TextureArray> m_textureArray;
 };
 
-} // namespace MeshShader
+} // namespace Zerith

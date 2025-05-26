@@ -261,7 +261,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 }
 
 // Main application class
-class MeshShaderApplication {
+class ZerithApplication {
 public:
     void run() {
         initWindow();
@@ -359,7 +359,7 @@ private:
     BlockbenchInstanceGenerator::ModelInstances currentInstances;
     
     // Chunk support
-    std::unique_ptr<MeshShader::ChunkManager> chunkManager;
+    std::unique_ptr<Zerith::ChunkManager> chunkManager;
 
     void initWindow() {
         glfwInit();
@@ -387,12 +387,12 @@ private:
     }
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
-        auto app = reinterpret_cast<MeshShaderApplication*>(glfwGetWindowUserPointer(window));
+        auto app = reinterpret_cast<ZerithApplication*>(glfwGetWindowUserPointer(window));
         app->framebufferResized = true;
     }
     
     static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-        auto app = reinterpret_cast<MeshShaderApplication*>(glfwGetWindowUserPointer(window));
+        auto app = reinterpret_cast<ZerithApplication*>(glfwGetWindowUserPointer(window));
         
         // Only track keys we care about (prevents array access issues)
         if (key >= 0 && key < 348) {
@@ -410,7 +410,7 @@ private:
     }
     
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
-        auto app = reinterpret_cast<MeshShaderApplication*>(glfwGetWindowUserPointer(window));
+        auto app = reinterpret_cast<ZerithApplication*>(glfwGetWindowUserPointer(window));
         
         if (app->firstMouse) {
             app->lastX = static_cast<float>(xpos);
@@ -444,7 +444,7 @@ private:
         LOG_INFO("Creating chunk world...");
         
         // Initialize chunk manager
-        chunkManager = std::make_unique<MeshShader::ChunkManager>();
+        chunkManager = std::make_unique<Zerith::ChunkManager>();
         
         // Set initial render distance
         chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
@@ -2333,9 +2333,9 @@ int main() {
     logger.setLogLevel(LogLevel::DEBUG);
     logger.addLogFile("logs/meshshader.log");
     
-    LOG_INFO("MeshShader application starting...");
+    LOG_INFO("Zerith application starting...");
     
-    MeshShaderApplication app;
+    ZerithApplication app;
 
     try {
         app.run();
@@ -2344,7 +2344,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    LOG_INFO("MeshShader application shutting down gracefully");
+    LOG_INFO("Zerith application shutting down gracefully");
     logger.shutdown();
     return EXIT_SUCCESS;
 }

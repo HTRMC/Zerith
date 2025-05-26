@@ -5,7 +5,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace MeshShader {
+namespace Zerith {
 
 class TextureArray {
 public:
@@ -32,4 +32,4 @@ private:
     void initializeTextureMap();
 };
 
-} // namespace MeshShader
+} // namespace Zerith

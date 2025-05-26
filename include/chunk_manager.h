@@ -11,7 +11,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/hash.hpp>
 
-namespace MeshShader {
+namespace Zerith {
 
 class ChunkManager {
 public:
@@ -88,4 +88,4 @@ private:
     void rebuildAllFaceInstances();
 };
 
-} // namespace MeshShader
+} // namespace Zerith

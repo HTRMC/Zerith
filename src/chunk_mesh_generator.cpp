@@ -2,7 +2,7 @@
 #include "blockbench_parser.h"
 #include "logger.h"
 
-namespace MeshShader {
+namespace Zerith {
 
 ChunkMeshGenerator::ChunkMeshGenerator() {
     m_textureArray = std::make_shared<TextureArray>();
@@ -107,4 +107,4 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
     }
 }
 
-} // namespace MeshShader
+} // namespace Zerith

@@ -1,7 +1,7 @@
 #include "texture_array.h"
 #include "logger.h"
 
-namespace MeshShader {
+namespace Zerith {
 
 TextureArray::TextureArray() {
     LOG_DEBUG("Initializing TextureArray");
@@ -51,4 +51,4 @@ uint32_t TextureArray::getTextureLayer(const std::string& textureName) const {
     return 0; // Default to oak planks
 }
 
-} // namespace MeshShader
+} // namespace Zerith

@@ -1,7 +1,7 @@
 #include "texture_atlas.h"
 #include <iostream>
 
-namespace MeshShader {
+namespace Zerith {
 
 TextureAtlas::TextureAtlas() {
     initializeTextureMap();
@@ -92,4 +92,4 @@ glm::vec4 TextureAtlas::convertToAtlasUV(const glm::vec4& blockUV, const std::st
     return glm::vec4(atlasU1, atlasV1, atlasU2, atlasV2);
 }
 
-} // namespace MeshShader
+} // namespace Zerith

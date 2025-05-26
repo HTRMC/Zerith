@@ -2,7 +2,7 @@
 #include "logger.h"
 #include <algorithm>
 
-namespace MeshShader {
+namespace Zerith {
 
 Chunk::Chunk(glm::ivec3 chunkPosition) 
     : m_chunkPosition(chunkPosition) {
@@ -69,4 +69,4 @@ bool Chunk::isInBounds(int x, int y, int z) const {
            z >= 0 && z < CHUNK_SIZE;
 }
 
-} // namespace MeshShader
+} // namespace Zerith

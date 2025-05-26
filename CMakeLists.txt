@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.31)
-project(MeshShader)
+project(Zerith)
 
 set(CMAKE_CXX_STANDARD 23)
 
@@ -50,7 +50,7 @@ include_directories(${Vulkan_INCLUDE_DIRS})
 include_directories(include)
 
 # Add executable
-add_executable(MeshShader 
+add_executable(Zerith
     main.cpp
     src/chunk.cpp
     src/chunk_mesh_generator.cpp
@@ -60,10 +60,10 @@ add_executable(MeshShader
 )
 
 # Add shader dependencies
-add_dependencies(MeshShader task_shader mesh_shader fragment_shader)
+add_dependencies(Zerith task_shader mesh_shader fragment_shader)
 
 # Link libraries
-target_link_libraries(MeshShader PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>)
+target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>)
 
 # Create directories for shader output and assets
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)

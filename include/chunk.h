@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
-namespace MeshShader {
+namespace Zerith {
 
 enum class BlockType : uint8_t {
     AIR = 0,
@@ -50,4 +50,4 @@ private:
     glm::ivec3 m_chunkPosition; // Position of chunk in chunk coordinates
 };
 
-} // namespace MeshShader
+} // namespace Zerith

@@ -14,8 +14,8 @@
 class BlockbenchInstanceWrapper
 {
 public:
-    explicit BlockbenchInstanceWrapper(BlockbenchModel::Model model, MeshShader::BlockType blockType,
-                                       const std::shared_ptr<MeshShader::TextureArray>& textureArray)
+    explicit BlockbenchInstanceWrapper(BlockbenchModel::Model model, Zerith::BlockType blockType,
+                                       const std::shared_ptr<Zerith::TextureArray>& textureArray)
         : m_model(std::move(model)), m_blockType(blockType), m_textureArray(textureArray)
     {
         // Pre-generate base instances at origin
@@ -45,13 +45,13 @@ public:
 private:
     BlockbenchModel::Model m_model;
     BlockbenchInstanceGenerator::ModelInstances m_baseInstances;
-    MeshShader::BlockType m_blockType;
-    std::shared_ptr<MeshShader::TextureArray> m_textureArray;
+    Zerith::BlockType m_blockType;
+    std::shared_ptr<Zerith::TextureArray> m_textureArray;
 
     void assignTextureLayers()
     {
         // Remove overlay faces for grass blocks - they'll be handled in the shader
-        if (m_blockType == MeshShader::BlockType::GRASS_BLOCK) {
+        if (m_blockType == Zerith::BlockType::GRASS_BLOCK) {
             auto it = std::remove_if(m_baseInstances.faces.begin(), m_baseInstances.faces.end(),
                 [](const BlockbenchInstanceGenerator::FaceInstance& face) {
                     return face.textureName.find("overlay") != std::string::npos;
@@ -64,17 +64,17 @@ private:
         {
             switch (m_blockType)
             {
-            case MeshShader::BlockType::OAK_PLANKS:
-            case MeshShader::BlockType::OAK_SLAB:
-            case MeshShader::BlockType::OAK_STAIRS:
+            case Zerith::BlockType::OAK_PLANKS:
+            case Zerith::BlockType::OAK_SLAB:
+            case Zerith::BlockType::OAK_STAIRS:
                 face.textureLayer = m_textureArray->getTextureLayer("oak_planks_all");
                 break;
 
-            case MeshShader::BlockType::STONE:
+            case Zerith::BlockType::STONE:
                 face.textureLayer = m_textureArray->getTextureLayer("stone_all");
                 break;
 
-            case MeshShader::BlockType::GRASS_BLOCK:
+            case Zerith::BlockType::GRASS_BLOCK:
                 // Different texture for each face
                 // Note: In our coordinate system, face directions might be flipped
 
