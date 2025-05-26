@@ -324,11 +324,11 @@ void main() {
     }
     
     // Output triangles for this face
-    // Triangle 1: 0-1-2
+    // Triangle 1: 0-2-1 (reversed winding)
     gl_PrimitiveTriangleIndicesEXT[baseTriangleIndex] = 
-        uvec3(baseVertexIndex, baseVertexIndex + 1, baseVertexIndex + 2);
+        uvec3(baseVertexIndex, baseVertexIndex + 2, baseVertexIndex + 1);
     
-    // Triangle 2: 0-2-3
+    // Triangle 2: 0-3-2 (reversed winding)
     gl_PrimitiveTriangleIndicesEXT[baseTriangleIndex + 1] = 
-        uvec3(baseVertexIndex, baseVertexIndex + 2, baseVertexIndex + 3);
+        uvec3(baseVertexIndex, baseVertexIndex + 3, baseVertexIndex + 2);
 }
