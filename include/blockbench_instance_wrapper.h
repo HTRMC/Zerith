@@ -84,10 +84,10 @@ private:
                 switch (face.faceDirection)
                 {
                 case 0: // Down (Y-) - should show dirt
-                    face.textureLayer = m_textureArray->getTextureLayer("grass_top"); // Swapped!
+                    face.textureLayer = m_textureArray->getTextureLayer("dirt");
                     break;
                 case 1: // Up (Y+) - should show grass
-                    face.textureLayer = m_textureArray->getTextureLayer("grass_bottom"); // Swapped!
+                    face.textureLayer = m_textureArray->getTextureLayer("grass_top");
                     break;
                 default: // Sides
                     face.textureLayer = m_textureArray->getTextureLayer("grass_side");
