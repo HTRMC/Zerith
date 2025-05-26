@@ -27,16 +27,16 @@ void Player::handleInput(GLFWwindow* window, float deltaTime) {
     glm::vec3 movement(0.0f);
     
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-        movement.z -= 1.0f;
-    }
-    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
         movement.z += 1.0f;
     }
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        movement.z -= 1.0f;
+    }
     if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-        movement.x -= 1.0f;
+        movement.x += 1.0f;
     }
     if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-        movement.x += 1.0f;
+        movement.x -= 1.0f;
     }
     
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && m_onGround) {
