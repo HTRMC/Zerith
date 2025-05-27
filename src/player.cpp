@@ -145,11 +145,11 @@ namespace Zerith {
         const float MAX_SPEED = MOVE_SPEED;
         
         if (m_isFlying) {
-            // In fly mode, use camera direction for all movement
+            // In fly mode, use horizontal direction vectors for horizontal movement
             glm::vec3 targetVelocity(0.0f);
             
             if (movement.z != 0.0f) {
-                targetVelocity += cameraFront * movement.z * MAX_SPEED;
+                targetVelocity += horizontalFront * movement.z * MAX_SPEED;
             }
             if (movement.x != 0.0f) {
                 targetVelocity += right * movement.x * MAX_SPEED;
