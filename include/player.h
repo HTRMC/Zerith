@@ -35,6 +35,7 @@ private:
     void updateAABB();
     void applyGravity(float deltaTime);
     void resolveCollisions(ChunkManager* chunkManager);
+    void resolveCollisionsAxis(ChunkManager* chunkManager, int axis);
 
     glm::vec3 m_position;
     glm::vec3 m_velocity;
@@ -63,6 +64,9 @@ private:
     bool m_firstMouse = true;
     double m_lastMouseX = 0.0;
     double m_lastMouseY = 0.0;
+    
+    // Movement state
+    bool m_isMoving = false;
 };
 
 } // namespace Zerith
