@@ -49,12 +49,11 @@ struct Model {
 namespace Conversion {
     
     // Convert Blockbench coordinates (16x16x16) to Vulkan coordinates (1x1x1)
-    // Also handles coordinate system conversion: Vulkan_Z = -Blockbench_Z
     inline glm::vec3 blockbenchToVulkan(const glm::vec3& blockbenchPos) {
         return glm::vec3(
             blockbenchPos.x / 16.0f,    // X: 0-16 -> 0-1
-            blockbenchPos.y / 16.0f,    // Y: 0-16 -> 0-1 (Y-up in both systems)
-            -blockbenchPos.z / 16.0f    // Z: Flip and scale (Vulkan_Z = -Blockbench_Z)
+            blockbenchPos.y / 16.0f,    // Y: 0-16 -> 0-1 
+            blockbenchPos.z / 16.0f     // Z: 0-16 -> 0-1 (no flip)
         );
     }
     
@@ -63,9 +62,6 @@ namespace Conversion {
         vulkanElement = bbElement; // Copy face data
         vulkanElement.from = blockbenchToVulkan(bbElement.from);
         vulkanElement.to = blockbenchToVulkan(bbElement.to);
-        
-        // Since we flipped Z, we need to swap from.z and to.z to maintain correct ordering
-        std::swap(vulkanElement.from.z, vulkanElement.to.z);
     }
     
     // Calculate the center position of an element in Vulkan coordinates
