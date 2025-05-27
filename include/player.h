@@ -35,8 +35,7 @@ private:
     void updateAABB();
     void applyGravity(float deltaTime);
     void resolveCollisions(ChunkManager* chunkManager);
-    void updateCameraDirection();
-    
+
     glm::vec3 m_position;
     glm::vec3 m_velocity;
     glm::vec3 m_rotation; // pitch, yaw, roll

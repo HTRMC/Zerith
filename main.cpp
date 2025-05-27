@@ -349,6 +349,17 @@ private:
     
     // Chunk support
     std::unique_ptr<Zerith::ChunkManager> chunkManager;
+    
+    // AABB Debug Rendering
+    VkPipelineLayout aabbPipelineLayout;
+    VkPipeline aabbDebugPipeline;
+    VkDescriptorSetLayout aabbDescriptorSetLayout;
+    std::vector<VkDescriptorSet> aabbDescriptorSets;
+    VkBuffer aabbInstanceBuffer;
+    VkDeviceMemory aabbInstanceBufferMemory;
+    void* aabbInstanceBufferMapped;
+    std::unique_ptr<Zerith::AABBDebugRenderer> aabbDebugRenderer;
+    bool showDebugAABBs = false;
 
     void initWindow() {
         glfwInit();
@@ -369,6 +380,9 @@ private:
         
         // Initialize player
         player = std::make_unique<Zerith::Player>(glm::vec3(0.5f, 10.0f, 3.0f));
+        
+        // Initialize AABB debug renderer
+        aabbDebugRenderer = std::make_unique<Zerith::AABBDebugRenderer>();
     }
 
     static void framebufferResizeCallback(GLFWwindow* window, int width, int height) {
@@ -391,6 +405,12 @@ private:
         // Allow escape key to exit
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
             glfwSetWindowShouldClose(window, true);
+        }
+        
+        // Toggle AABB debug rendering with F3
+        if (key == GLFW_KEY_F3 && action == GLFW_PRESS) {
+            app->showDebugAABBs = !app->showDebugAABBs;
+            LOG_INFO("AABB debug rendering: %s", app->showDebugAABBs ? "ON" : "OFF");
         }
     }
     
@@ -501,11 +521,14 @@ private:
         createTextureImageView();
         createTextureSampler();
         createGraphicsPipeline();
+        createAABBDebugPipeline();
         createFramebuffers();
         createUniformBuffers();
         createFaceInstanceBuffer();
+        createAABBInstanceBuffer();
         createDescriptorPool();
         createDescriptorSets();
+        createAABBDescriptorSets();
         createCommandBuffers();
         createSyncObjects();
         
@@ -1704,6 +1727,135 @@ private:
         vkDestroyShaderModule(device, meshShaderModule, nullptr);
         vkDestroyShaderModule(device, taskShaderModule, nullptr);
     }
+    
+    void createAABBDebugPipeline() {
+        // Create descriptor set layout for AABB debug
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.pImmutableSamplers = nullptr;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT;
+        
+        VkDescriptorSetLayoutBinding storageLayoutBinding{};
+        storageLayoutBinding.binding = 1;
+        storageLayoutBinding.descriptorCount = 1;
+        storageLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        storageLayoutBinding.pImmutableSamplers = nullptr;
+        storageLayoutBinding.stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT;
+        
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, storageLayoutBinding};
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
+        
+        if (vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &aabbDescriptorSetLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create AABB descriptor set layout!");
+        }
+        
+        // Load AABB shaders
+        auto aabbMeshShaderCode = readFile("shaders/aabb_mesh_shader.spv");
+        auto aabbFragShaderCode = readFile("shaders/aabb_fragment_shader.spv");
+        
+        VkShaderModule aabbMeshShaderModule = createShaderModule(aabbMeshShaderCode);
+        VkShaderModule aabbFragShaderModule = createShaderModule(aabbFragShaderCode);
+        
+        VkPipelineShaderStageCreateInfo aabbMeshShaderStageInfo{};
+        aabbMeshShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        aabbMeshShaderStageInfo.stage = VK_SHADER_STAGE_MESH_BIT_EXT;
+        aabbMeshShaderStageInfo.module = aabbMeshShaderModule;
+        aabbMeshShaderStageInfo.pName = "main";
+        
+        VkPipelineShaderStageCreateInfo aabbFragShaderStageInfo{};
+        aabbFragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        aabbFragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        aabbFragShaderStageInfo.module = aabbFragShaderModule;
+        aabbFragShaderStageInfo.pName = "main";
+        
+        VkPipelineShaderStageCreateInfo aabbShaderStages[] = {
+            aabbMeshShaderStageInfo,
+            aabbFragShaderStageInfo
+        };
+        
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+        
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_LINE; // Wireframe mode
+        rasterizer.lineWidth = 2.0f; // Thicker lines for visibility
+        rasterizer.cullMode = VK_CULL_MODE_NONE; // No culling for wireframes
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.depthBiasEnable = VK_FALSE;
+        
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+        
+        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.blendEnable = VK_FALSE;
+        
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.logicOpEnable = VK_FALSE;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlendAttachment;
+        
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_FALSE; // Don't write depth for debug lines
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; // Draw on top
+        depthStencil.depthBoundsTestEnable = VK_FALSE;
+        depthStencil.stencilTestEnable = VK_FALSE;
+        
+        std::vector<VkDynamicState> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+        
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &aabbDescriptorSetLayout;
+        
+        if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &aabbPipelineLayout) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create AABB pipeline layout!");
+        }
+        
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = aabbShaderStages;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = aabbPipelineLayout;
+        pipelineInfo.renderPass = renderPass;
+        pipelineInfo.subpass = 0;
+        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+        
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &aabbDebugPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create AABB graphics pipeline!");
+        }
+        
+        vkDestroyShaderModule(device, aabbFragShaderModule, nullptr);
+        vkDestroyShaderModule(device, aabbMeshShaderModule, nullptr);
+    }
 
     void createFramebuffers() {
         swapChainFramebuffers.resize(swapChainImageViews.size());
@@ -1798,6 +1950,24 @@ private:
         LOG_DEBUG("Face instance buffer created with %zu instances (%zu bytes)", 
                   currentInstances.faces.size(), bufferSize);
     }
+    
+    void createAABBInstanceBuffer() {
+        // Create initial buffer for max 1000 AABBs
+        VkDeviceSize bufferSize = sizeof(Zerith::AABBDebugData) * 1000;
+        
+        createBuffer(
+            bufferSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            aabbInstanceBuffer,
+            aabbInstanceBufferMemory
+        );
+        
+        // Map the buffer
+        vkMapMemory(device, aabbInstanceBufferMemory, 0, bufferSize, 0, &aabbInstanceBufferMapped);
+        
+        LOG_DEBUG("AABB instance buffer created with capacity for 1000 AABBs");
+    }
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                      VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
@@ -1843,17 +2013,17 @@ private:
     void createDescriptorPool() {
         std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 2); // Double for AABB
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 2); // Double for AABB
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
         poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size());
+        poolInfo.maxSets = static_cast<uint32_t>(swapChainImages.size() * 2); // Double for AABB sets
 
         if (vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool) != VK_SUCCESS) {
             throw std::runtime_error("failed to create descriptor pool!");
@@ -1920,6 +2090,56 @@ private:
             descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             descriptorWrites[2].descriptorCount = 1;
             descriptorWrites[2].pBufferInfo = &storageBufferInfo;
+
+            vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        }
+    }
+    
+    void createAABBDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(swapChainImages.size(), aabbDescriptorSetLayout);
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(swapChainImages.size());
+        allocInfo.pSetLayouts = layouts.data();
+
+        aabbDescriptorSets.resize(swapChainImages.size());
+        if (vkAllocateDescriptorSets(device, &allocInfo, aabbDescriptorSets.data()) != VK_SUCCESS) {
+            throw std::runtime_error("failed to allocate AABB descriptor sets!");
+        }
+
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            // Uniform buffer info (reuse the same UBO)
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = uniformBuffers[i];
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(CompressedUBO);
+            
+            // AABB storage buffer info
+            VkDescriptorBufferInfo storageBufferInfo{};
+            storageBufferInfo.buffer = aabbInstanceBuffer;
+            storageBufferInfo.offset = 0;
+            storageBufferInfo.range = sizeof(Zerith::AABBDebugData) * 1000; // Max capacity
+
+            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+            
+            // Uniform buffer descriptor
+            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[0].dstSet = aabbDescriptorSets[i];
+            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[0].descriptorCount = 1;
+            descriptorWrites[0].pBufferInfo = &bufferInfo;
+            
+            // Storage buffer descriptor
+            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[1].dstSet = aabbDescriptorSets[i];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pBufferInfo = &storageBufferInfo;
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -1995,6 +2215,38 @@ private:
         
         // Set face count for dynamic rendering
         compressedUbo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+        
+        // Update AABB debug data if enabled
+        if (showDebugAABBs && aabbDebugRenderer) {
+            // Clear previous frame's AABBs
+            aabbDebugRenderer->clear();
+            
+            // Add player AABB
+            if (player) {
+                aabbDebugRenderer->addPlayerAABB(player->getAABB());
+            }
+            
+            // Add block AABBs near player
+            if (player && chunkManager) {
+                Zerith::AABB searchRegion = player->getAABB();
+                searchRegion.min -= glm::vec3(3.0f);
+                searchRegion.max += glm::vec3(3.0f);
+                auto blockAABBs = Zerith::CollisionSystem::getBlockAABBsInRegion(searchRegion, chunkManager.get());
+                aabbDebugRenderer->addBlockAABBs(blockAABBs);
+            }
+            
+            // Copy AABB data to buffer
+            const auto& debugData = aabbDebugRenderer->getDebugData();
+            if (!debugData.empty() && aabbInstanceBufferMapped) {
+                size_t copySize = std::min(debugData.size(), size_t(1000)) * sizeof(Zerith::AABBDebugData);
+                memcpy(aabbInstanceBufferMapped, debugData.data(), copySize);
+            }
+            
+            // Update AABB count in UBO (reuse faceCount field when in debug mode)
+            if (showDebugAABBs) {
+                compressedUbo.faceCount = static_cast<uint32_t>(aabbDebugRenderer->getCount());
+            }
+        }
 
         // Copy compressed data to buffer
         memcpy(uniformBuffersMapped[currentImage], &compressedUbo, sizeof(compressedUbo));
@@ -2046,6 +2298,20 @@ private:
         // Draw the cube using a single task shader workgroup
         // The mesh shader will create all 6 faces from a single quad
         vkCmdDrawMeshTasksEXT(commandBuffer, 1, 1, 1);
+        
+        // Draw AABB debug wireframes if enabled
+        if (showDebugAABBs && aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {
+            // Switch pipeline
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, aabbDebugPipeline);
+            
+            // Bind AABB descriptor set
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  aabbPipelineLayout, 0, 1, &aabbDescriptorSets[imageIndex], 0, nullptr);
+            
+            // Draw AABBs using mesh shader
+            uint32_t aabbCount = static_cast<uint32_t>(aabbDebugRenderer->getCount());
+            vkCmdDrawMeshTasksEXT(commandBuffer, aabbCount, 1, 1);
+        }
 
         vkCmdEndRenderPass(commandBuffer);
 
@@ -2162,10 +2428,12 @@ private:
         createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
+        createAABBDebugPipeline();
         createFramebuffers();
         createUniformBuffers();
         createDescriptorPool();
         createDescriptorSets();
+        createAABBDescriptorSets();
     }
 
     void mainLoop() {
@@ -2220,6 +2488,16 @@ private:
         }
         vkDestroyBuffer(device, faceInstanceBuffer, nullptr);
         vkFreeMemory(device, faceInstanceBufferMemory, nullptr);
+        
+        // Clean up AABB debug resources
+        if (aabbInstanceBufferMapped) {
+            vkUnmapMemory(device, aabbInstanceBufferMemory);
+        }
+        vkDestroyBuffer(device, aabbInstanceBuffer, nullptr);
+        vkFreeMemory(device, aabbInstanceBufferMemory, nullptr);
+        vkDestroyPipeline(device, aabbDebugPipeline, nullptr);
+        vkDestroyPipelineLayout(device, aabbPipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(device, aabbDescriptorSetLayout, nullptr);
 
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 

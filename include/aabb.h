@@ -25,6 +25,13 @@ struct AABB {
     bool contains(const glm::vec3& point) const;
 };
 
+// Debug rendering data for AABBs
+struct AABBDebugData {
+    glm::vec4 min;  // xyz + padding
+    glm::vec4 max;  // xyz + padding
+    glm::vec4 color; // rgba
+};
+
 class CollisionSystem {
 public:
     struct CollisionResult {
@@ -36,6 +43,21 @@ public:
     static CollisionResult checkAABBCollision(const AABB& a, const AABB& b);
     static glm::vec3 resolveCollision(const AABB& movingBox, const AABB& staticBox, const glm::vec3& velocity);
     static std::vector<AABB> getBlockAABBsInRegion(const AABB& region, class ChunkManager* chunkManager);
+};
+
+// AABB Debug Renderer for collecting AABBs to visualize
+class AABBDebugRenderer {
+public:
+    void clear();
+    void addAABB(const AABB& aabb, const glm::vec3& color = glm::vec3(1.0f, 0.0f, 0.0f));
+    void addPlayerAABB(const AABB& aabb);
+    void addBlockAABBs(const std::vector<AABB>& aabbs);
+    
+    const std::vector<AABBDebugData>& getDebugData() const { return m_debugData; }
+    size_t getCount() const { return m_debugData.size(); }
+    
+private:
+    std::vector<AABBDebugData> m_debugData;
 };
 
 } // namespace Zerith

@@ -116,4 +116,27 @@ std::vector<AABB> CollisionSystem::getBlockAABBsInRegion(const AABB& region, Chu
     return blockAABBs;
 }
 
+// AABBDebugRenderer implementation
+void AABBDebugRenderer::clear() {
+    m_debugData.clear();
+}
+
+void AABBDebugRenderer::addAABB(const AABB& aabb, const glm::vec3& color) {
+    AABBDebugData data;
+    data.min = glm::vec4(aabb.min, 0.0f);
+    data.max = glm::vec4(aabb.max, 0.0f);
+    data.color = glm::vec4(color, 1.0f);
+    m_debugData.push_back(data);
+}
+
+void AABBDebugRenderer::addPlayerAABB(const AABB& aabb) {
+    addAABB(aabb, glm::vec3(0.0f, 1.0f, 0.0f)); // Green for player
+}
+
+void AABBDebugRenderer::addBlockAABBs(const std::vector<AABB>& aabbs) {
+    for (const auto& aabb : aabbs) {
+        addAABB(aabb, glm::vec3(1.0f, 0.5f, 0.0f)); // Orange for blocks
+    }
+}
+
 } // namespace Zerith

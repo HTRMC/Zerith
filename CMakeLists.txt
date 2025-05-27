@@ -45,6 +45,20 @@ compile_shader(
         ${CMAKE_CURRENT_BINARY_DIR}/shaders/fragment_shader.spv
 )
 
+compile_shader(
+        aabb_mesh_shader
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/aabb_mesh_shader.glsl
+        "mesh"
+        ${CMAKE_CURRENT_BINARY_DIR}/shaders/aabb_mesh_shader.spv
+)
+
+compile_shader(
+        aabb_fragment_shader
+        ${CMAKE_CURRENT_SOURCE_DIR}/shaders/aabb_fragment_shader.glsl
+        "frag"
+        ${CMAKE_CURRENT_BINARY_DIR}/shaders/aabb_fragment_shader.spv
+)
+
 # Include directories
 include_directories(${Vulkan_INCLUDE_DIRS})
 include_directories(include)
@@ -63,7 +77,7 @@ add_executable(Zerith
 )
 
 # Add shader dependencies
-add_dependencies(Zerith task_shader mesh_shader fragment_shader)
+add_dependencies(Zerith task_shader mesh_shader fragment_shader aabb_mesh_shader aabb_fragment_shader)
 
 # Link libraries
 target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>)
