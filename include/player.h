@@ -19,6 +19,7 @@ public:
     const glm::vec3& getPosition() const { return m_position; }
     const glm::vec3& getVelocity() const { return m_velocity; }
     const glm::vec3& getRotation() const { return m_rotation; }
+    const glm::vec3& getCameraFront() const { return m_cameraFront; }
     const AABB& getAABB() const { return m_aabb; }
     
     void setPosition(const glm::vec3& position);
@@ -34,10 +35,12 @@ private:
     void updateAABB();
     void applyGravity(float deltaTime);
     void resolveCollisions(ChunkManager* chunkManager);
+    void updateCameraDirection();
     
     glm::vec3 m_position;
     glm::vec3 m_velocity;
     glm::vec3 m_rotation; // pitch, yaw, roll
+    glm::vec3 m_cameraFront;
     
     AABB m_aabb;
     
