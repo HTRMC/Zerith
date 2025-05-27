@@ -39,8 +39,39 @@ namespace Zerith {
             movement.z += 1.0f; // Right
         }
 
-        if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS && m_onGround) {
-            jump();
+        // Handle space key for jumping and fly toggle
+        bool spaceCurrentlyPressed = glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS;
+        double currentTime = glfwGetTime();
+        
+        if (spaceCurrentlyPressed && !m_spacePressed) {
+            // Space key just pressed
+            if (currentTime - m_lastSpacePress < DOUBLE_PRESS_TIME) {
+                // Double press detected - toggle fly mode
+                m_isFlying = !m_isFlying;
+                if (m_isFlying) {
+                    m_velocity.y = 0.0f; // Stop falling when entering fly mode
+                    LOG_INFO("Fly mode enabled");
+                } else {
+                    LOG_INFO("Fly mode disabled");
+                }
+            } else {
+                // Single press
+                if (m_isFlying) {
+                    // In fly mode, space moves up
+                    m_velocity.y = MOVE_SPEED;
+                } else if (m_onGround) {
+                    // Normal jump when on ground and not flying
+                    jump();
+                }
+            }
+            m_lastSpacePress = currentTime;
+        }
+        
+        m_spacePressed = spaceCurrentlyPressed;
+        
+        // Handle shift key for flying down
+        if (m_isFlying && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+            m_velocity.y = -MOVE_SPEED;
         }
 
         // ====== OLD SYSTEM APPROACH ADAPTED TO Y-UP ======
@@ -69,14 +100,36 @@ namespace Zerith {
         glm::vec3 right = glm::normalize(glm::cross(horizontalFront, glm::vec3(0.0f, 1.0f, 0.0f)));
 
         // Apply movement directly to velocity (OLD METHOD)
-        if (movement.z != 0.0f) {
-            m_velocity.x += horizontalFront.x * movement.z * velocity;
-            m_velocity.z += horizontalFront.z * movement.z * velocity;
-        }
+        if (m_isFlying) {
+            // In fly mode, use camera direction for all movement including vertical
+            glm::vec3 moveDirection(0.0f);
+            
+            if (movement.z != 0.0f) {
+                moveDirection += cameraFront * movement.z;
+            }
+            if (movement.x != 0.0f) {
+                moveDirection += right * movement.x;
+            }
+            
+            // Apply smooth movement in fly mode
+            m_velocity.x = moveDirection.x * MOVE_SPEED;
+            m_velocity.z = moveDirection.z * MOVE_SPEED;
+            
+            // Don't override vertical velocity if space/shift is being pressed
+            if (!spaceCurrentlyPressed && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) != GLFW_PRESS) {
+                m_velocity.y = moveDirection.y * MOVE_SPEED;
+            }
+        } else {
+            // Normal ground movement (horizontal only)
+            if (movement.z != 0.0f) {
+                m_velocity.x += horizontalFront.x * movement.z * velocity;
+                m_velocity.z += horizontalFront.z * movement.z * velocity;
+            }
 
-        if (movement.x != 0.0f) {
-            m_velocity.x += right.x * movement.x * velocity;
-            m_velocity.z += right.z * movement.x * velocity;
+            if (movement.x != 0.0f) {
+                m_velocity.x += right.x * movement.x * velocity;
+                m_velocity.z += right.z * movement.x * velocity;
+            }
         }
 
         // Mouse handling (same as before)
@@ -130,7 +183,9 @@ namespace Zerith {
     }
 
     void Player::applyGravity(float deltaTime) {
-        m_velocity.y -= GRAVITY * deltaTime;
+        if (!m_isFlying) {
+            m_velocity.y -= GRAVITY * deltaTime;
+        }
     }
 
     void Player::resolveCollisions(ChunkManager *chunkManager) {
@@ -149,29 +204,35 @@ namespace Zerith {
 
             if (collision.hasCollision) {
                 if (collision.normal.y > 0.0f) {
-                    m_onGround = true;
-                    m_velocity.y = 0.0f;
-                    m_position.y = blockAABB.max.y;
+                    if (!m_isFlying) {
+                        m_onGround = true;
+                        m_velocity.y = 0.0f;
+                        m_position.y = blockAABB.max.y;
+                    }
                 } else if (collision.normal.y < 0.0f) {
-                    m_velocity.y = 0.0f;
-                    m_position.y = blockAABB.min.y - PLAYER_HEIGHT;
-                }
-
-                if (collision.normal.x != 0.0f) {
-                    m_velocity.x = 0.0f;
-                    if (collision.normal.x > 0.0f) {
-                        m_position.x = blockAABB.max.x + PLAYER_WIDTH * 0.5f;
-                    } else {
-                        m_position.x = blockAABB.min.x - PLAYER_WIDTH * 0.5f;
+                    if (!m_isFlying) {
+                        m_velocity.y = 0.0f;
+                        m_position.y = blockAABB.min.y - PLAYER_HEIGHT;
                     }
                 }
 
-                if (collision.normal.z != 0.0f) {
-                    m_velocity.z = 0.0f;
-                    if (collision.normal.z > 0.0f) {
-                        m_position.z = blockAABB.max.z + PLAYER_WIDTH * 0.5f;
-                    } else {
-                        m_position.z = blockAABB.min.z - PLAYER_WIDTH * 0.5f;
+                if (!m_isFlying) {
+                    if (collision.normal.x != 0.0f) {
+                        m_velocity.x = 0.0f;
+                        if (collision.normal.x > 0.0f) {
+                            m_position.x = blockAABB.max.x + PLAYER_WIDTH * 0.5f;
+                        } else {
+                            m_position.x = blockAABB.min.x - PLAYER_WIDTH * 0.5f;
+                        }
+                    }
+
+                    if (collision.normal.z != 0.0f) {
+                        m_velocity.z = 0.0f;
+                        if (collision.normal.z > 0.0f) {
+                            m_position.z = blockAABB.max.z + PLAYER_WIDTH * 0.5f;
+                        } else {
+                            m_position.z = blockAABB.min.z - PLAYER_WIDTH * 0.5f;
+                        }
                     }
                 }
 

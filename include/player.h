@@ -54,6 +54,12 @@ private:
     float m_eyeHeight = 1.65f;
     bool m_onGround = false;
     
+    // Fly mode state
+    bool m_isFlying = false;
+    bool m_spacePressed = false;
+    double m_lastSpacePress = 0.0;
+    static constexpr double DOUBLE_PRESS_TIME = 0.3; // 300ms window for double press
+    
     // Mouse state
     bool m_firstMouse = true;
     double m_lastMouseX = 0.0;
