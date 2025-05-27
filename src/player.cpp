@@ -97,9 +97,18 @@ namespace Zerith {
         
         m_spacePressed = spaceCurrentlyPressed;
         
-        // Handle shift key for flying down
-        if (m_isFlying && glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-            m_velocity.y = -MOVE_SPEED;
+        // Handle continuous vertical movement in fly mode
+        if (m_isFlying) {
+            if (spaceCurrentlyPressed) {
+                // Continuous upward movement while space is held
+                m_velocity.y = MOVE_SPEED;
+            } else if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+                // Continuous downward movement while shift is held
+                m_velocity.y = -MOVE_SPEED;
+            } else {
+                // Stop vertical movement when neither key is pressed
+                m_velocity.y = 0.0f;
+            }
         }
 
         // Calculate camera direction vectors
@@ -146,12 +155,19 @@ namespace Zerith {
                 targetVelocity += right * movement.x * MAX_SPEED;
             }
             
-            // Smooth interpolation to target velocity
+            // Preserve the vertical velocity that was set by space/shift keys
+            float preservedVerticalVelocity = m_velocity.y;
+            
+            // Smooth interpolation to target velocity (horizontal only)
             glm::vec3 velocityDiff = targetVelocity - m_velocity;
+            velocityDiff.y = 0.0f; // Don't change vertical component
             glm::vec3 acceleration = velocityDiff * ACCELERATION * deltaTime;
             
             // Apply acceleration
             m_velocity += acceleration;
+            
+            // Restore the vertical velocity
+            m_velocity.y = preservedVerticalVelocity;
             
             // Clamp to max speed
             if (glm::length(m_velocity) > MAX_SPEED) {
