@@ -96,8 +96,9 @@ glm::vec3 CollisionSystem::resolveCollision(const AABB& movingBox, const AABB& s
 std::vector<AABB> CollisionSystem::getBlockAABBsInRegion(const AABB& region, ChunkManager* chunkManager) {
     std::vector<AABB> blockAABBs;
     
+    // Use floor for both min and max, but subtract 1 from min to ensure we don't miss blocks
     glm::ivec3 minBlock = glm::floor(region.min);
-    glm::ivec3 maxBlock = glm::ceil(region.max);
+    glm::ivec3 maxBlock = glm::floor(region.max);
     
     for (int x = minBlock.x; x <= maxBlock.x; ++x) {
         for (int y = minBlock.y; y <= maxBlock.y; ++y) {
