@@ -2249,7 +2249,11 @@ private:
 int main() {
     // Initialize logger
     Logger& logger = Logger::getInstance();
-    logger.setLogLevel(LogLevel::DEBUG);
+    #ifdef NDEBUG
+        logger.setLogLevel(LogLevel::INFO);  // Release mode: only INFO and above
+    #else
+        logger.setLogLevel(LogLevel::DEBUG); // Debug mode: all logs including DEBUG
+    #endif
     logger.addLogFile("logs/meshshader.log");
     
     LOG_INFO("Zerith application starting...");
