@@ -5,6 +5,7 @@
 #include "texture_array.h"
 #include "chunk.h"
 #include "logger.h"
+#include "face_instance_pool.h"
 #include <vector>
 #include <glm/glm.hpp>
 #include <memory>
@@ -25,7 +26,7 @@ public:
         assignTextureLayers();
     }
 
-    // Generate face instances at a specific world position
+    // Generate face instances at a specific world position (legacy method)
     std::vector<BlockbenchInstanceGenerator::FaceInstance> generateInstancesAtPosition(const glm::vec3& position) const
     {
         std::vector<BlockbenchInstanceGenerator::FaceInstance> instances;
@@ -46,6 +47,26 @@ public:
         }
 
         return instances;
+    }
+
+    // Generate face instances at a specific world position using object pooling
+    void generateInstancesAtPositionPooled(const glm::vec3& position, FaceInstancePool::FaceInstanceBatch& batch) const
+    {
+        batch.reserve(batch.size() + m_baseInstances.faces.size());
+
+        // Copy base instances and offset by position
+        for (const auto& face : m_baseInstances.faces)
+        {
+            batch.addFace(
+                face.position + position,  // position
+                face.rotation,             // rotation
+                face.scale,                // scale
+                face.faceDirection,        // faceDirection
+                face.uv,                   // uv
+                face.textureLayer,         // textureLayer
+                face.textureName           // textureName
+            );
+        }
     }
 
 private:

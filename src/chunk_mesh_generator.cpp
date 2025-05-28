@@ -6,7 +6,8 @@ namespace Zerith {
 
 ChunkMeshGenerator::ChunkMeshGenerator() {
     m_textureArray = std::make_shared<TextureArray>();
-    LOG_INFO("Initializing ChunkMeshGenerator");
+    m_faceInstancePool = std::make_unique<FaceInstancePool>(16); // Pre-allocate 16 batches
+    LOG_INFO("Initializing ChunkMeshGenerator with object pooling");
     loadBlockModels();
 }
 
@@ -87,6 +88,24 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     return allFaces;
 }
 
+FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooled(const Chunk& chunk) {
+    auto batch = m_faceInstancePool->acquireBatch();
+    
+    // Estimate capacity based on chunk size (assume average 2 faces per block visible)
+    batch.reserve(Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * 2);
+    
+    // Iterate through all blocks in the chunk
+    for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+        for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
+            for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+                generateBlockFacesPooled(chunk, x, y, z, batch);
+            }
+        }
+    }
+    
+    return batch;
+}
+
 void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, int z, 
                                            std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces) {
     BlockType blockType = chunk.getBlock(x, y, z);
@@ -113,6 +132,29 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
     for (auto&& face : blockFaces) {
         faces.emplace_back(std::move(face));
     }
+}
+
+void ChunkMeshGenerator::generateBlockFacesPooled(const Chunk& chunk, int x, int y, int z, 
+                                                 FaceInstancePool::FaceInstanceBatch& batch) {
+    BlockType blockType = chunk.getBlock(x, y, z);
+    
+    // Skip air blocks
+    if (blockType == BlockType::AIR) {
+        return;
+    }
+    
+    // Find the generator for this block type
+    auto it = m_blockGenerators.find(blockType);
+    if (it == m_blockGenerators.end()) {
+        return; // No model for this block type
+    }
+    
+    // Calculate world position of this block
+    glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
+    blockWorldPos += glm::vec3(x, y, z);
+    
+    // Generate faces at this position directly into the batch
+    it->second->generateInstancesAtPositionPooled(blockWorldPos, batch);
 }
 
 } // namespace Zerith
