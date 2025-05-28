@@ -44,6 +44,10 @@ void TextureArray::initializeTextureMap() {
     m_textureIndices["dirt"] = 2;
 }
 
+uint32_t TextureArray::getTextureLayer(TextureLayer layer) const {
+    return static_cast<uint32_t>(layer);
+}
+
 uint32_t TextureArray::getTextureLayer(const std::string& textureName) const {
     auto it = m_textureIndices.find(textureName);
     if (it != m_textureIndices.end()) {

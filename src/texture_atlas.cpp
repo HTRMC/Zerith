@@ -56,6 +56,16 @@ TextureRegion TextureAtlas::calculateRegion(int index) const {
     return TextureRegion(minU, minV, maxU, maxV);
 }
 
+TextureRegion TextureAtlas::getTextureRegion(TextureID textureID) const {
+    uint32_t index = static_cast<uint32_t>(textureID);
+    if (index < m_textureRegions.size()) {
+        return m_textureRegions[index];
+    }
+    
+    // Return default texture region (oak planks)
+    return m_textureRegions[0];
+}
+
 TextureRegion TextureAtlas::getTextureRegion(const std::string& textureName) const {
     auto it = m_textureIndices.find(textureName);
     if (it != m_textureIndices.end() && it->second < m_textureRegions.size()) {
@@ -66,12 +76,34 @@ TextureRegion TextureAtlas::getTextureRegion(const std::string& textureName) con
     return m_textureRegions[0];
 }
 
+uint32_t TextureAtlas::getTextureIndex(TextureID textureID) const {
+    return static_cast<uint32_t>(textureID);
+}
+
 int TextureAtlas::getTextureIndex(const std::string& textureName) const {
     auto it = m_textureIndices.find(textureName);
     if (it != m_textureIndices.end()) {
         return it->second;
     }
     return 0; // Default to oak planks
+}
+
+glm::vec4 TextureAtlas::convertToAtlasUV(const glm::vec4& blockUV, TextureID textureID) const {
+    TextureRegion region = getTextureRegion(textureID);
+    
+    // Convert from 0-16 block coordinates to 0-1 normalized coordinates
+    float u1 = blockUV.x / 16.0f;
+    float v1 = blockUV.y / 16.0f;
+    float u2 = blockUV.z / 16.0f;
+    float v2 = blockUV.w / 16.0f;
+    
+    // Map to the texture region in the atlas
+    float atlasU1 = region.uvMin.x + u1 * (region.uvMax.x - region.uvMin.x);
+    float atlasV1 = region.uvMin.y + v1 * (region.uvMax.y - region.uvMin.y);
+    float atlasU2 = region.uvMin.x + u2 * (region.uvMax.x - region.uvMin.x);
+    float atlasV2 = region.uvMin.y + v2 * (region.uvMax.y - region.uvMin.y);
+    
+    return glm::vec4(atlasU1, atlasV1, atlasU2, atlasV2);
 }
 
 glm::vec4 TextureAtlas::convertToAtlasUV(const glm::vec4& blockUV, const std::string& textureName) const {

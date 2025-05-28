@@ -7,6 +7,25 @@
 
 namespace Zerith {
 
+enum class TextureID : uint32_t {
+    OAK_PLANKS = 0,
+    STONE = 1,
+    DIRT = 2,
+    GRASS_TOP = 3,
+    GRASS_SIDE = 4,
+    OAK_SLAB = 5,
+    OAK_STAIRS = 6,
+    
+    ALL = OAK_PLANKS,
+    TOP = GRASS_TOP,
+    SIDE = GRASS_SIDE,
+    BOTTOM = DIRT,
+    
+    COUNT
+};
+
+constexpr uint32_t TEXTURE_COUNT = static_cast<uint32_t>(TextureID::COUNT);
+
 // Structure to hold texture region information in the atlas
 struct TextureRegion {
     glm::vec2 uvMin;  // Top-left UV coordinates
@@ -26,13 +45,22 @@ public:
     
     TextureAtlas();
     
-    // Get UV coordinates for a specific texture
+    // Get UV coordinates for a specific texture (optimized integer ID version)
+    TextureRegion getTextureRegion(TextureID textureID) const;
+    
+    // Get UV coordinates for a specific texture (legacy string version)
     TextureRegion getTextureRegion(const std::string& textureName) const;
     
-    // Get the texture index for a given name
+    // Get the texture index for a given ID (optimized version)
+    uint32_t getTextureIndex(TextureID textureID) const;
+    
+    // Get the texture index for a given name (legacy version)
     int getTextureIndex(const std::string& textureName) const;
     
-    // Convert texture coordinates from 0-16 range to atlas UV coordinates
+    // Convert texture coordinates from 0-16 range to atlas UV coordinates (optimized version)
+    glm::vec4 convertToAtlasUV(const glm::vec4& blockUV, TextureID textureID) const;
+    
+    // Convert texture coordinates from 0-16 range to atlas UV coordinates (legacy version)
     glm::vec4 convertToAtlasUV(const glm::vec4& blockUV, const std::string& textureName) const;
     
     // Get the list of texture files to load

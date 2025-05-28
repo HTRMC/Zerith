@@ -94,15 +94,15 @@ private:
             case Zerith::BlockType::OAK_PLANKS:
             case Zerith::BlockType::OAK_SLAB:
             case Zerith::BlockType::OAK_STAIRS:
-                face.textureLayer = m_textureArray->getTextureLayer("oak_planks_all");
+                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::OAK_PLANKS);
                 break;
 
             case Zerith::BlockType::STONE:
-                face.textureLayer = m_textureArray->getTextureLayer("stone");
+                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::STONE);
                 break;
 
             case Zerith::BlockType::DIRT:
-                face.textureLayer = m_textureArray->getTextureLayer("dirt");
+                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::DIRT);
                 break;
 
             case Zerith::BlockType::GRASS_BLOCK:
@@ -115,19 +115,19 @@ private:
                 switch (face.faceDirection)
                 {
                 case 0: // Down (Y-) - should show dirt
-                    face.textureLayer = m_textureArray->getTextureLayer("grass_bottom");
+                    face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::DIRT);
                     break;
                 case 1: // Up (Y+) - should show grass
-                    face.textureLayer = m_textureArray->getTextureLayer("grass_top");
+                    face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::GRASS_TOP);
                     break;
                 default: // Sides
-                    face.textureLayer = m_textureArray->getTextureLayer("grass_side");
+                    face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::GRASS_SIDE);
                     break;
                 }
                 break;
 
             default:
-                face.textureLayer = 0; // Default to oak planks
+                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::OAK_PLANKS);
                 break;
             }
         }
