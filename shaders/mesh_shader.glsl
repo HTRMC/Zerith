@@ -17,10 +17,10 @@ with proper orientations for each face of a unit cube.
 // Define a single quad (unit square in XY plane at Z=0)
 // This will be instanced for each face
 const vec3 quadVertices[4] = {
-    vec3(0.0, 1.0, 0.0),  // Top-left (was bottom-left)
-    vec3(1.0, 1.0, 0.0),  // Top-right (was bottom-right)
-    vec3(1.0, 0.0, 0.0),  // Bottom-right (was top-right)
-    vec3(0.0, 0.0, 0.0)   // Bottom-left (was top-left)
+    vec3(0.0, 1.0, 0.0),  // 0: Top-left
+    vec3(0.0, 0.0, 0.0),  // 1: Bottom-left  
+    vec3(1.0, 1.0, 0.0),  // 2: Top-right
+    vec3(1.0, 0.0, 0.0)   // 3: Bottom-right
 };
 
 // Define cube face colors
@@ -215,10 +215,10 @@ void main() {
     
     // Note: In texture coordinates, (0,0) is top-left in Vulkan
     vec2 texCoords[4] = {
-        vec2(minU, minV),  // Bottom-left
-        vec2(maxU, minV),  // Bottom-right
-        vec2(maxU, maxV),  // Top-right
-        vec2(minU, maxV)   // Top-left
+        vec2(minU, minV),  // 0: Top-left
+        vec2(minU, maxV),  // 1: Bottom-left  
+        vec2(maxU, minV),  // 2: Top-right
+        vec2(maxU, maxV)   // 3: Bottom-right
     };
     
     // Output vertices for this face
@@ -241,12 +241,13 @@ void main() {
         v_out[vertexIndex].textureLayer = textureLayer;
     }
     
-    // Output triangles for this face
-    // Triangle 1: 0-1-2
+    // Output triangles for this face using triangle strip ordering
+    // With vertices: 0=TL, 1=BL, 2=TR, 3=BR
+    // Triangle 1: 0-2-1 (Top-left, Top-right, Bottom-left) - counter-clockwise for outward face
     gl_PrimitiveTriangleIndicesEXT[baseTriangleIndex] = 
-        uvec3(baseVertexIndex, baseVertexIndex + 1, baseVertexIndex + 2);
+        uvec3(baseVertexIndex + 0, baseVertexIndex + 2, baseVertexIndex + 1);
     
-    // Triangle 2: 0-2-3
+    // Triangle 2: 1-2-3 (Bottom-left, Top-right, Bottom-right) - counter-clockwise for outward face
     gl_PrimitiveTriangleIndicesEXT[baseTriangleIndex + 1] = 
-        uvec3(baseVertexIndex, baseVertexIndex + 2, baseVertexIndex + 3);
+        uvec3(baseVertexIndex + 1, baseVertexIndex + 2, baseVertexIndex + 3);
 }
