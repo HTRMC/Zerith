@@ -1260,6 +1260,22 @@ private:
         } else {
             LOG_WARN("Anisotropic filtering not available");
         }
+        
+        // Enable fillModeNonSolid for wireframe rendering
+        if (availableFeatures.fillModeNonSolid) {
+            deviceFeatures.fillModeNonSolid = VK_TRUE;
+            LOG_INFO("Fill mode non-solid enabled");
+        } else {
+            LOG_WARN("Fill mode non-solid not available");
+        }
+        
+        // Enable wideLines for line width > 1.0
+        if (availableFeatures.wideLines) {
+            deviceFeatures.wideLines = VK_TRUE;
+            LOG_INFO("Wide lines enabled");
+        } else {
+            LOG_WARN("Wide lines not available");
+        }
 
         // Enable mesh shader features
         VkPhysicalDeviceMeshShaderFeaturesEXT meshShaderFeatures{};
@@ -2161,8 +2177,9 @@ private:
     }
 
     void createSyncObjects() {
-        imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
-        renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+        // Create semaphores per swapchain image to avoid synchronization conflicts
+        imageAvailableSemaphores.resize(swapChainImages.size());
+        renderFinishedSemaphores.resize(swapChainImages.size());
         inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
         VkSemaphoreCreateInfo semaphoreInfo{};
@@ -2172,10 +2189,17 @@ private:
         fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        // Create semaphores for each swapchain image
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
             if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailableSemaphores[i]) != VK_SUCCESS ||
-                vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS ||
-                vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
+                vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinishedSemaphores[i]) != VK_SUCCESS) {
+                throw std::runtime_error("failed to create synchronization objects for swapchain image!");
+            }
+        }
+
+        // Create fences for frames in flight
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            if (vkCreateFence(device, &fenceInfo, nullptr, &inFlightFences[i]) != VK_SUCCESS) {
                 throw std::runtime_error("failed to create synchronization objects for a frame!");
             }
         }
@@ -2326,7 +2350,7 @@ private:
 
         uint32_t imageIndex;
         VkResult result = vkAcquireNextImageKHR(device, swapChain, UINT64_MAX,
-                                             imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+                                             imageAvailableSemaphores[currentFrame % swapChainImages.size()], VK_NULL_HANDLE, &imageIndex);
 
         if (result == VK_ERROR_OUT_OF_DATE_KHR) {
             recreateSwapChain();
@@ -2345,7 +2369,7 @@ private:
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
+        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame % swapChainImages.size()]};
         VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
         submitInfo.waitSemaphoreCount = 1;
         submitInfo.pWaitSemaphores = waitSemaphores;
@@ -2354,7 +2378,7 @@ private:
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &commandBuffers[imageIndex];
 
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
+        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[imageIndex]};
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -2502,9 +2526,14 @@ private:
 
         vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
 
-        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        // Clean up semaphores (one per swapchain image)
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
             vkDestroySemaphore(device, renderFinishedSemaphores[i], nullptr);
             vkDestroySemaphore(device, imageAvailableSemaphores[i], nullptr);
+        }
+        
+        // Clean up fences (one per frame in flight)
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroyFence(device, inFlightFences[i], nullptr);
         }
 
