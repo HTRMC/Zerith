@@ -23,16 +23,24 @@ public:
     static constexpr int CHUNK_VOLUME = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
 
     Chunk(glm::ivec3 chunkPosition = glm::ivec3(0));
+    
+    // Move constructor and assignment operator
+    Chunk(Chunk&& other) noexcept = default;
+    Chunk& operator=(Chunk&& other) noexcept = default;
+    
+    // Disable copy constructor and assignment (chunks are heavy objects)
+    Chunk(const Chunk&) = delete;
+    Chunk& operator=(const Chunk&) = delete;
 
     // Block access
     BlockType getBlock(int x, int y, int z) const;
     void setBlock(int x, int y, int z, BlockType type);
     
     // Get block at world coordinates
-    BlockType getBlockWorld(glm::vec3 worldPos) const;
+    BlockType getBlockWorld(const glm::vec3& worldPos) const;
     
     // Convert world position to chunk-local position
-    glm::ivec3 worldToLocal(glm::vec3 worldPos) const;
+    glm::ivec3 worldToLocal(const glm::vec3& worldPos) const;
     
     // Get chunk position in world
     glm::ivec3 getChunkPosition() const { return m_chunkPosition; }

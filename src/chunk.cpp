@@ -5,10 +5,10 @@
 namespace Zerith {
 
 Chunk::Chunk(glm::ivec3 chunkPosition) 
-    : m_chunkPosition(chunkPosition) {
+    : m_chunkPosition(std::move(chunkPosition)) {
     // Initialize all blocks to air
     std::fill(m_blocks.begin(), m_blocks.end(), BlockType::AIR);
-    LOG_TRACE("Created chunk at position (%d, %d, %d)", chunkPosition.x, chunkPosition.y, chunkPosition.z);
+    LOG_TRACE("Created chunk at position (%d, %d, %d)", m_chunkPosition.x, m_chunkPosition.y, m_chunkPosition.z);
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
@@ -24,12 +24,12 @@ void Chunk::setBlock(int x, int y, int z, BlockType type) {
     }
 }
 
-BlockType Chunk::getBlockWorld(glm::vec3 worldPos) const {
+BlockType Chunk::getBlockWorld(const glm::vec3& worldPos) const {
     glm::ivec3 localPos = worldToLocal(worldPos);
     return getBlock(localPos.x, localPos.y, localPos.z);
 }
 
-glm::ivec3 Chunk::worldToLocal(glm::vec3 worldPos) const {
+glm::ivec3 Chunk::worldToLocal(const glm::vec3& worldPos) const {
     glm::vec3 chunkWorldPos = glm::vec3(m_chunkPosition) * static_cast<float>(CHUNK_SIZE);
     glm::vec3 localPos = worldPos - chunkWorldPos;
     return glm::ivec3(

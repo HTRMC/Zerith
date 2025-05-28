@@ -33,6 +33,26 @@ struct ChunkData {
     std::unique_ptr<Chunk> chunk;
     std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
     std::atomic<bool> ready{false};
+    
+    // Move constructor and assignment
+    ChunkData() = default;
+    ChunkData(ChunkData&& other) noexcept 
+        : chunk(std::move(other.chunk)), 
+          faces(std::move(other.faces)), 
+          ready(other.ready.load()) {}
+    
+    ChunkData& operator=(ChunkData&& other) noexcept {
+        if (this != &other) {
+            chunk = std::move(other.chunk);
+            faces = std::move(other.faces);
+            ready = other.ready.load();
+        }
+        return *this;
+    }
+    
+    // Disable copy operations
+    ChunkData(const ChunkData&) = delete;
+    ChunkData& operator=(const ChunkData&) = delete;
 };
 
 class ChunkManager {
