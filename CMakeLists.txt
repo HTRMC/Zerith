@@ -9,6 +9,9 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(SPNG CONFIG REQUIRED)
 
+# Add FastNoise2 as subdirectory
+add_subdirectory(third_party/FastNoise2)
+
 # Find glslangValidator for shader compilation
 find_program(GLSLANG_VALIDATOR glslangValidator HINTS $ENV{VULKAN_SDK}/bin)
 
@@ -74,13 +77,14 @@ add_executable(Zerith
     src/logger.cpp
     src/aabb.cpp
     src/player.cpp
+    src/terrain_generator.cpp
 )
 
 # Add shader dependencies
 add_dependencies(Zerith task_shader mesh_shader fragment_shader aabb_mesh_shader aabb_fragment_shader)
 
 # Link libraries
-target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static>)
+target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> FastNoise2)
 
 # Create directories for shader output and assets
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)

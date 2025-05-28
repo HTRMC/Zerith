@@ -6,6 +6,7 @@ namespace Zerith {
 
 ChunkManager::ChunkManager() {
     m_meshGenerator = std::make_unique<ChunkMeshGenerator>();
+    m_terrainGenerator = std::make_unique<TerrainGenerator>();
     
     // Create worker threads for chunk loading
     unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
@@ -205,46 +206,7 @@ void ChunkManager::unloadChunk(const glm::ivec3& chunkPos) {
 }
 
 void ChunkManager::generateTerrain(Chunk& chunk) {
-    // Simple terrain generation for testing
-    // Later this can be replaced with Perlin noise
-    
-    glm::ivec3 chunkWorldPos = chunk.getChunkPosition() * Chunk::CHUNK_SIZE;
-    
-    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
-        for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
-            int worldX = chunkWorldPos.x + x;
-            int worldZ = chunkWorldPos.z + z;
-            
-            // Simple height function
-            int height = 4 + static_cast<int>(
-                2.0f * std::sin(worldX * 0.1f) * std::cos(worldZ * 0.1f)
-            );
-            
-            // Ensure height is relative to chunk
-            int relativeHeight = height - chunkWorldPos.y;
-            
-            for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
-                int worldY = chunkWorldPos.y + y;
-                
-                if (worldY < height - 3) {
-                    // Deep underground - stone
-                    chunk.setBlock(x, y, z, BlockType::STONE);
-                } else if (worldY < height) {
-                    // Near surface - dirt (we'll use stone for now since we don't have dirt)
-                    chunk.setBlock(x, y, z, BlockType::STONE);
-                } else if (worldY == height) {
-                    // Surface - grass
-                    chunk.setBlock(x, y, z, BlockType::GRASS_BLOCK);
-                }
-                // Air above height
-            }
-            
-            // Add some random stairs on the surface
-            if (relativeHeight >= 0 && relativeHeight < Chunk::CHUNK_SIZE - 1 && (worldX + worldZ) % 7 == 0) {
-                chunk.setBlock(x, relativeHeight + 1, z, BlockType::OAK_STAIRS);
-            }
-        }
-    }
+    m_terrainGenerator->generateTerrain(chunk);
 }
 
 bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& centerChunkPos) const {

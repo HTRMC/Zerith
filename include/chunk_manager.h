@@ -2,6 +2,7 @@
 
 #include "chunk.h"
 #include "chunk_mesh_generator.h"
+#include "terrain_generator.h"
 #include "blockbench_instance_generator.h"
 #include <unordered_map>
 #include <memory>
@@ -105,6 +106,9 @@ private:
     
     // Mesh generator
     std::unique_ptr<ChunkMeshGenerator> m_meshGenerator;
+    
+    // Terrain generator
+    std::unique_ptr<TerrainGenerator> m_terrainGenerator;
     
     // Render distance in chunks
     int m_renderDistance = 2;
