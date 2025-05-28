@@ -338,15 +338,16 @@ inline void resolveModelTextures(BlockbenchModel::Model& model) {
     }
 }
 
-// Parse a Blockbench model with parent model resolution
+// Parse a Blockbench model with recursive parent model resolution
 inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filename) {
     // Parse the main model
     BlockbenchModel::Model model = parseFromFile(filename);
     
-    // If the model has a parent, load and merge it
-    if (!model.parent.empty()) {
+    // Recursively resolve parent models until we find elements
+    std::string currentParent = model.parent;
+    while (!currentParent.empty() && model.elements.empty()) {
         // Remove minecraft: namespace and block/ prefix if present
-        std::string parentName = model.parent;
+        std::string parentName = currentParent;
         if (parentName.find("minecraft:block/") == 0) {
             parentName = parentName.substr(16); // Remove "minecraft:block/"
         } else if (parentName.find("minecraft:") == 0) {
@@ -355,7 +356,7 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
         std::string parentPath = "assets/" + parentName + ".json";
         
         LOG_TRACE("Loading parent model: %s", parentPath.c_str());
-        BlockbenchModel::Model parentModel = parseFromFile(parentPath);
+        BlockbenchModel::Model parentModel = parseFromFileWithParents(parentPath);
         
         // If the current model has no elements, inherit from parent
         if (model.elements.empty() && !parentModel.elements.empty()) {
@@ -369,6 +370,9 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
                 model.textures[parentTexture.first] = parentTexture.second;
             }
         }
+        
+        // Move to next parent level
+        currentParent = parentModel.parent;
     }
     
     // Resolve all texture references in the model

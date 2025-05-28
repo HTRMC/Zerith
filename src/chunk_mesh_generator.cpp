@@ -60,6 +60,16 @@ void ChunkMeshGenerator::loadBlockModels() {
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to load stone block model: %s", e.what());
     }
+    
+    // Load dirt block
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/block/cube_all.json");
+        m_blockGenerators[BlockType::DIRT] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::DIRT, m_textureArray);
+        LOG_DEBUG("Loaded dirt block model");
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to load dirt block model: %s", e.what());
+    }
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {

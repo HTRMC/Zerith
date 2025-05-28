@@ -26,7 +26,7 @@ void TextureArray::initializeTextureMap() {
     m_textureIndices["oak_planks_all"] = 0;
     
     // Stone block
-    m_textureIndices["stone_all"] = 1;
+    m_textureIndices["stone"] = 1;
     
     // Grass block faces
     m_textureIndices["grass_bottom"] = 2;  // Dirt
@@ -39,6 +39,9 @@ void TextureArray::initializeTextureMap() {
     
     // Oak stairs (same as planks)
     m_textureIndices["oak_stairs_all"] = 0;
+    
+    // Dirt block
+    m_textureIndices["dirt"] = 2;
 }
 
 uint32_t TextureArray::getTextureLayer(const std::string& textureName) const {

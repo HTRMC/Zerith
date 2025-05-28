@@ -71,7 +71,11 @@ private:
                 break;
 
             case Zerith::BlockType::STONE:
-                face.textureLayer = m_textureArray->getTextureLayer("stone_all");
+                face.textureLayer = m_textureArray->getTextureLayer("stone");
+                break;
+
+            case Zerith::BlockType::DIRT:
+                face.textureLayer = m_textureArray->getTextureLayer("dirt");
                 break;
 
             case Zerith::BlockType::GRASS_BLOCK:

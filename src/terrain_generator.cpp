@@ -65,7 +65,7 @@ BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int 
     }
     
     if (worldY > terrainHeight - 4) {
-        return BlockType::OAK_PLANKS; // Temporary dirt substitute
+        return BlockType::DIRT;
     }
     
     return BlockType::STONE;
