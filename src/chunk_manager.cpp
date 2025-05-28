@@ -6,10 +6,33 @@ namespace Zerith {
 
 ChunkManager::ChunkManager() {
     m_meshGenerator = std::make_unique<ChunkMeshGenerator>();
-    LOG_INFO("ChunkManager initialized with render distance %d", m_renderDistance);
+    
+    // Create worker threads for chunk loading
+    unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
+    for (unsigned int i = 0; i < numThreads; ++i) {
+        m_workerThreads.emplace_back(&ChunkManager::chunkWorkerThread, this);
+    }
+    
+    LOG_INFO("ChunkManager initialized with render distance %d and %d worker threads", m_renderDistance, numThreads);
+}
+
+ChunkManager::~ChunkManager() {
+    // Signal shutdown
+    m_shutdown = true;
+    m_queueCondition.notify_all();
+    
+    // Wait for all worker threads to finish
+    for (auto& thread : m_workerThreads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
 }
 
 void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
+    // Process any completed chunks first
+    processCompletedChunks();
+    
     // Get the chunk position the player is in
     glm::ivec3 playerChunkPos = worldToChunkPos(playerPosition);
     
@@ -23,9 +46,12 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
     
     // Find chunks to unload (outside render distance)
     std::vector<glm::ivec3> chunksToUnload;
-    for (const auto& [chunkPos, chunk] : m_chunks) {
-        if (!isChunkInRange(chunkPos, playerChunkPos)) {
-            chunksToUnload.push_back(chunkPos);
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        for (const auto& [chunkPos, chunk] : m_chunks) {
+            if (!isChunkInRange(chunkPos, playerChunkPos)) {
+                chunksToUnload.push_back(chunkPos);
+            }
         }
     }
     
@@ -35,19 +61,32 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
         chunksChanged = true;
     }
     
-    // Load chunks within render distance
+    // Load chunks within render distance asynchronously
     for (int dx = -m_renderDistance; dx <= m_renderDistance; ++dx) {
         for (int dy = -2; dy <= 2; ++dy) { // Limit vertical range
             for (int dz = -m_renderDistance; dz <= m_renderDistance; ++dz) {
                 glm::ivec3 chunkPos = playerChunkPos + glm::ivec3(dx, dy, dz);
                 
-                // Skip if outside render distance or already loaded
-                if (!isChunkInRange(chunkPos, playerChunkPos) || m_chunks.find(chunkPos) != m_chunks.end()) {
+                // Skip if outside render distance
+                if (!isChunkInRange(chunkPos, playerChunkPos)) {
                     continue;
                 }
                 
-                loadChunk(chunkPos);
-                chunksChanged = true;
+                // Check if already loaded or loading
+                {
+                    std::lock_guard<std::mutex> lock(m_chunksMutex);
+                    if (m_chunks.find(chunkPos) != m_chunks.end() || 
+                        m_loadingChunks.find(chunkPos) != m_loadingChunks.end()) {
+                        continue;
+                    }
+                }
+                
+                // Calculate priority based on distance to player
+                glm::ivec3 diff = chunkPos - playerChunkPos;
+                int distance = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+                int priority = 1000 - distance; // Closer chunks get higher priority
+                
+                loadChunkAsync(chunkPos, priority);
             }
         }
     }
@@ -58,6 +97,7 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
         // Only print chunk updates occasionally for performance
         static int updateCount = 0;
         if (++updateCount % 10 == 0) {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
             LOG_DEBUG("Chunks loaded: %zu, Total faces: %zu", m_chunks.size(), m_allFaceInstances.size());
         }
     }
@@ -77,6 +117,7 @@ void ChunkManager::rebuildAllFaceInstances() {
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& chunkPos) {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(chunkPos);
     return (it != m_chunks.end()) ? it->second.get() : nullptr;
 }
@@ -84,6 +125,7 @@ Chunk* ChunkManager::getChunk(const glm::ivec3& chunkPos) {
 BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
     glm::ivec3 chunkPos = worldToChunkPos(worldPos);
     
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(chunkPos);
     if (it == m_chunks.end()) {
         return BlockType::AIR;
@@ -95,13 +137,17 @@ BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
 void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
     glm::ivec3 chunkPos = worldToChunkPos(worldPos);
     
-    auto it = m_chunks.find(chunkPos);
-    if (it == m_chunks.end()) {
-        return;
+    glm::ivec3 localPos;
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        auto it = m_chunks.find(chunkPos);
+        if (it == m_chunks.end()) {
+            return;
+        }
+        
+        localPos = it->second->worldToLocal(worldPos);
+        it->second->setBlock(localPos.x, localPos.y, localPos.z, type);
     }
-    
-    glm::ivec3 localPos = it->second->worldToLocal(worldPos);
-    it->second->setBlock(localPos.x, localPos.y, localPos.z, type);
     
     // Regenerate mesh for this chunk
     regenerateChunkMesh(chunkPos);
@@ -119,6 +165,7 @@ void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
 }
 
 size_t ChunkManager::getTotalFaceCount() const {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     size_t total = 0;
     for (const auto& [chunkPos, faces] : m_chunkMeshes) {
         total += faces.size();
@@ -152,6 +199,7 @@ void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
 
 void ChunkManager::unloadChunk(const glm::ivec3& chunkPos) {
     LOG_TRACE("Unloading chunk at (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     m_chunks.erase(chunkPos);
     m_chunkMeshes.erase(chunkPos);
 }
@@ -217,6 +265,7 @@ bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& 
 }
 
 void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(chunkPos);
     if (it == m_chunks.end()) {
         return;
@@ -225,6 +274,92 @@ void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
     // Regenerate mesh for this chunk
     auto faces = m_meshGenerator->generateChunkMesh(*it->second);
     m_chunkMeshes[chunkPos] = std::move(faces);
+}
+
+void ChunkManager::loadChunkAsync(const glm::ivec3& chunkPos, int priority) {
+    // Add to loading queue
+    std::lock_guard<std::mutex> lock(m_queueMutex);
+    m_loadQueue.push({chunkPos, priority});
+    m_queueCondition.notify_one();
+}
+
+void ChunkManager::chunkWorkerThread() {
+    while (!m_shutdown) {
+        ChunkLoadRequest request;
+        
+        // Wait for work
+        {
+            std::unique_lock<std::mutex> lock(m_queueMutex);
+            m_queueCondition.wait(lock, [this] { return !m_loadQueue.empty() || m_shutdown; });
+            
+            if (m_shutdown) {
+                break;
+            }
+            
+            request = m_loadQueue.top();
+            m_loadQueue.pop();
+        }
+        
+        // Check if chunk is still needed
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            if (m_chunks.find(request.chunkPos) != m_chunks.end()) {
+                continue; // Already loaded
+            }
+        }
+        
+        // Load chunk in background
+        auto chunkData = loadChunkBackground(request.chunkPos);
+        
+        // Add to completed queue
+        {
+            std::lock_guard<std::mutex> lock(m_completedMutex);
+            m_completedChunks.push({request.chunkPos, std::move(chunkData)});
+        }
+    }
+}
+
+std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& chunkPos) {
+    LOG_TRACE("Loading chunk at (%d, %d, %d) in background", chunkPos.x, chunkPos.y, chunkPos.z);
+    
+    auto chunkData = std::make_unique<ChunkData>();
+    
+    // Create new chunk
+    chunkData->chunk = std::make_unique<Chunk>(chunkPos);
+    
+    // Generate terrain
+    generateTerrain(*chunkData->chunk);
+    
+    // Generate mesh
+    chunkData->faces = m_meshGenerator->generateChunkMesh(*chunkData->chunk);
+    
+    chunkData->ready = true;
+    return chunkData;
+}
+
+void ChunkManager::processCompletedChunks() {
+    std::lock_guard<std::mutex> completedLock(m_completedMutex);
+    
+    while (!m_completedChunks.empty()) {
+        auto [chunkPos, chunkData] = std::move(m_completedChunks.front());
+        m_completedChunks.pop();
+        
+        // Move to main chunk storage
+        {
+            std::lock_guard<std::mutex> chunksLock(m_chunksMutex);
+            m_chunks[chunkPos] = std::move(chunkData->chunk);
+            m_chunkMeshes[chunkPos] = std::move(chunkData->faces);
+        }
+        
+        // Mark for rebuild
+        m_needsRebuild = true;
+    }
+    
+    // Rebuild if needed
+    if (m_needsRebuild) {
+        rebuildAllFaceInstances();
+        m_needsRebuild = false;
+    }
 }
 
 } // namespace Zerith

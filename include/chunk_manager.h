@@ -6,6 +6,12 @@
 #include <unordered_map>
 #include <memory>
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
+#include <atomic>
+#include <future>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -13,9 +19,25 @@
 
 namespace Zerith {
 
+struct ChunkLoadRequest {
+    glm::ivec3 chunkPos;
+    int priority;
+    
+    bool operator<(const ChunkLoadRequest& other) const {
+        return priority < other.priority; // Higher priority first
+    }
+};
+
+struct ChunkData {
+    std::unique_ptr<Chunk> chunk;
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
+    std::atomic<bool> ready{false};
+};
+
 class ChunkManager {
 public:
     ChunkManager();
+    ~ChunkManager();
     
     // Update which chunks are loaded based on player position
     void updateLoadedChunks(const glm::vec3& playerPosition);
@@ -42,13 +64,19 @@ public:
     
     // Get mesh generator for texture array access
     const ChunkMeshGenerator* getMeshGenerator() const { return m_meshGenerator.get(); }
+    
+    // Process completed chunk loading tasks
+    void processCompletedChunks();
 
 private:
     // Convert world position to chunk position
     glm::ivec3 worldToChunkPos(const glm::vec3& worldPos) const;
     
-    // Load a chunk at the given chunk position
+    // Load a chunk at the given chunk position (synchronous)
     void loadChunk(const glm::ivec3& chunkPos);
+    
+    // Load a chunk asynchronously
+    void loadChunkAsync(const glm::ivec3& chunkPos, int priority = 0);
     
     // Unload a chunk
     void unloadChunk(const glm::ivec3& chunkPos);
@@ -61,6 +89,12 @@ private:
     
     // Regenerate mesh for a chunk
     void regenerateChunkMesh(const glm::ivec3& chunkPos);
+    
+    // Worker thread function
+    void chunkWorkerThread();
+    
+    // Background chunk loading function
+    std::unique_ptr<ChunkData> loadChunkBackground(const glm::ivec3& chunkPos);
 
 private:
     // Chunk storage - key is chunk position
@@ -83,6 +117,21 @@ private:
     
     // Flag to track if face instances need to be rebuilt
     bool m_needsRebuild = true;
+    
+    // Threading components
+    std::vector<std::thread> m_workerThreads;
+    std::priority_queue<ChunkLoadRequest> m_loadQueue;
+    std::unordered_map<glm::ivec3, std::future<std::unique_ptr<ChunkData>>> m_loadingChunks;
+    
+    // Thread synchronization
+    mutable std::mutex m_chunksMutex;
+    mutable std::mutex m_queueMutex;
+    std::condition_variable m_queueCondition;
+    std::atomic<bool> m_shutdown{false};
+    
+    // Completed chunks ready to be integrated
+    std::queue<std::pair<glm::ivec3, std::unique_ptr<ChunkData>>> m_completedChunks;
+    std::mutex m_completedMutex;
     
     // Rebuild the combined face instance vector
     void rebuildAllFaceInstances();
