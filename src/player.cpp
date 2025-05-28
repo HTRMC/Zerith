@@ -1,5 +1,6 @@
 #include "player.h"
 #include "chunk_manager.h"
+#include "raycast.h"
 #include "logger.h"
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -50,7 +51,7 @@ namespace Zerith {
         }
     }
 
-    void Player::handleInput(GLFWwindow *window, float deltaTime) {
+    void Player::handleInput(GLFWwindow *window, float deltaTime, ChunkManager* chunkManager) {
         glm::vec3 movement(0.0f);
 
         // Input mapping (same as before)
@@ -248,6 +249,20 @@ namespace Zerith {
         m_rotation.x -= deltaY * MOUSE_SENSITIVITY;
 
         m_rotation.x = std::clamp(m_rotation.x, -1.5f, 1.5f);
+        
+        // Handle block interaction
+        handleBlockInteraction(window, chunkManager);
+        
+        // Handle block selection with number keys
+        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::STONE;
+        } else if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::DIRT;
+        } else if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::GRASS_BLOCK;
+        } else if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::OAK_PLANKS;
+        }
     }
 
     void Player::setPosition(const glm::vec3 &position) {
@@ -431,5 +446,70 @@ namespace Zerith {
                 updateAABB();
             }
         }
+    }
+
+    void Player::handleBlockInteraction(GLFWwindow* window, ChunkManager* chunkManager) {
+        if (!chunkManager) return;
+        
+        // Check mouse button states
+        bool leftMouseCurrentlyPressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+        bool rightMouseCurrentlyPressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+        
+        // Handle left click (destroy block)
+        if (leftMouseCurrentlyPressed && !m_leftMousePressed) {
+            // Calculate camera direction
+            glm::vec3 cameraFront;
+            cameraFront.x = cos(m_rotation.y) * cos(m_rotation.x);
+            cameraFront.y = sin(m_rotation.x);
+            cameraFront.z = sin(m_rotation.y) * cos(m_rotation.x);
+            cameraFront = glm::normalize(cameraFront);
+            
+            // Get eye position
+            glm::vec3 eyePosition = m_position + glm::vec3(0.0f, m_eyeHeight, 0.0f);
+            
+            // Perform raycast
+            auto hit = Raycast::cast(eyePosition, cameraFront, BLOCK_REACH, chunkManager);
+            
+            if (hit.has_value()) {
+                // Destroy the block
+                chunkManager->setBlock(glm::vec3(hit->blockPos), BlockType::AIR);
+                LOG_INFO("Block destroyed at (%d, %d, %d)", hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+            }
+        }
+        
+        // Handle right click (place block)
+        if (rightMouseCurrentlyPressed && !m_rightMousePressed) {
+            // Calculate camera direction
+            glm::vec3 cameraFront;
+            cameraFront.x = cos(m_rotation.y) * cos(m_rotation.x);
+            cameraFront.y = sin(m_rotation.x);
+            cameraFront.z = sin(m_rotation.y) * cos(m_rotation.x);
+            cameraFront = glm::normalize(cameraFront);
+            
+            // Get eye position
+            glm::vec3 eyePosition = m_position + glm::vec3(0.0f, m_eyeHeight, 0.0f);
+            
+            // Perform raycast
+            auto hit = Raycast::cast(eyePosition, cameraFront, BLOCK_REACH, chunkManager);
+            
+            if (hit.has_value()) {
+                // Place block at the previous position (adjacent to the hit face)
+                glm::vec3 placePos = glm::vec3(hit->previousPos);
+                
+                // Check if placement position would intersect with player
+                AABB blockAABB;
+                blockAABB.min = glm::vec3(hit->previousPos);
+                blockAABB.max = blockAABB.min + glm::vec3(1.0f);
+                
+                if (!m_aabb.intersects(blockAABB)) {
+                    chunkManager->setBlock(placePos, m_selectedBlockType);
+                    LOG_INFO("Block placed at (%d, %d, %d)", hit->previousPos.x, hit->previousPos.y, hit->previousPos.z);
+                }
+            }
+        }
+        
+        // Update button states
+        m_leftMousePressed = leftMouseCurrentlyPressed;
+        m_rightMousePressed = rightMouseCurrentlyPressed;
     }
 } // namespace Zerith

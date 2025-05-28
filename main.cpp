@@ -33,6 +33,7 @@
 // Player and collision support
 #include "player.h"
 #include "aabb.h"
+#include "raycast.h"
 
 // Texture data structure
 struct TextureData {
@@ -2482,7 +2483,7 @@ private:
         glm::vec3 oldPosition = player->getPosition();
         
         // Handle player input and physics
-        player->handleInput(window, deltaTime);
+        player->handleInput(window, deltaTime, chunkManager.get());
         player->update(deltaTime, chunkManager.get());
         
         // Update chunks if player moved

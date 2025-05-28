@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include "aabb.h"
+#include "chunk.h"
 
 struct GLFWwindow;
 
@@ -14,7 +15,7 @@ public:
     Player(const glm::vec3& position = glm::vec3(0.0f, 10.0f, 0.0f));
     
     void update(float deltaTime, ChunkManager* chunkManager);
-    void handleInput(GLFWwindow* window, float deltaTime);
+    void handleInput(GLFWwindow* window, float deltaTime, ChunkManager* chunkManager);
     
     const glm::vec3& getPosition() const { return m_position; }
     const glm::vec3& getVelocity() const { return m_velocity; }
@@ -31,11 +32,15 @@ public:
     
     float getEyeHeight() const { return m_eyeHeight; }
     
+    void setSelectedBlockType(BlockType type) { m_selectedBlockType = type; }
+    BlockType getSelectedBlockType() const { return m_selectedBlockType; }
+    
 private:
     void updateAABB();
     void applyGravity(float deltaTime);
     void resolveCollisions(ChunkManager* chunkManager);
     void resolveCollisionsAxis(ChunkManager* chunkManager, int axis);
+    void handleBlockInteraction(GLFWwindow* window, ChunkManager* chunkManager);
 
     glm::vec3 m_position;
     glm::vec3 m_velocity;
@@ -67,6 +72,12 @@ private:
     
     // Movement state
     bool m_isMoving = false;
+    
+    // Block interaction state
+    BlockType m_selectedBlockType = BlockType::STONE;
+    bool m_leftMousePressed = false;
+    bool m_rightMousePressed = false;
+    static constexpr float BLOCK_REACH = 5.0f;
 };
 
 } // namespace Zerith
