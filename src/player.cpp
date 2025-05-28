@@ -55,16 +55,16 @@ namespace Zerith {
 
         // Input mapping (same as before)
         if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-            movement.x -= 1.0f;
+            movement.z += 1.0f;
         }
         if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-            movement.x += 1.0f;
+            movement.z -= 1.0f;
         }
         if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-            movement.z -= 1.0f; // Left
+            movement.x -= 1.0f; // Left
         }
         if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-            movement.z += 1.0f; // Right
+            movement.x += 1.0f; // Right
         }
 
         // Handle space key for jumping and fly toggle
