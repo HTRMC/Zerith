@@ -14,7 +14,8 @@
 #include <fstream>
 #include <chrono>
 #include <algorithm>
-#include <spng.h>  // libspng for PNG loading
+#include <spng.h>
+#include <cstring>
 
 // Logger
 #include "logger.h"
