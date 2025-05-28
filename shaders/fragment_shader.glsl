@@ -19,6 +19,14 @@ void main() {
     vec3 texCoords = vec3(v_in.texCoord, float(v_in.textureLayer));
     vec4 texColor = texture(texArraySampler, texCoords);
     
+    // Define grass color for multiplication
+    vec3 grassColor = vec3(121.0/255.0, 192.0/255.0, 90.0/255.0);
+    
+    // Apply color multiplication for grass top texture (layer 3)
+    if (v_in.textureLayer == 3u) {
+        texColor.rgb *= grassColor;
+    }
+    
     // Special handling for grass block sides (texture layer 4)
     // Check if this is a grass block side face (not top/bottom)
     if (v_in.textureLayer == 4u && v_in.faceIndex >= 2u) {
@@ -26,11 +34,14 @@ void main() {
         vec3 overlayCoords = vec3(v_in.texCoord, 5.0);
         vec4 overlayColor = texture(texArraySampler, overlayCoords);
         
+        // Apply color multiplication to the overlay
+        overlayColor.rgb *= grassColor;
+        
         // Blend overlay on top of base texture using alpha blending
         texColor.rgb = mix(texColor.rgb, overlayColor.rgb, overlayColor.a);
     }
     
-    // Output texture color directly without any tinting
+    // Output texture color
     outColor = texColor;
     
     // Debug UV coordinates with a pattern
