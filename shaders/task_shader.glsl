@@ -4,11 +4,11 @@
 // Configure task shader to dispatch a single mesh shader workgroup
 layout(local_size_x = 1) in;
 
-// Updated uniform buffer with packed data
-layout(binding = 0) uniform CompressedUBO {
+// Uniform buffer object
+layout(binding = 0) uniform UniformBufferObject {
     float time;           // Time for animation
-    uvec2 packedCamera;   // packed camera position and orientation
-    uvec2 packedProj;     // packed projection parameters
+    mat4 view;            // View matrix
+    mat4 proj;            // Projection matrix
     uint faceCount;       // Number of face instances to render
 } ubo;
 

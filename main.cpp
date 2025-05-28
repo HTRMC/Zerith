@@ -170,20 +170,20 @@ const bool enableValidationLayers = true;
 #endif
 
 // Uniform buffer object
-struct CompressedUBO {
+struct UniformBufferObject {
     // Time value for animation (4 bytes)
     alignas(4) float time;
-
-    // Camera data (8 bytes) - packed as 4 half-precision floats
-    alignas(8) uint32_t packedCamera[2];
-
-    // Projection data (8 bytes) - packed as 4 half-precision floats
-    alignas(8) uint32_t packedProjection[2];
+    
+    // View matrix (64 bytes)
+    alignas(16) glm::mat4 view;
+    
+    // Projection matrix (64 bytes)
+    alignas(16) glm::mat4 proj;
 
     // Number of face instances to render (4 bytes)
     alignas(4) uint32_t faceCount;
 
-    // Total: 24 bytes
+    // Total: 136 bytes (4 + 64 + 64 + 4)
 };
 
 // Face instance data for storage buffer
@@ -196,13 +196,6 @@ struct FaceInstanceData {
     uint32_t padding[3];            // Padding to maintain 16-byte alignment
 };
 
-uint32_t packHalf2(float a, float b) {
-    return glm::packHalf2x16(glm::vec2(a, b));
-}
-
-uint32_t packUnorm2(float a, float b) {
-    return glm::packUnorm2x16(glm::vec2(a, b));
-}
 
 // Queue family indices helper
 struct QueueFamilyIndices {
@@ -1912,7 +1905,7 @@ private:
     }
 
     void createUniformBuffers() {
-        VkDeviceSize bufferSize = sizeof(CompressedUBO);
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
         uniformBuffers.resize(swapChainImages.size());
         uniformBuffersMemory.resize(swapChainImages.size());
@@ -2065,7 +2058,7 @@ private:
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = uniformBuffers[i];
             bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(CompressedUBO);
+            bufferInfo.range = sizeof(UniformBufferObject);
             
             // Image sampler info
             VkDescriptorImageInfo imageInfo{};
@@ -2130,7 +2123,7 @@ private:
             VkDescriptorBufferInfo bufferInfo{};
             bufferInfo.buffer = uniformBuffers[i];
             bufferInfo.offset = 0;
-            bufferInfo.range = sizeof(CompressedUBO);
+            bufferInfo.range = sizeof(UniformBufferObject);
             
             // AABB storage buffer info
             VkDescriptorBufferInfo storageBufferInfo{};
@@ -2210,36 +2203,37 @@ private:
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        CompressedUBO compressedUbo{};
-        compressedUbo.time = time;  // Send the time to the shader for animation
+        UniformBufferObject ubo{};
+        ubo.time = time;
 
         // Camera parameters for free-look camera
         glm::vec3 playerPos = player ? player->getPosition() + glm::vec3(0.0f, player->getEyeHeight(), 0.0f) : glm::vec3(0.0f);
         glm::vec3 playerRot = player ? player->getRotation() : glm::vec3(0.0f);
         
-        // First value is now X position
-        float camPosX = playerPos.x;
-        float camPitch = playerRot.x;
-        
-        // Second pair is Y position and Yaw
-        float camPosY = playerPos.y;
-        float camYaw = playerRot.y;
-        
-        // Third pair (using time field temporarily) is Z position
-        float camPosZ = playerPos.z;
 
-        // Projection parameters
+        // Create view matrix using lookAt
+        // Calculate the forward direction from pitch and yaw
+        glm::vec3 forward;
+        forward.x = cos(playerRot.y) * cos(playerRot.x);
+        forward.y = sin(playerRot.x);
+        forward.z = sin(playerRot.y) * cos(playerRot.x);
+        forward = glm::normalize(forward);
+        
+        glm::vec3 target = playerPos + forward;
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        ubo.view = glm::lookAt(playerPos, target, up);
+
+        // Create projection matrix (Vulkan needs Y-flip)
         float aspect = swapChainExtent.width / (float)swapChainExtent.height;
-        float fov = 0.785f; // 45 degrees in radians
-
-        // Pack camera position, orientation and projection data
-        compressedUbo.packedCamera[0] = packHalf2(camPosX, camPitch);
-        compressedUbo.packedCamera[1] = packHalf2(camPosY, camYaw);
-        compressedUbo.packedProjection[0] = packHalf2(fov, aspect);
-        compressedUbo.packedProjection[1] = packHalf2(camPosZ, 100.0f); // Use near value to store Z position
+        float fov = glm::radians(45.0f);
+        float nearPlane = 0.1f;
+        float farPlane = 100.0f;
+        ubo.proj = glm::perspective(fov, aspect, nearPlane, farPlane);
+        ubo.proj[1][1] *= -1; // Flip Y coordinate for Vulkan
         
         // Set face count for dynamic rendering
-        compressedUbo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+        ubo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+        
         
         // Update AABB debug data if enabled
         if (showDebugAABBs && aabbDebugRenderer) {
@@ -2269,12 +2263,12 @@ private:
             
             // Update AABB count in UBO (reuse faceCount field when in debug mode)
             if (showDebugAABBs) {
-                compressedUbo.faceCount = static_cast<uint32_t>(aabbDebugRenderer->getCount());
+                ubo.faceCount = static_cast<uint32_t>(aabbDebugRenderer->getCount());
             }
         }
 
-        // Copy compressed data to buffer
-        memcpy(uniformBuffersMapped[currentImage], &compressedUbo, sizeof(compressedUbo));
+        // Copy UBO data to buffer
+        memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
     }
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {

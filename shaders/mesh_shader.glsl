@@ -62,10 +62,10 @@ layout(location = 0) out PerVertexData {
 } v_out[];
 
 // Updated uniform buffer with packed data
-layout(binding = 0) uniform CompressedUBO {
+layout(binding = 0) uniform UniformBufferObject {
     float time;           // Time for animation
-    uvec2 packedCamera;   // packed camera position and orientation
-    uvec2 packedProj;     // packed projection parameters
+    mat4 view;            // View matrix
+    mat4 proj;            // Projection matrix
     uint faceCount;       // Number of face instances to render
 } ubo;
 
@@ -141,88 +141,6 @@ mat4 reconstructModelMatrix() {
     );
 }
 
-// Function to unpack 2 half-float values from a uint
-vec2 unpackHalf2(uint packedValue) {
-    return unpackHalf2x16(packedValue);
-}
-
-// Reconstruct the view matrix from packed camera data
-mat4 reconstructViewMatrix() {
-    // Unpack camera parameters
-    vec2 posXPitch = unpackHalf2(ubo.packedCamera[0]);
-    vec2 posYYaw = unpackHalf2(ubo.packedCamera[1]);
-    vec2 posZFar = unpackHalf2(ubo.packedProj[1]);
-    
-    // Camera position in 3D space
-    vec3 cameraPos = vec3(posXPitch.x, posYYaw.x, posZFar.x);
-    
-    // Camera orientation angles
-    float pitch = posXPitch.y;
-    float yaw = posYYaw.y;
-    
-    // Calculate the three camera basis vectors using the standard view space convention
-    
-    // Forward vector (camera looks down the negative z-axis in view space)
-    vec3 forward;
-    forward.x = sin(yaw) * cos(pitch);
-    forward.y = sin(pitch);
-    forward.z = -cos(yaw) * cos(pitch);
-    forward = normalize(forward);
-    
-    // Right vector (positive x-axis in view space)
-    // Use a fixed world up vector for stability
-    vec3 worldUp = vec3(0.0, 1.0, 0.0);
-    vec3 right = normalize(cross(forward, worldUp));
-    
-    // Camera's up vector (positive y-axis in view space)
-    vec3 up = normalize(cross(right, forward));
-    
-    // Build view matrix directly using GLM conventions
-    // For a camera view matrix, we need the inverse of the camera transform
-    // This is equivalent to:
-    // 1. The rows of the rotation matrix are the camera's local basis vectors
-    // 2. The translation is -position transformed by the rotation
-    
-    // First, create the rotation part (transpose of the camera's orientation)
-    mat4 view;
-    view[0][0] = right.x;   view[0][1] = up.x;   view[0][2] = -forward.x;   view[0][3] = 0.0;
-    view[1][0] = right.y;   view[1][1] = up.y;   view[1][2] = -forward.y;   view[1][3] = 0.0;
-    view[2][0] = right.z;   view[2][1] = up.z;   view[2][2] = -forward.z;   view[2][3] = 0.0;
-    
-    // Then add the translation part (negated and rotated camera position)
-    view[3][0] = -dot(right, cameraPos);
-    view[3][1] = -dot(up, cameraPos);
-    view[3][2] = dot(forward, cameraPos);
-    view[3][3] = 1.0;
-    
-    return view;
-}
-
-// Reconstruct the projection matrix from packed projection data
-mat4 reconstructProjMatrix() {
-    // Unpack projection parameters
-    vec2 fovAspect = unpackHalf2(ubo.packedProj[0]);
-    vec2 posZFar = unpackHalf2(ubo.packedProj[1]);
-
-    float fov = fovAspect.x;
-    float aspect = fovAspect.y;
-    float near = 0.1;  // Use fixed near plane
-    float far = posZFar.y;   // Far plane from the packed data
-
-    // Create projection matrix
-    float tanHalfFov = tan(fov / 2.0);
-    float f = 1.0 / tanHalfFov;
-    float nf = 1.0 / (near - far);
-
-    mat4 proj = mat4(
-        vec4(f / aspect, 0.0, 0.0, 0.0),
-        vec4(0.0, -f, 0.0, 0.0),
-        vec4(0.0, 0.0, far * nf, -1.0),
-        vec4(0.0, 0.0, far * near * nf, 0.0)
-    );
-
-    return proj;
-}
 
 // Helper to transform a quad vertex based on face transformation
 vec3 transformQuadVertex(vec3 vertex, mat4 faceModel) {
@@ -258,10 +176,10 @@ void main() {
     }
     barrier();
     
-    // Reconstruct matrices from compressed data
-    mat4 cubeModel = reconstructModelMatrix();  // Overall cube rotation
-    mat4 view = reconstructViewMatrix();
-    mat4 proj = reconstructProjMatrix();
+    // Use matrices directly from UBO
+    mat4 cubeModel = reconstructModelMatrix();  // Overall cube rotation (still using time-based animation)
+    mat4 view = ubo.view;
+    mat4 proj = ubo.proj;
     mat4 vp = proj * view;
     
     // Base index for this face's vertices in the output arrays (relative to workgroup)
