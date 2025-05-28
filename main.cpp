@@ -435,12 +435,12 @@ private:
         // Update loaded chunks based on player position
         chunkManager->updateLoadedChunks(player ? player->getPosition() : glm::vec3(0.0f));
         
-        // Get reference to all face instances for rendering
-        const auto& chunkFaces = chunkManager->getAllFaceInstances();
-        currentInstances.faces = chunkFaces; // This still copies, but only when chunks change
-        
-        // If face count changed significantly, recreate the buffer
-        if (currentInstances.faces.size() != previousFaceCount) {
+        // Only update face instances if they have changed (avoids unnecessary operations)
+        if (chunkManager->hasFaceInstancesChanged()) {
+            // Get face instances for rendering (only when changed)
+            currentInstances.faces = chunkManager->getFaceInstancesWhenChanged();
+            
+            // Recreate buffer since face instances changed
             recreateFaceInstanceBuffer();
         }
     }

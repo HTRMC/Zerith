@@ -92,8 +92,9 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
         }
     }
     
-    // Rebuild combined face instances if chunks changed
+    // Mark for rebuild if chunks changed
     if (chunksChanged) {
+        m_needsRebuild = true;
         rebuildAllFaceInstances();
         // Only print chunk updates occasionally for performance
         static int updateCount = 0;
@@ -105,16 +106,20 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
 }
 
 void ChunkManager::rebuildAllFaceInstances() {
-    m_allFaceInstances.clear();
+    // Build new vector instead of clearing and rebuilding
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> newFaceInstances;
     
     // Reserve space for better performance
     size_t totalFaces = getTotalFaceCount();
-    m_allFaceInstances.reserve(totalFaces);
+    newFaceInstances.reserve(totalFaces);
     
     // Collect all face instances from all chunks
     for (const auto& [chunkPos, faces] : m_chunkMeshes) {
-        m_allFaceInstances.insert(m_allFaceInstances.end(), faces.begin(), faces.end());
+        newFaceInstances.insert(newFaceInstances.end(), faces.begin(), faces.end());
     }
+    
+    // Move the new vector to replace the old one (avoids unnecessary deallocations)
+    m_allFaceInstances = std::move(newFaceInstances);
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& chunkPos) {
@@ -161,7 +166,8 @@ void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
     if (localPos.z == 0) regenerateChunkMesh(chunkPos + glm::ivec3(0, 0, -1));
     if (localPos.z == Chunk::CHUNK_SIZE - 1) regenerateChunkMesh(chunkPos + glm::ivec3(0, 0, 1));
     
-    // Rebuild the combined face instances
+    // Mark for rebuild and rebuild the combined face instances
+    m_needsRebuild = true;
     rebuildAllFaceInstances();
 }
 
@@ -320,7 +326,7 @@ void ChunkManager::processCompletedChunks() {
     // Rebuild if needed
     if (m_needsRebuild) {
         rebuildAllFaceInstances();
-        m_needsRebuild = false;
+        // Don't reset m_needsRebuild here - let it be reset when face instances are consumed
     }
 }
 

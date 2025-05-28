@@ -46,6 +46,15 @@ public:
     // Get all face instances for rendering (returns reference to avoid copying)
     const std::vector<BlockbenchInstanceGenerator::FaceInstance>& getAllFaceInstances() const { return m_allFaceInstances; }
     
+    // Get face instances for rendering when changed (avoids unnecessary operations)
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> getFaceInstancesWhenChanged() { 
+        m_needsRebuild = false;
+        return m_allFaceInstances; // Copy, but only when actually changed
+    }
+    
+    // Check if face instances have been updated since last move
+    bool hasFaceInstancesChanged() const { return m_needsRebuild; }
+    
     // Get a specific chunk (returns nullptr if not loaded)
     Chunk* getChunk(const glm::ivec3& chunkPos);
     
