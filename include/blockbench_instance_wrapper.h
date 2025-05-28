@@ -26,17 +26,23 @@ public:
     }
 
     // Generate face instances at a specific world position
-    std::vector<BlockbenchInstanceGenerator::FaceInstance> generateInstancesAtPosition(const glm::vec3& position)
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> generateInstancesAtPosition(const glm::vec3& position) const
     {
         std::vector<BlockbenchInstanceGenerator::FaceInstance> instances;
         instances.reserve(m_baseInstances.faces.size());
 
-        // Copy base instances and offset by position
+        // Copy base instances and offset by position using emplace_back
         for (const auto& face : m_baseInstances.faces)
         {
-            BlockbenchInstanceGenerator::FaceInstance newFace = face;
-            newFace.position += position;
-            instances.push_back(newFace);
+            instances.emplace_back(
+                face.position + position,  // position
+                face.rotation,             // rotation
+                face.scale,                // scale
+                face.faceDirection,        // faceDirection
+                face.uv,                   // uv
+                face.textureLayer,         // textureLayer
+                face.textureName           // textureName
+            );
         }
 
         return instances;

@@ -109,9 +109,9 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
     // Generate faces at this position
     auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
     
-    // Add all faces without culling
-    for (const auto& face : blockFaces) {
-        faces.push_back(face);
+    // Add all faces without culling using move semantics
+    for (auto&& face : blockFaces) {
+        faces.emplace_back(std::move(face));
     }
 }
 
