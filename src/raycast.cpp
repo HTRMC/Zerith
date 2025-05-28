@@ -2,6 +2,7 @@
 #include "chunk_manager.h"
 #include <cmath>
 #include <algorithm>
+#include <limits>
 
 namespace Zerith {
 
@@ -17,74 +18,88 @@ std::optional<RaycastHit> Raycast::cast(
 
     glm::vec3 normalizedDir = glm::normalize(direction);
     
+    // Current position in the grid
     glm::ivec3 current(
         static_cast<int>(std::floor(origin.x)),
         static_cast<int>(std::floor(origin.y)),
         static_cast<int>(std::floor(origin.z))
     );
     
+    // Direction to step in (1, 0, or -1 for each axis)
     glm::ivec3 step = sign(normalizedDir);
     
-    glm::vec3 tMax(
-        intbound(origin.x, normalizedDir.x),
-        intbound(origin.y, normalizedDir.y),
-        intbound(origin.z, normalizedDir.z)
-    );
+    // Calculate tMax - distance to next grid line
+    glm::vec3 tMax;
+    if (normalizedDir.x != 0) {
+        tMax.x = (normalizedDir.x > 0) ? 
+            (std::floor(origin.x) + 1.0f - origin.x) / normalizedDir.x :
+            (origin.x - std::floor(origin.x)) / -normalizedDir.x;
+    } else {
+        tMax.x = std::numeric_limits<float>::max();
+    }
     
-    glm::vec3 tDelta(
-        step.x / normalizedDir.x,
-        step.y / normalizedDir.y,
-        step.z / normalizedDir.z
-    );
+    if (normalizedDir.y != 0) {
+        tMax.y = (normalizedDir.y > 0) ? 
+            (std::floor(origin.y) + 1.0f - origin.y) / normalizedDir.y :
+            (origin.y - std::floor(origin.y)) / -normalizedDir.y;
+    } else {
+        tMax.y = std::numeric_limits<float>::max();
+    }
     
-    glm::ivec3 face(0);
-    glm::ivec3 previous = current;
+    if (normalizedDir.z != 0) {
+        tMax.z = (normalizedDir.z > 0) ? 
+            (std::floor(origin.z) + 1.0f - origin.z) / normalizedDir.z :
+            (origin.z - std::floor(origin.z)) / -normalizedDir.z;
+    } else {
+        tMax.z = std::numeric_limits<float>::max();
+    }
     
-    float distanceTraveled = 0.0f;
+    // Calculate tDelta - distance between grid lines
+    glm::vec3 tDelta;
+    tDelta.x = (normalizedDir.x != 0) ? std::abs(1.0f / normalizedDir.x) : std::numeric_limits<float>::max();
+    tDelta.y = (normalizedDir.y != 0) ? std::abs(1.0f / normalizedDir.y) : std::numeric_limits<float>::max();
+    tDelta.z = (normalizedDir.z != 0) ? std::abs(1.0f / normalizedDir.z) : std::numeric_limits<float>::max();
     
-    while (distanceTraveled < maxDistance) {
+    glm::ivec3 normal(0);
+    
+    float distance = 0.0f;
+    
+    // Step through the grid
+    while (distance < maxDistance) {
+        // Check current block
         BlockType blockType = chunkManager->getBlock(glm::vec3(current));
         
         if (blockType != BlockType::AIR) {
             RaycastHit hit;
             hit.blockPos = current;
-            hit.previousPos = previous;
-            hit.normal = -face;
-            hit.distance = distanceTraveled;
+            hit.previousPos = current - normal; // Calculate previous position using normal
+            hit.normal = normal;
+            hit.distance = distance;
             hit.blockType = blockType;
-            
-            glm::vec3 hitPos = origin + normalizedDir * distanceTraveled;
-            hit.hitPoint = hitPos;
+            hit.hitPoint = origin + normalizedDir * distance;
             
             return hit;
         }
         
-        previous = current;
-        
-        if (tMax.x < tMax.y) {
-            if (tMax.x < tMax.z) {
-                current.x += step.x;
-                distanceTraveled = tMax.x;
-                tMax.x += tDelta.x;
-                face = glm::ivec3(-step.x, 0, 0);
-            } else {
-                current.z += step.z;
-                distanceTraveled = tMax.z;
-                tMax.z += tDelta.z;
-                face = glm::ivec3(0, 0, -step.z);
-            }
+        // Move to next grid cell
+        if (tMax.x < tMax.y && tMax.x < tMax.z) {
+            // X axis
+            distance = tMax.x;
+            tMax.x += tDelta.x;
+            current.x += step.x;
+            normal = glm::ivec3(-step.x, 0, 0);
+        } else if (tMax.y < tMax.z) {
+            // Y axis
+            distance = tMax.y;
+            tMax.y += tDelta.y;
+            current.y += step.y;
+            normal = glm::ivec3(0, -step.y, 0);
         } else {
-            if (tMax.y < tMax.z) {
-                current.y += step.y;
-                distanceTraveled = tMax.y;
-                tMax.y += tDelta.y;
-                face = glm::ivec3(0, -step.y, 0);
-            } else {
-                current.z += step.z;
-                distanceTraveled = tMax.z;
-                tMax.z += tDelta.z;
-                face = glm::ivec3(0, 0, -step.z);
-            }
+            // Z axis
+            distance = tMax.z;
+            tMax.z += tDelta.z;
+            current.z += step.z;
+            normal = glm::ivec3(0, 0, -step.z);
         }
     }
     
@@ -99,13 +114,5 @@ glm::ivec3 Raycast::sign(const glm::vec3& v) {
     );
 }
 
-float Raycast::intbound(float s, float ds) {
-    if (ds < 0) {
-        return intbound(-s, -ds);
-    } else {
-        s = fmod(s, 1.0f);
-        return (1 - s) / ds;
-    }
-}
 
 } // namespace Zerith

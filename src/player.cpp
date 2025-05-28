@@ -493,17 +493,17 @@ namespace Zerith {
             auto hit = Raycast::cast(eyePosition, cameraFront, BLOCK_REACH, chunkManager);
             
             if (hit.has_value()) {
-                // Place block at the previous position (adjacent to the hit face)
-                glm::vec3 placePos = glm::vec3(hit->previousPos);
+                // Place block adjacent to the hit block using the surface normal
+                glm::ivec3 placePos = hit->blockPos + hit->normal;
                 
                 // Check if placement position would intersect with player
                 AABB blockAABB;
-                blockAABB.min = glm::vec3(hit->previousPos);
+                blockAABB.min = glm::vec3(placePos);
                 blockAABB.max = blockAABB.min + glm::vec3(1.0f);
                 
                 if (!m_aabb.intersects(blockAABB)) {
-                    chunkManager->setBlock(placePos, m_selectedBlockType);
-                    LOG_INFO("Block placed at (%d, %d, %d)", hit->previousPos.x, hit->previousPos.y, hit->previousPos.z);
+                    chunkManager->setBlock(glm::vec3(placePos), m_selectedBlockType);
+                    LOG_INFO("Block placed at (%d, %d, %d)", placePos.x, placePos.y, placePos.z);
                 }
             }
         }

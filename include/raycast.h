@@ -28,7 +28,6 @@ public:
 
 private:
     static glm::ivec3 sign(const glm::vec3& v);
-    static float intbound(float s, float ds);
 };
 
 } // namespace Zerith
