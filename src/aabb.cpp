@@ -107,7 +107,7 @@ std::vector<AABB> CollisionSystem::getBlockAABBsInRegion(const AABB& region, Chu
                 BlockType blockType = chunkManager->getBlock(blockPos);
                 
                 if (blockType != BlockType::AIR) {
-                    blockAABBs.push_back(AABB::fromBlock(glm::ivec3(x, y, z)));
+                    blockAABBs.emplace_back(AABB::fromBlock(glm::ivec3(x, y, z)));
                 }
             }
         }
@@ -126,7 +126,7 @@ void AABBDebugRenderer::addAABB(const AABB& aabb, const glm::vec3& color) {
     data.min = glm::vec4(aabb.min, 0.0f);
     data.max = glm::vec4(aabb.max, 0.0f);
     data.color = glm::vec4(color, 1.0f);
-    m_debugData.push_back(data);
+    m_debugData.emplace_back(std::move(data));
 }
 
 void AABBDebugRenderer::addPlayerAABB(const AABB& aabb) {

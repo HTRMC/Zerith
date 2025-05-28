@@ -37,7 +37,7 @@ void TextureAtlas::initializeTextureMap() {
     
     // Precalculate texture regions
     for (int i = 0; i < m_textureFiles.size(); ++i) {
-        m_textureRegions.push_back(calculateRegion(i));
+        m_textureRegions.emplace_back(calculateRegion(i));
     }
 }
 

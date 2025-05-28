@@ -218,7 +218,7 @@ inline BlockbenchModel::Model parseFromString(const std::string& jsonString) {
                         }
                     }
                     
-                    model.elements.push_back(element);
+                    model.elements.emplace_back(std::move(element));
                     
                     // Move to next element
                     currentPos = elementEnd;
