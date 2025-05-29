@@ -121,8 +121,7 @@ void ChunkManager::rebuildAllFaceInstances() {
     // Move the new vector to replace the old one (avoids unnecessary deallocations)
     m_allFaceInstances = std::move(newFaceInstances);
     
-    // Rebuild indirect commands when face instances are rebuilt
-    rebuildIndirectCommands();
+    // Note: Indirect commands disabled for performance - using single draw call approach
 }
 
 void ChunkManager::rebuildIndirectCommands() {

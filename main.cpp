@@ -447,7 +447,6 @@ private:
         if (chunkManager->hasFaceInstancesChanged()) {
             // Get face instances for rendering (only when changed)
             auto newFaces = chunkManager->getFaceInstancesWhenChanged();
-            LOG_DEBUG("Updating face instances: %zu faces from chunks", newFaces.size());
             currentInstances.faces = std::move(newFaces);
             
             // Recreate buffer since face instances changed
@@ -2251,39 +2250,7 @@ private:
         }
     }
 
-    void updateIndirectDrawBuffer() {
-        if (!chunkManager) return;
-        
-        const auto& indirectManager = chunkManager->getIndirectDrawManager();
-        const auto& drawCommands = indirectManager.getDrawCommands();
-        const auto& chunkData = indirectManager.getChunkData();
-        
-        if (drawCommands.empty()) return;
-        
-        // Ensure we don't write beyond buffer bounds
-        size_t maxCommands = 1000; // Must match buffer allocation
-        size_t commandCount = std::min(drawCommands.size(), maxCommands);
-        
-        if (commandCount != drawCommands.size()) {
-            LOG_WARN("Too many draw commands (%zu), clamping to %zu", drawCommands.size(), maxCommands);
-        }
-        
-        // Update indirect draw buffer
-        void* data;
-        vkMapMemory(device, indirectDrawBufferMemory, 0, 
-                   sizeof(Zerith::DrawMeshTasksIndirectCommand) * commandCount, 0, &data);
-        memcpy(data, drawCommands.data(), sizeof(Zerith::DrawMeshTasksIndirectCommand) * commandCount);
-        vkUnmapMemory(device, indirectDrawBufferMemory);
-        
-        // Update chunk data buffer
-        if (!chunkData.empty() && commandCount > 0) {
-            size_t chunkDataCount = std::min(chunkData.size(), maxCommands);
-            vkMapMemory(device, chunkDataBufferMemory, 0,
-                       sizeof(Zerith::ChunkDrawData) * chunkDataCount, 0, &data);
-            memcpy(data, chunkData.data(), sizeof(Zerith::ChunkDrawData) * chunkDataCount);
-            vkUnmapMemory(device, chunkDataBufferMemory);
-        }
-    }
+    // Removed updateIndirectDrawBuffer - it was causing performance regression
     
     void updateUniformBuffer(uint32_t currentImage) {
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -2401,46 +2368,9 @@ private:
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
-        // Use indirect drawing if chunk manager is available
-        if (chunkManager) {
-            const auto& indirectManager = chunkManager->getIndirectDrawManager();
-            const auto& drawCommands = indirectManager.getDrawCommands();
-            const auto& chunkData = indirectManager.getChunkData();
-            
-            if (!drawCommands.empty() && currentInstances.faces.size() > 0) {
-                LOG_DEBUG("Using indirect drawing: %zu commands, %zu total faces", 
-                         drawCommands.size(), currentInstances.faces.size());
-                
-                // Update indirect buffers before drawing
-                updateIndirectDrawBuffer();
-                
-                // Draw all chunks with indirect drawing
-                size_t maxCommands = 1000; // Must match buffer allocation
-                size_t commandCount = std::min(drawCommands.size(), maxCommands);
-                
-                // Use traditional single draw call approach
-                // Set push constants to cover all faces
-                struct PushConstants {
-                    uint32_t firstFaceIndex;
-                    uint32_t faceCount;
-                } pc;
-                pc.firstFaceIndex = 0;
-                pc.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
-                
-                vkCmdPushConstants(commandBuffer, pipelineLayout,
-                                 VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
-                                 0, sizeof(pc), &pc);
-                
-                // Calculate total workgroups needed for all faces
-                uint32_t facesPerWorkgroup = 32;
-                uint32_t totalWorkgroups = (pc.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
-                
-                // Single draw call for all chunks
-                vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
-            }
-        } else {
-            // Fallback to direct drawing
-            // Set default push constants
+        // Simple, fast single draw call (revert to original approach)
+        if (currentInstances.faces.size() > 0) {
+            // Set push constants
             struct PushConstants {
                 uint32_t firstFaceIndex;
                 uint32_t faceCount;
@@ -2452,7 +2382,12 @@ private:
                              VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
                              0, sizeof(pc), &pc);
             
-            vkCmdDrawMeshTasksEXT(commandBuffer, 1, 1, 1);
+            // Calculate total workgroups needed for all faces
+            uint32_t facesPerWorkgroup = 32;
+            uint32_t totalWorkgroups = (pc.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+            
+            // Single efficient draw call
+            vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
         }
         
         // Draw AABB debug wireframes if enabled

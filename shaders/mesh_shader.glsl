@@ -160,27 +160,20 @@ void main() {
     uint workgroupIndex = gl_WorkGroupID.x;
     uint localIndex = gl_LocalInvocationID.x;
     uint facesPerWorkgroup = 32;
-    uint localFaceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
+    uint faceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
     
-    // Apply chunk offset for indirect drawing
-    uint faceIndex = pc.firstFaceIndex + localFaceIndex;
-    
-    // Early exit if this face is beyond this chunk's face count
-    if (localFaceIndex >= pc.faceCount) {
+    // Early exit if this invocation is beyond the actual face count
+    if (faceIndex >= pc.faceCount) {
         return;
     }
     
-    // Early exit if this invocation is beyond the global face count
-    if (faceIndex >= ubo.faceCount) {
-        return;
-    }
-    
-    // Calculate how many faces this workgroup will process for this chunk
-    uint remainingFaces = pc.faceCount - workgroupIndex * facesPerWorkgroup;
-    uint facesInThisWorkgroup = min(facesPerWorkgroup, remainingFaces);
+    // Calculate how many faces this workgroup will process
+    uint startFace = workgroupIndex * facesPerWorkgroup;
+    uint endFace = min(startFace + facesPerWorkgroup, pc.faceCount);
+    uint facesInThisWorkgroup = endFace - startFace;
     
     // Early exit if no faces to process
-    if (facesInThisWorkgroup == 0 || localIndex >= facesInThisWorkgroup) {
+    if (facesInThisWorkgroup == 0) {
         return;
     }
     
