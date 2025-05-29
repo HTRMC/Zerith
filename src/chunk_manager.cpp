@@ -120,6 +120,40 @@ void ChunkManager::rebuildAllFaceInstances() {
     
     // Move the new vector to replace the old one (avoids unnecessary deallocations)
     m_allFaceInstances = std::move(newFaceInstances);
+    
+    // Rebuild indirect commands when face instances are rebuilt
+    rebuildIndirectCommands();
+}
+
+void ChunkManager::rebuildIndirectCommands() {
+    m_indirectDrawManager.clear();
+    
+    uint32_t currentFaceIndex = 0;
+    
+    // Create an indirect draw command for each chunk
+    // Note: This must be called after rebuildAllFaceInstances to ensure consistency
+    for (const auto& [chunkPos, faces] : m_chunkMeshes) {
+        if (faces.empty()) continue;
+        
+        // Calculate chunk bounds in world space
+        glm::vec3 chunkWorldPos = glm::vec3(chunkPos) * float(Chunk::CHUNK_SIZE);
+        float minBounds[3] = {chunkWorldPos.x, chunkWorldPos.y, chunkWorldPos.z};
+        float maxBounds[3] = {
+            chunkWorldPos.x + Chunk::CHUNK_SIZE,
+            chunkWorldPos.y + Chunk::CHUNK_SIZE,
+            chunkWorldPos.z + Chunk::CHUNK_SIZE
+        };
+        
+        // Add indirect draw command for this chunk
+        m_indirectDrawManager.addChunkDrawCommand(
+            static_cast<uint32_t>(faces.size()),
+            minBounds,
+            maxBounds,
+            currentFaceIndex
+        );
+        
+        currentFaceIndex += static_cast<uint32_t>(faces.size());
+    }
 }
 
 Chunk* ChunkManager::getChunk(const glm::ivec3& chunkPos) {
@@ -324,7 +358,9 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
     const Chunk* neighborZMinus = nullptr;
     const Chunk* neighborZPlus = nullptr;
     
-    // Lock to safely access neighbor chunks
+    // Generate mesh with neighbor awareness
+    // We need to keep the mutex locked during mesh generation to prevent neighbor chunks from being unloaded
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
     {
         std::lock_guard<std::mutex> lock(m_chunksMutex);
         
@@ -345,13 +381,15 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
         
         neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
         if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
+        
+        // Generate mesh while holding the lock to ensure neighbor chunks don't get unloaded
+        faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunkData->chunk,
+                                                               neighborXMinus, neighborXPlus,
+                                                               neighborYMinus, neighborYPlus,
+                                                               neighborZMinus, neighborZPlus);
     }
     
-    // Generate mesh with neighbor awareness
-    chunkData->faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunkData->chunk,
-                                                                       neighborXMinus, neighborXPlus,
-                                                                       neighborYMinus, neighborYPlus,
-                                                                       neighborZMinus, neighborZPlus);
+    chunkData->faces = std::move(faces);
     
     chunkData->ready = true;
     return chunkData;

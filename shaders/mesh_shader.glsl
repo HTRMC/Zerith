@@ -69,6 +69,12 @@ layout(binding = 0) uniform UniformBufferObject {
     uint faceCount;       // Number of face instances to render
 } ubo;
 
+// Push constant for indirect drawing
+layout(push_constant) uniform PushConstants {
+    uint firstFaceIndex;  // Starting face index for this draw
+    uint faceCount;       // Number of faces in this chunk
+} pc;
+
 // Face instance structure for storage buffer
 struct FaceInstanceData {
     vec4 position;  // vec3 + padding
@@ -154,17 +160,29 @@ void main() {
     uint workgroupIndex = gl_WorkGroupID.x;
     uint localIndex = gl_LocalInvocationID.x;
     uint facesPerWorkgroup = 32;
-    uint faceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
+    uint localFaceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
     
-    // Early exit if this invocation is beyond the actual face count
+    // Apply chunk offset for indirect drawing
+    uint faceIndex = pc.firstFaceIndex + localFaceIndex;
+    
+    // Early exit if this face is beyond this chunk's face count
+    if (localFaceIndex >= pc.faceCount) {
+        return;
+    }
+    
+    // Early exit if this invocation is beyond the global face count
     if (faceIndex >= ubo.faceCount) {
         return;
     }
     
-    // Calculate how many faces this workgroup will process
-    uint startFace = workgroupIndex * facesPerWorkgroup;
-    uint endFace = min(startFace + facesPerWorkgroup, ubo.faceCount);
-    uint facesInThisWorkgroup = endFace - startFace;
+    // Calculate how many faces this workgroup will process for this chunk
+    uint remainingFaces = pc.faceCount - workgroupIndex * facesPerWorkgroup;
+    uint facesInThisWorkgroup = min(facesPerWorkgroup, remainingFaces);
+    
+    // Early exit if no faces to process
+    if (facesInThisWorkgroup == 0 || localIndex >= facesInThisWorkgroup) {
+        return;
+    }
     
     // Set the number of vertices and primitives for this workgroup
     uint actualVertices = facesInThisWorkgroup * VERTICES_PER_FACE;

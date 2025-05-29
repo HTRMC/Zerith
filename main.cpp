@@ -28,6 +28,7 @@
 // Chunk support
 #include "chunk.h"
 #include "chunk_mesh_generator.h"
+#include "indirect_draw.h"
 #include "chunk_manager.h"
 
 // Player and collision support
@@ -309,6 +310,12 @@ private:
     // Storage buffer for face instances
     VkBuffer faceInstanceBuffer;
     VkDeviceMemory faceInstanceBufferMemory;
+    
+    // Indirect draw buffers
+    VkBuffer indirectDrawBuffer;
+    VkDeviceMemory indirectDrawBufferMemory;
+    VkBuffer chunkDataBuffer;
+    VkDeviceMemory chunkDataBufferMemory;
     void* faceInstanceBufferMapped;
 
     VkDescriptorPool descriptorPool;
@@ -327,6 +334,7 @@ private:
 
     // Mesh shader specific function pointers
     PFN_vkCmdDrawMeshTasksEXT vkCmdDrawMeshTasksEXT;
+    PFN_vkCmdDrawMeshTasksIndirectEXT vkCmdDrawMeshTasksIndirectEXT;
 
     bool framebufferResized = false;
 
@@ -420,7 +428,7 @@ private:
         chunkManager = std::make_unique<Zerith::ChunkManager>();
         
         // Set initial render distance
-        chunkManager->setRenderDistance(8); // Start with 2 chunks render distance
+        chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
         
         // Don't update chunks yet - wait until after Vulkan is initialized
         LOG_INFO("Chunk manager initialized");
@@ -438,7 +446,9 @@ private:
         // Only update face instances if they have changed (avoids unnecessary operations)
         if (chunkManager->hasFaceInstancesChanged()) {
             // Get face instances for rendering (only when changed)
-            currentInstances.faces = chunkManager->getFaceInstancesWhenChanged();
+            auto newFaces = chunkManager->getFaceInstancesWhenChanged();
+            LOG_DEBUG("Updating face instances: %zu faces from chunks", newFaces.size());
+            currentInstances.faces = std::move(newFaces);
             
             // Recreate buffer since face instances changed
             recreateFaceInstanceBuffer();
@@ -521,6 +531,7 @@ private:
         createUniformBuffers();
         createFaceInstanceBuffer();
         createAABBInstanceBuffer();
+        createIndirectDrawBuffers();
         createDescriptorPool();
         createDescriptorSets();
         createAABBDescriptorSets();
@@ -1336,6 +1347,13 @@ private:
         if (!vkCmdDrawMeshTasksEXT) {
             throw std::runtime_error("failed to get mesh shader function pointer!");
         }
+        
+        vkCmdDrawMeshTasksIndirectEXT = reinterpret_cast<PFN_vkCmdDrawMeshTasksIndirectEXT>(
+            vkGetDeviceProcAddr(device, "vkCmdDrawMeshTasksIndirectEXT"));
+        
+        if (!vkCmdDrawMeshTasksIndirectEXT) {
+            throw std::runtime_error("failed to get indirect mesh shader function pointer!");
+        }
     }
 
     void createSwapChain() {
@@ -1706,10 +1724,18 @@ private:
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
+        // Push constant range for indirect drawing
+        VkPushConstantRange pushConstantRange{};
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT;
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = sizeof(uint32_t) * 2; // firstFaceIndex + chunkIndex
+
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
         pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -1979,6 +2005,32 @@ private:
         
         LOG_DEBUG("AABB instance buffer created with capacity for 1000 AABBs");
     }
+    
+    void createIndirectDrawBuffers() {
+        // Create indirect draw command buffer
+        VkDeviceSize indirectBufferSize = sizeof(Zerith::DrawMeshTasksIndirectCommand) * 1000; // Max 1000 chunks
+        
+        createBuffer(
+            indirectBufferSize,
+            VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            indirectDrawBuffer,
+            indirectDrawBufferMemory
+        );
+        
+        // Create chunk data buffer for GPU culling
+        VkDeviceSize chunkDataSize = sizeof(Zerith::ChunkDrawData) * 1000; // Max 1000 chunks
+        
+        createBuffer(
+            chunkDataSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            chunkDataBuffer,
+            chunkDataBufferMemory
+        );
+        
+        LOG_DEBUG("Indirect draw buffers created");
+    }
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
                      VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
@@ -2199,6 +2251,40 @@ private:
         }
     }
 
+    void updateIndirectDrawBuffer() {
+        if (!chunkManager) return;
+        
+        const auto& indirectManager = chunkManager->getIndirectDrawManager();
+        const auto& drawCommands = indirectManager.getDrawCommands();
+        const auto& chunkData = indirectManager.getChunkData();
+        
+        if (drawCommands.empty()) return;
+        
+        // Ensure we don't write beyond buffer bounds
+        size_t maxCommands = 1000; // Must match buffer allocation
+        size_t commandCount = std::min(drawCommands.size(), maxCommands);
+        
+        if (commandCount != drawCommands.size()) {
+            LOG_WARN("Too many draw commands (%zu), clamping to %zu", drawCommands.size(), maxCommands);
+        }
+        
+        // Update indirect draw buffer
+        void* data;
+        vkMapMemory(device, indirectDrawBufferMemory, 0, 
+                   sizeof(Zerith::DrawMeshTasksIndirectCommand) * commandCount, 0, &data);
+        memcpy(data, drawCommands.data(), sizeof(Zerith::DrawMeshTasksIndirectCommand) * commandCount);
+        vkUnmapMemory(device, indirectDrawBufferMemory);
+        
+        // Update chunk data buffer
+        if (!chunkData.empty() && commandCount > 0) {
+            size_t chunkDataCount = std::min(chunkData.size(), maxCommands);
+            vkMapMemory(device, chunkDataBufferMemory, 0,
+                       sizeof(Zerith::ChunkDrawData) * chunkDataCount, 0, &data);
+            memcpy(data, chunkData.data(), sizeof(Zerith::ChunkDrawData) * chunkDataCount);
+            vkUnmapMemory(device, chunkDataBufferMemory);
+        }
+    }
+    
     void updateUniformBuffer(uint32_t currentImage) {
         static auto startTime = std::chrono::high_resolution_clock::now();
         auto currentTime = std::chrono::high_resolution_clock::now();
@@ -2315,9 +2401,59 @@ private:
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
-        // Draw the cube using a single task shader workgroup
-        // The mesh shader will create all 6 faces from a single quad
-        vkCmdDrawMeshTasksEXT(commandBuffer, 1, 1, 1);
+        // Use indirect drawing if chunk manager is available
+        if (chunkManager) {
+            const auto& indirectManager = chunkManager->getIndirectDrawManager();
+            const auto& drawCommands = indirectManager.getDrawCommands();
+            const auto& chunkData = indirectManager.getChunkData();
+            
+            if (!drawCommands.empty() && currentInstances.faces.size() > 0) {
+                LOG_DEBUG("Using indirect drawing: %zu commands, %zu total faces", 
+                         drawCommands.size(), currentInstances.faces.size());
+                
+                // Update indirect buffers before drawing
+                updateIndirectDrawBuffer();
+                
+                // Draw all chunks with indirect drawing
+                size_t maxCommands = 1000; // Must match buffer allocation
+                size_t commandCount = std::min(drawCommands.size(), maxCommands);
+                
+                // Use traditional single draw call approach
+                // Set push constants to cover all faces
+                struct PushConstants {
+                    uint32_t firstFaceIndex;
+                    uint32_t faceCount;
+                } pc;
+                pc.firstFaceIndex = 0;
+                pc.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+                
+                vkCmdPushConstants(commandBuffer, pipelineLayout,
+                                 VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
+                                 0, sizeof(pc), &pc);
+                
+                // Calculate total workgroups needed for all faces
+                uint32_t facesPerWorkgroup = 32;
+                uint32_t totalWorkgroups = (pc.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+                
+                // Single draw call for all chunks
+                vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
+            }
+        } else {
+            // Fallback to direct drawing
+            // Set default push constants
+            struct PushConstants {
+                uint32_t firstFaceIndex;
+                uint32_t faceCount;
+            } pc;
+            pc.firstFaceIndex = 0;
+            pc.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+            
+            vkCmdPushConstants(commandBuffer, pipelineLayout,
+                             VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
+                             0, sizeof(pc), &pc);
+            
+            vkCmdDrawMeshTasksEXT(commandBuffer, 1, 1, 1);
+        }
         
         // Draw AABB debug wireframes if enabled
         if (showDebugAABBs && aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {
@@ -2515,6 +2651,13 @@ private:
         }
         vkDestroyBuffer(device, aabbInstanceBuffer, nullptr);
         vkFreeMemory(device, aabbInstanceBufferMemory, nullptr);
+        
+        // Clean up indirect draw buffers
+        vkDestroyBuffer(device, indirectDrawBuffer, nullptr);
+        vkFreeMemory(device, indirectDrawBufferMemory, nullptr);
+        vkDestroyBuffer(device, chunkDataBuffer, nullptr);
+        vkFreeMemory(device, chunkDataBufferMemory, nullptr);
+        
         vkDestroyPipeline(device, aabbDebugPipeline, nullptr);
         vkDestroyPipelineLayout(device, aabbPipelineLayout, nullptr);
         vkDestroyDescriptorSetLayout(device, aabbDescriptorSetLayout, nullptr);

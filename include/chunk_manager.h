@@ -4,6 +4,7 @@
 #include "chunk_mesh_generator.h"
 #include "terrain_generator.h"
 #include "blockbench_instance_generator.h"
+#include "indirect_draw.h"
 #include <unordered_map>
 #include <memory>
 #include <vector>
@@ -97,6 +98,9 @@ public:
     
     // Process completed chunk loading tasks
     void processCompletedChunks();
+    
+    // Get indirect draw manager
+    const IndirectDrawManager& getIndirectDrawManager() const { return m_indirectDrawManager; }
 
 private:
     // Convert world position to chunk position
@@ -168,6 +172,12 @@ private:
     
     // Rebuild the combined face instance vector
     void rebuildAllFaceInstances();
+    
+    // Rebuild indirect draw commands
+    void rebuildIndirectCommands();
+    
+    // Indirect draw manager
+    IndirectDrawManager m_indirectDrawManager;
 };
 
 } // namespace Zerith

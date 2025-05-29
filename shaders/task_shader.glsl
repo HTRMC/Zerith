@@ -12,6 +12,12 @@ layout(binding = 0) uniform UniformBufferObject {
     uint faceCount;       // Number of face instances to render
 } ubo;
 
+// Push constant for indirect drawing
+layout(push_constant) uniform PushConstants {
+    uint firstFaceIndex;  // Starting face index for this draw
+    uint faceCount;       // Number of faces in this chunk
+} pc;
+
 // Declare an empty payload structure
 struct MeshTaskPayload {
     float dummy;
@@ -24,11 +30,11 @@ void main() {
     // Set dummy value
     payload.dummy = 1.0;
 
-    // Calculate how many mesh workgroups we need
+    // Calculate how many mesh workgroups we need for this chunk
     // Each mesh workgroup can handle 32 faces
     uint facesPerWorkgroup = 32;
-    uint numWorkgroups = (ubo.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+    uint numWorkgroups = (pc.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
     
-    // Emit mesh tasks for all workgroups needed
+    // Emit mesh tasks for this chunk's workgroups
     EmitMeshTasksEXT(numWorkgroups, 1, 1);
 }

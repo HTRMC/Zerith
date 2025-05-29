@@ -79,6 +79,7 @@ add_executable(Zerith
     src/player.cpp
     src/terrain_generator.cpp
     src/raycast.cpp
+    src/indirect_draw.cpp
 )
 
 # Add shader dependencies
