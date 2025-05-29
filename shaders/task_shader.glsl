@@ -10,6 +10,8 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 view;            // View matrix
     mat4 proj;            // Projection matrix
     uint faceCount;       // Number of face instances to render
+    vec4 cameraPos;       // Camera position for LOD
+    vec4 frustumPlanes[6]; // Frustum planes for culling
 } ubo;
 
 // Push constants removed - using UBO directly for better performance
@@ -40,6 +42,26 @@ struct MeshTaskPayload {
 // Then declare it as shared
 taskPayloadSharedEXT MeshTaskPayload payload;
 
+// Test if an AABB is inside the frustum
+bool isAABBInFrustum(vec3 minBounds, vec3 maxBounds) {
+    // Test against all 6 frustum planes
+    for (int i = 0; i < 6; i++) {
+        vec4 plane = ubo.frustumPlanes[i];
+        
+        // Find the vertex most positive along the plane normal
+        vec3 p;
+        p.x = (plane.x > 0.0) ? maxBounds.x : minBounds.x;
+        p.y = (plane.y > 0.0) ? maxBounds.y : minBounds.y;
+        p.z = (plane.z > 0.0) ? maxBounds.z : minBounds.z;
+        
+        // If this vertex is outside the plane, the whole AABB is outside
+        if (dot(vec4(p, 1.0), plane) < 0.0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void main() {
     // For indirect drawing with multiple draws, we need a different approach
     // Since each draw launches 1 task workgroup, we can use a counter or push constant
@@ -52,8 +74,11 @@ void main() {
     // Get chunk data
     ChunkDrawData chunk = chunkDataBuffer.chunks[chunkIndex];
     
-    // TODO: Add frustum culling here
-    // For now, just process all chunks
+    // Perform frustum culling
+    if (!isAABBInFrustum(chunk.minBounds, chunk.maxBounds)) {
+        // Chunk is outside frustum - don't emit any mesh workgroups
+        return;
+    }
     
     // Pass chunk info to mesh shader
     payload.chunkIndex = chunkIndex;
@@ -64,6 +89,6 @@ void main() {
     uint facesPerWorkgroup = 32;
     uint numWorkgroups = (chunk.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
     
-    // Emit mesh tasks for this chunk
+    // Emit mesh tasks for visible chunk
     EmitMeshTasksEXT(numWorkgroups, 1, 1);
 }

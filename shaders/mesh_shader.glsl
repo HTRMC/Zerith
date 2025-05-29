@@ -69,6 +69,8 @@ layout(binding = 0) uniform UniformBufferObject {
     mat4 view;            // View matrix
     mat4 proj;            // Projection matrix
     uint faceCount;       // Number of face instances to render
+    vec4 cameraPos;       // Camera position for LOD
+    vec4 frustumPlanes[6]; // Frustum planes for culling
 } ubo;
 
 // Push constants removed - using UBO directly for better performance

@@ -184,6 +184,13 @@ struct UniformBufferObject {
 
     // Number of face instances to render (4 bytes)
     alignas(4) uint32_t faceCount;
+    
+    // Camera position for LOD (16 bytes)
+    alignas(16) glm::vec4 cameraPos;
+    
+    // Frustum planes for GPU culling (6 planes * 16 bytes = 96 bytes)
+    // Each plane is (normal.x, normal.y, normal.z, distance)
+    alignas(16) glm::vec4 frustumPlanes[6];
 
     // Total: 136 bytes (4 + 64 + 64 + 4)
 };
@@ -352,6 +359,9 @@ private:
     
     // Chunk support
     std::unique_ptr<Zerith::ChunkManager> chunkManager;
+    
+    // Debug data
+    UniformBufferObject lastUBO{};
     
     // AABB Debug Rendering
     VkPipelineLayout aabbPipelineLayout;
@@ -2284,6 +2294,96 @@ private:
         vkUnmapMemory(device, indirectDrawBufferMemory);
     }
     
+    // Extract frustum planes from view-projection matrix
+    void extractFrustumPlanes(const glm::mat4& vp, glm::vec4 planes[6]) {
+        // Left plane
+        planes[0].x = vp[0][3] + vp[0][0];
+        planes[0].y = vp[1][3] + vp[1][0];
+        planes[0].z = vp[2][3] + vp[2][0];
+        planes[0].w = vp[3][3] + vp[3][0];
+        
+        // Right plane  
+        planes[1].x = vp[0][3] - vp[0][0];
+        planes[1].y = vp[1][3] - vp[1][0];
+        planes[1].z = vp[2][3] - vp[2][0];
+        planes[1].w = vp[3][3] - vp[3][0];
+        
+        // Bottom plane
+        planes[2].x = vp[0][3] + vp[0][1];
+        planes[2].y = vp[1][3] + vp[1][1];
+        planes[2].z = vp[2][3] + vp[2][1];
+        planes[2].w = vp[3][3] + vp[3][1];
+        
+        // Top plane
+        planes[3].x = vp[0][3] - vp[0][1];
+        planes[3].y = vp[1][3] - vp[1][1];
+        planes[3].z = vp[2][3] - vp[2][1];
+        planes[3].w = vp[3][3] - vp[3][1];
+        
+        // Near plane
+        planes[4].x = vp[0][3] + vp[0][2];
+        planes[4].y = vp[1][3] + vp[1][2];
+        planes[4].z = vp[2][3] + vp[2][2];
+        planes[4].w = vp[3][3] + vp[3][2];
+        
+        // Far plane
+        planes[5].x = vp[0][3] - vp[0][2];
+        planes[5].y = vp[1][3] - vp[1][2];
+        planes[5].z = vp[2][3] - vp[2][2];
+        planes[5].w = vp[3][3] - vp[3][2];
+        
+        // Normalize the planes
+        for (int i = 0; i < 6; i++) {
+            float length = glm::length(glm::vec3(planes[i]));
+            planes[i] /= length;
+        }
+    }
+    
+    void printFrustumCullingStats() {
+        if (!chunkManager) return;
+        
+        const auto& indirectManager = chunkManager->getIndirectDrawManager();
+        const auto& chunkData = indirectManager.getChunkData();
+        
+        if (chunkData.empty()) return;
+        
+        // Count visible chunks by doing frustum culling on CPU
+        int visibleChunks = 0;
+        int totalChunks = static_cast<int>(chunkData.size());
+        
+        for (const auto& chunk : chunkData) {
+            glm::vec3 minBounds(chunk.minBounds[0], chunk.minBounds[1], chunk.minBounds[2]);
+            glm::vec3 maxBounds(chunk.maxBounds[0], chunk.maxBounds[1], chunk.maxBounds[2]);
+            
+            bool visible = true;
+            for (int i = 0; i < 6; i++) {
+                glm::vec4 plane = lastUBO.frustumPlanes[i];
+                
+                // Find the vertex most positive along the plane normal
+                glm::vec3 p;
+                p.x = (plane.x > 0.0f) ? maxBounds.x : minBounds.x;
+                p.y = (plane.y > 0.0f) ? maxBounds.y : minBounds.y;
+                p.z = (plane.z > 0.0f) ? maxBounds.z : minBounds.z;
+                
+                // If this vertex is outside the plane, the whole AABB is outside
+                if (glm::dot(glm::vec4(p, 1.0f), plane) < 0.0f) {
+                    visible = false;
+                    break;
+                }
+            }
+            
+            if (visible) {
+                visibleChunks++;
+            }
+        }
+        
+        float cullingRate = (totalChunks > 0) ? 
+            100.0f * (1.0f - static_cast<float>(visibleChunks) / static_cast<float>(totalChunks)) : 0.0f;
+        
+        LOG_INFO("Frustum Culling: %d/%d chunks visible (%.1f%% culled)",
+                 visibleChunks, totalChunks, cullingRate);
+    }
+    
     void updateChunkDataBuffer() {
         if (!chunkManager) return;
         
@@ -2339,8 +2439,12 @@ private:
         // Set face count for dynamic rendering
         ubo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
         
-        // For indirect drawing, we also need chunk count
-        // TODO: Add chunk count to UBO or use a different mechanism
+        // Set camera position
+        ubo.cameraPos = glm::vec4(playerPos, 1.0f);
+        
+        // Extract frustum planes from view-projection matrix
+        glm::mat4 viewProj = ubo.proj * ubo.view;
+        extractFrustumPlanes(viewProj, ubo.frustumPlanes);
         
         
         // Update AABB debug data if enabled
@@ -2377,6 +2481,9 @@ private:
 
         // Copy UBO data to buffer
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+        
+        // Store for debug statistics
+        lastUBO = ubo;
     }
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -2590,6 +2697,7 @@ private:
     void mainLoop() {
         // For calculating delta time
         auto lastFrameTime = std::chrono::high_resolution_clock::now();
+        auto lastStatsTime = std::chrono::high_resolution_clock::now();
         
         while (!glfwWindowShouldClose(window)) {
             // Calculate delta time
@@ -2603,6 +2711,13 @@ private:
             // Poll events and render
             glfwPollEvents();
             drawFrame();
+            
+            // Print frustum culling statistics every second
+            auto timeSinceStats = std::chrono::duration<float>(currentTime - lastStatsTime).count();
+            if (timeSinceStats >= 1.0f) {
+                printFrustumCullingStats();
+                lastStatsTime = currentTime;
+            }
         }
 
         vkDeviceWaitIdle(device);
