@@ -117,7 +117,7 @@ private:
     // Check if a chunk position is within render distance
     bool isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& centerChunkPos) const;
     
-    // Regenerate mesh for a chunk
+    // Regenerate mesh for a chunk (e.g., when neighbors change)
     void regenerateChunkMesh(const glm::ivec3& chunkPos);
     
     // Worker thread function

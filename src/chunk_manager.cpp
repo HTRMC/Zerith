@@ -196,8 +196,37 @@ void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
     // Generate terrain
     generateTerrain(*chunk);
     
-    // Generate mesh
-    auto faces = m_meshGenerator->generateChunkMesh(*chunk);
+    // Get neighboring chunks for proper face culling
+    const Chunk* neighborXMinus = nullptr;
+    const Chunk* neighborXPlus = nullptr;
+    const Chunk* neighborYMinus = nullptr;
+    const Chunk* neighborYPlus = nullptr;
+    const Chunk* neighborZMinus = nullptr;
+    const Chunk* neighborZPlus = nullptr;
+    
+    auto neighborIt = m_chunks.find(chunkPos + glm::ivec3(-1, 0, 0));
+    if (neighborIt != m_chunks.end()) neighborXMinus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(1, 0, 0));
+    if (neighborIt != m_chunks.end()) neighborXPlus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, -1, 0));
+    if (neighborIt != m_chunks.end()) neighborYMinus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 1, 0));
+    if (neighborIt != m_chunks.end()) neighborYPlus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, -1));
+    if (neighborIt != m_chunks.end()) neighborZMinus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
+    if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
+    
+    // Generate mesh with neighbor awareness
+    auto faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunk,
+                                                                  neighborXMinus, neighborXPlus,
+                                                                  neighborYMinus, neighborYPlus,
+                                                                  neighborZMinus, neighborZPlus);
     m_chunkMeshes[chunkPos] = std::move(faces);
     
     // Store chunk
@@ -232,17 +261,6 @@ bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& 
     return true;
 }
 
-void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
-    std::lock_guard<std::mutex> lock(m_chunksMutex);
-    auto it = m_chunks.find(chunkPos);
-    if (it == m_chunks.end()) {
-        return;
-    }
-    
-    // Regenerate mesh for this chunk
-    auto faces = m_meshGenerator->generateChunkMesh(*it->second);
-    m_chunkMeshes[chunkPos] = std::move(faces);
-}
 
 void ChunkManager::loadChunkAsync(const glm::ivec3& chunkPos, int priority) {
     // Add to loading queue
@@ -298,8 +316,42 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
     // Generate terrain
     generateTerrain(*chunkData->chunk);
     
-    // Generate mesh
-    chunkData->faces = m_meshGenerator->generateChunkMesh(*chunkData->chunk);
+    // Get neighboring chunks for proper face culling
+    const Chunk* neighborXMinus = nullptr;
+    const Chunk* neighborXPlus = nullptr;
+    const Chunk* neighborYMinus = nullptr;
+    const Chunk* neighborYPlus = nullptr;
+    const Chunk* neighborZMinus = nullptr;
+    const Chunk* neighborZPlus = nullptr;
+    
+    // Lock to safely access neighbor chunks
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        
+        auto neighborIt = m_chunks.find(chunkPos + glm::ivec3(-1, 0, 0));
+        if (neighborIt != m_chunks.end()) neighborXMinus = neighborIt->second.get();
+        
+        neighborIt = m_chunks.find(chunkPos + glm::ivec3(1, 0, 0));
+        if (neighborIt != m_chunks.end()) neighborXPlus = neighborIt->second.get();
+        
+        neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, -1, 0));
+        if (neighborIt != m_chunks.end()) neighborYMinus = neighborIt->second.get();
+        
+        neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 1, 0));
+        if (neighborIt != m_chunks.end()) neighborYPlus = neighborIt->second.get();
+        
+        neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, -1));
+        if (neighborIt != m_chunks.end()) neighborZMinus = neighborIt->second.get();
+        
+        neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
+        if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
+    }
+    
+    // Generate mesh with neighbor awareness
+    chunkData->faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunkData->chunk,
+                                                                       neighborXMinus, neighborXPlus,
+                                                                       neighborYMinus, neighborYPlus,
+                                                                       neighborZMinus, neighborZPlus);
     
     chunkData->ready = true;
     return chunkData;
@@ -307,6 +359,8 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
 
 void ChunkManager::processCompletedChunks() {
     std::lock_guard<std::mutex> completedLock(m_completedMutex);
+    
+    std::vector<glm::ivec3> chunksToRegenerate;
     
     while (!m_completedChunks.empty()) {
         auto [chunkPos, chunkData] = std::move(m_completedChunks.front());
@@ -317,10 +371,31 @@ void ChunkManager::processCompletedChunks() {
             std::lock_guard<std::mutex> chunksLock(m_chunksMutex);
             m_chunks[chunkPos] = std::move(chunkData->chunk);
             m_chunkMeshes[chunkPos] = std::move(chunkData->faces);
+            
+            // Check which neighboring chunks exist and need regeneration
+            glm::ivec3 neighbors[6] = {
+                chunkPos + glm::ivec3(-1, 0, 0),
+                chunkPos + glm::ivec3(1, 0, 0),
+                chunkPos + glm::ivec3(0, -1, 0),
+                chunkPos + glm::ivec3(0, 1, 0),
+                chunkPos + glm::ivec3(0, 0, -1),
+                chunkPos + glm::ivec3(0, 0, 1)
+            };
+            
+            for (const auto& neighborPos : neighbors) {
+                if (m_chunks.find(neighborPos) != m_chunks.end()) {
+                    chunksToRegenerate.push_back(neighborPos);
+                }
+            }
         }
         
         // Mark for rebuild
         m_needsRebuild = true;
+    }
+    
+    // Regenerate neighboring chunks' meshes to account for new neighbors
+    for (const auto& chunkPos : chunksToRegenerate) {
+        regenerateChunkMesh(chunkPos);
     }
     
     // Rebuild if needed
@@ -328,6 +403,53 @@ void ChunkManager::processCompletedChunks() {
         rebuildAllFaceInstances();
         // Don't reset m_needsRebuild here - let it be reset when face instances are consumed
     }
+}
+
+void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
+    
+    auto chunkIt = m_chunks.find(chunkPos);
+    if (chunkIt == m_chunks.end()) {
+        return;
+    }
+    
+    // Get neighboring chunks for proper face culling
+    const Chunk* neighborXMinus = nullptr;
+    const Chunk* neighborXPlus = nullptr;
+    const Chunk* neighborYMinus = nullptr;
+    const Chunk* neighborYPlus = nullptr;
+    const Chunk* neighborZMinus = nullptr;
+    const Chunk* neighborZPlus = nullptr;
+    
+    auto neighborIt = m_chunks.find(chunkPos + glm::ivec3(-1, 0, 0));
+    if (neighborIt != m_chunks.end()) neighborXMinus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(1, 0, 0));
+    if (neighborIt != m_chunks.end()) neighborXPlus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, -1, 0));
+    if (neighborIt != m_chunks.end()) neighborYMinus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 1, 0));
+    if (neighborIt != m_chunks.end()) neighborYPlus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, -1));
+    if (neighborIt != m_chunks.end()) neighborZMinus = neighborIt->second.get();
+    
+    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
+    if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
+    
+    // Generate mesh for this chunk with neighbor awareness
+    auto faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunkIt->second,
+                                                                 neighborXMinus, neighborXPlus,
+                                                                 neighborYMinus, neighborYPlus,
+                                                                 neighborZMinus, neighborZPlus);
+    
+    // Update the mesh storage
+    m_chunkMeshes[chunkPos] = std::move(faces);
+    
+    // Mark that face instances need rebuilding
+    m_needsRebuild = true;
 }
 
 } // namespace Zerith
