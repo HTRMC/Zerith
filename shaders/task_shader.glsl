@@ -12,29 +12,58 @@ layout(binding = 0) uniform UniformBufferObject {
     uint faceCount;       // Number of face instances to render
 } ubo;
 
-// Push constant for indirect drawing
-layout(push_constant) uniform PushConstants {
-    uint firstFaceIndex;  // Starting face index for this draw
-    uint faceCount;       // Number of faces in this chunk
-} pc;
+// Push constants removed - using UBO directly for better performance
 
-// Declare an empty payload structure
+// Chunk data for GPU culling and processing
+struct ChunkDrawData {
+    vec3 minBounds;
+    float padding1;
+    vec3 maxBounds;
+    float padding2;
+    uint firstFaceIndex;
+    uint faceCount;
+    uint padding3[2];
+};
+
+// Storage buffer for chunk data
+layout(binding = 3, std430) restrict readonly buffer ChunkDataBuffer {
+    ChunkDrawData chunks[];
+} chunkDataBuffer;
+
+// Payload to pass chunk info to mesh shader
 struct MeshTaskPayload {
-    float dummy;
+    uint chunkIndex;
+    uint firstFaceIndex;
+    uint faceCount;
 };
 
 // Then declare it as shared
 taskPayloadSharedEXT MeshTaskPayload payload;
 
 void main() {
-    // Set dummy value
-    payload.dummy = 1.0;
-
-    // Calculate how many mesh workgroups we need for all faces
-    // Each mesh workgroup can handle 32 faces  
-    uint facesPerWorkgroup = 32;
-    uint numWorkgroups = (pc.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+    // For indirect drawing with multiple draws, we need a different approach
+    // Since each draw launches 1 task workgroup, we can use a counter or push constant
+    // For now, let's use a simpler approach - single draw with multiple workgroups
+    uint chunkIndex = gl_WorkGroupID.x;
     
-    // Emit mesh tasks for all workgroups needed
+    // For now, we'll assume chunk data buffer has been properly sized
+    // In production, you'd pass the chunk count via UBO or push constant
+    
+    // Get chunk data
+    ChunkDrawData chunk = chunkDataBuffer.chunks[chunkIndex];
+    
+    // TODO: Add frustum culling here
+    // For now, just process all chunks
+    
+    // Pass chunk info to mesh shader
+    payload.chunkIndex = chunkIndex;
+    payload.firstFaceIndex = chunk.firstFaceIndex;
+    payload.faceCount = chunk.faceCount;
+    
+    // Calculate how many mesh workgroups we need for this chunk's faces
+    uint facesPerWorkgroup = 32;
+    uint numWorkgroups = (chunk.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+    
+    // Emit mesh tasks for this chunk
     EmitMeshTasksEXT(numWorkgroups, 1, 1);
 }

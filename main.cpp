@@ -530,7 +530,7 @@ private:
         createUniformBuffers();
         createFaceInstanceBuffer();
         createAABBInstanceBuffer();
-        createIndirectDrawBuffers();
+        createIndirectDrawBuffers(); // Re-enabled for proper indirect drawing
         createDescriptorPool();
         createDescriptorSets();
         createAABBDescriptorSets();
@@ -1590,8 +1590,16 @@ private:
         storageLayoutBinding.descriptorCount = 1;
         storageLayoutBinding.stageFlags = VK_SHADER_STAGE_MESH_BIT_EXT;
         storageLayoutBinding.pImmutableSamplers = nullptr;
+        
+        // Storage buffer binding for chunk data (for indirect drawing)
+        VkDescriptorSetLayoutBinding chunkDataLayoutBinding{};
+        chunkDataLayoutBinding.binding = 3;
+        chunkDataLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+        chunkDataLayoutBinding.descriptorCount = 1;
+        chunkDataLayoutBinding.stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT;
+        chunkDataLayoutBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 3> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding};
+        std::array<VkDescriptorSetLayoutBinding, 4> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding, chunkDataLayoutBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1723,18 +1731,11 @@ private:
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
-        // Push constant range for indirect drawing
-        VkPushConstantRange pushConstantRange{};
-        pushConstantRange.stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT;
-        pushConstantRange.offset = 0;
-        pushConstantRange.size = sizeof(uint32_t) * 2; // firstFaceIndex + chunkIndex
-
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
         pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-        pipelineLayoutInfo.pushConstantRangeCount = 1;
-        pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
+        // No push constants - better performance
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -1983,8 +1984,8 @@ private:
                                        directionNames[face.faceDirection] : "UNKNOWN";
         }
         
-        LOG_DEBUG("Face instance buffer created with %zu instances (%zu bytes)", 
-                  currentInstances.faces.size(), bufferSize);
+        // LOG_DEBUG("Face instance buffer created with %zu instances (%zu bytes)", 
+        //           currentInstances.faces.size(), bufferSize);
     }
     
     void createAABBInstanceBuffer() {
@@ -2079,7 +2080,7 @@ private:
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-        poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 2); // Double for AABB
+        poolSizes[2].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); // Triple for AABB + chunk data
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -2124,7 +2125,7 @@ private:
             storageBufferInfo.offset = 0;
             storageBufferInfo.range = sizeof(FaceInstanceData) * currentInstances.faces.size();
 
-            std::array<VkWriteDescriptorSet, 3> descriptorWrites{};
+            std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
             
             // Uniform buffer descriptor
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2152,6 +2153,20 @@ private:
             descriptorWrites[2].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             descriptorWrites[2].descriptorCount = 1;
             descriptorWrites[2].pBufferInfo = &storageBufferInfo;
+            
+            // Chunk data buffer descriptor
+            VkDescriptorBufferInfo chunkDataBufferInfo{};
+            chunkDataBufferInfo.buffer = chunkDataBuffer;
+            chunkDataBufferInfo.offset = 0;
+            chunkDataBufferInfo.range = VK_WHOLE_SIZE;
+            
+            descriptorWrites[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[3].dstSet = descriptorSets[i];
+            descriptorWrites[3].dstBinding = 3;
+            descriptorWrites[3].dstArrayElement = 0;
+            descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            descriptorWrites[3].descriptorCount = 1;
+            descriptorWrites[3].pBufferInfo = &chunkDataBufferInfo;
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -2250,7 +2265,43 @@ private:
         }
     }
 
-    // Removed updateIndirectDrawBuffer - it was causing performance regression
+    void updateIndirectDrawBuffer() {
+        if (!chunkManager) return;
+        
+        const auto& indirectManager = chunkManager->getIndirectDrawManager();
+        const auto& drawCommands = indirectManager.getDrawCommands();
+        
+        if (drawCommands.empty()) return;
+        
+        // Update indirect draw buffer with all commands at once
+        size_t maxCommands = 1000; // Must match buffer allocation
+        size_t commandCount = std::min(drawCommands.size(), maxCommands);
+        
+        void* data;
+        vkMapMemory(device, indirectDrawBufferMemory, 0, 
+                   sizeof(Zerith::DrawMeshTasksIndirectCommand) * commandCount, 0, &data);
+        memcpy(data, drawCommands.data(), sizeof(Zerith::DrawMeshTasksIndirectCommand) * commandCount);
+        vkUnmapMemory(device, indirectDrawBufferMemory);
+    }
+    
+    void updateChunkDataBuffer() {
+        if (!chunkManager) return;
+        
+        const auto& indirectManager = chunkManager->getIndirectDrawManager();
+        const auto& chunkData = indirectManager.getChunkData();
+        
+        if (chunkData.empty()) return;
+        
+        // Update chunk data buffer
+        size_t maxChunks = 1000;
+        size_t chunkCount = std::min(chunkData.size(), maxChunks);
+        
+        void* data;
+        vkMapMemory(device, chunkDataBufferMemory, 0,
+                   sizeof(Zerith::ChunkDrawData) * chunkCount, 0, &data);
+        memcpy(data, chunkData.data(), sizeof(Zerith::ChunkDrawData) * chunkCount);
+        vkUnmapMemory(device, chunkDataBufferMemory);
+    }
     
     void updateUniformBuffer(uint32_t currentImage) {
         static auto startTime = std::chrono::high_resolution_clock::now();
@@ -2287,6 +2338,9 @@ private:
         
         // Set face count for dynamic rendering
         ubo.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+        
+        // For indirect drawing, we also need chunk count
+        // TODO: Add chunk count to UBO or use a different mechanism
         
         
         // Update AABB debug data if enabled
@@ -2368,25 +2422,31 @@ private:
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
-        // Simple, fast single draw call (revert to original approach)
-        if (currentInstances.faces.size() > 0) {
-            // Set push constants
-            struct PushConstants {
-                uint32_t firstFaceIndex;
-                uint32_t faceCount;
-            } pc;
-            pc.firstFaceIndex = 0;
-            pc.faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+        // Use indirect drawing with task shaders for GPU-driven culling
+        if (chunkManager && currentInstances.faces.size() > 0) {
+            const auto& indirectManager = chunkManager->getIndirectDrawManager();
+            const auto& drawCommands = indirectManager.getDrawCommands();
+            const auto& chunkData = indirectManager.getChunkData();
             
-            vkCmdPushConstants(commandBuffer, pipelineLayout,
-                             VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
-                             0, sizeof(pc), &pc);
-            
-            // Calculate total workgroups needed for all faces
+            if (!drawCommands.empty()) {
+                // Update indirect and chunk data buffers
+                updateIndirectDrawBuffer();
+                updateChunkDataBuffer();
+                
+                // Single indirect draw call that launches all task workgroups
+                // We only have 1 draw command that specifies N task workgroups (one per chunk)
+                vkCmdDrawMeshTasksIndirectEXT(commandBuffer, 
+                                            indirectDrawBuffer,
+                                            0,      // offset
+                                            1,      // drawCount (single draw)
+                                            sizeof(Zerith::DrawMeshTasksIndirectCommand));
+            }
+        } else if (currentInstances.faces.size() > 0) {
+            // Fallback to direct drawing
             uint32_t facesPerWorkgroup = 32;
-            uint32_t totalWorkgroups = (pc.faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+            uint32_t faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+            uint32_t totalWorkgroups = (faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
             
-            // Single efficient draw call
             vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
         }
         

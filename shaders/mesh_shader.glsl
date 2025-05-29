@@ -47,7 +47,9 @@ layout(triangles, max_vertices = MAX_VERTICES, max_primitives = MAX_TRIANGLES) o
 
 // Must match task shader's structure
 struct MeshTaskPayload {
-    float dummy;
+    uint chunkIndex;
+    uint firstFaceIndex;
+    uint faceCount;
 };
 
 // Then declare it as shared
@@ -69,11 +71,7 @@ layout(binding = 0) uniform UniformBufferObject {
     uint faceCount;       // Number of face instances to render
 } ubo;
 
-// Push constant for indirect drawing
-layout(push_constant) uniform PushConstants {
-    uint firstFaceIndex;  // Starting face index for this draw
-    uint faceCount;       // Number of faces in this chunk
-} pc;
+// Push constants removed - using UBO directly for better performance
 
 // Face instance structure for storage buffer
 struct FaceInstanceData {
@@ -156,20 +154,23 @@ vec3 transformQuadVertex(vec3 vertex, mat4 faceModel) {
 }
 
 void main() {
-    // Calculate the face index from workgroup and local invocation
+    // Calculate the face index within this chunk
     uint workgroupIndex = gl_WorkGroupID.x;
     uint localIndex = gl_LocalInvocationID.x;
     uint facesPerWorkgroup = 32;
-    uint faceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
+    uint localFaceIndex = workgroupIndex * facesPerWorkgroup + localIndex;
     
-    // Early exit if this invocation is beyond the actual face count
-    if (faceIndex >= pc.faceCount) {
+    // Early exit if this invocation is beyond this chunk's face count
+    if (localFaceIndex >= payload.faceCount) {
         return;
     }
     
+    // Calculate global face index
+    uint faceIndex = payload.firstFaceIndex + localFaceIndex;
+    
     // Calculate how many faces this workgroup will process
     uint startFace = workgroupIndex * facesPerWorkgroup;
-    uint endFace = min(startFace + facesPerWorkgroup, pc.faceCount);
+    uint endFace = min(startFace + facesPerWorkgroup, payload.faceCount);
     uint facesInThisWorkgroup = endFace - startFace;
     
     // Early exit if no faces to process

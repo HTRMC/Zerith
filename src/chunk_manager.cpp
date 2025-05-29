@@ -109,28 +109,39 @@ void ChunkManager::rebuildAllFaceInstances() {
     // Build new vector instead of clearing and rebuilding
     std::vector<BlockbenchInstanceGenerator::FaceInstance> newFaceInstances;
     
-    // Reserve space for better performance
-    size_t totalFaces = getTotalFaceCount();
-    newFaceInstances.reserve(totalFaces);
-    
-    // Collect all face instances from all chunks
-    for (const auto& [chunkPos, faces] : m_chunkMeshes) {
-        newFaceInstances.insert(newFaceInstances.end(), faces.begin(), faces.end());
+    // Lock once for the entire operation - more efficient
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        
+        // Calculate total size while we have the lock
+        size_t totalFaces = 0;
+        for (const auto& [chunkPos, faces] : m_chunkMeshes) {
+            totalFaces += faces.size();
+        }
+        
+        // Reserve space for better performance
+        newFaceInstances.reserve(totalFaces);
+        
+        // Collect all face instances from all chunks
+        for (const auto& [chunkPos, faces] : m_chunkMeshes) {
+            newFaceInstances.insert(newFaceInstances.end(), faces.begin(), faces.end());
+        }
     }
     
     // Move the new vector to replace the old one (avoids unnecessary deallocations)
     m_allFaceInstances = std::move(newFaceInstances);
     
-    // Note: Indirect commands disabled for performance - using single draw call approach
+    // Rebuild indirect commands for proper GPU indirect drawing
+    rebuildIndirectCommands();
 }
 
 void ChunkManager::rebuildIndirectCommands() {
     m_indirectDrawManager.clear();
     
+    // Build chunk data for all chunks
     uint32_t currentFaceIndex = 0;
+    uint32_t chunkCount = 0;
     
-    // Create an indirect draw command for each chunk
-    // Note: This must be called after rebuildAllFaceInstances to ensure consistency
     for (const auto& [chunkPos, faces] : m_chunkMeshes) {
         if (faces.empty()) continue;
         
@@ -143,8 +154,8 @@ void ChunkManager::rebuildIndirectCommands() {
             chunkWorldPos.z + Chunk::CHUNK_SIZE
         };
         
-        // Add indirect draw command for this chunk
-        m_indirectDrawManager.addChunkDrawCommand(
+        // Add chunk data (but not individual draw commands)
+        m_indirectDrawManager.addChunkData(
             static_cast<uint32_t>(faces.size()),
             minBounds,
             maxBounds,
@@ -152,6 +163,12 @@ void ChunkManager::rebuildIndirectCommands() {
         );
         
         currentFaceIndex += static_cast<uint32_t>(faces.size());
+        chunkCount++;
+    }
+    
+    // Create a single indirect command that launches one task workgroup per chunk
+    if (chunkCount > 0) {
+        m_indirectDrawManager.setSingleDrawCommand(chunkCount, 1, 1);
     }
 }
 

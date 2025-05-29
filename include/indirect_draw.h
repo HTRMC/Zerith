@@ -33,7 +33,13 @@ public:
     IndirectDrawManager() = default;
     ~IndirectDrawManager() = default;
     
-    // Add a draw command for a chunk
+    // Add chunk data without creating a draw command
+    void addChunkData(uint32_t faceCount, const float* minBounds, const float* maxBounds, uint32_t firstFaceIndex);
+    
+    // Set a single draw command for all chunks
+    void setSingleDrawCommand(uint32_t taskWorkgroups, uint32_t y = 1, uint32_t z = 1);
+    
+    // Add a draw command for a chunk (legacy)
     void addChunkDrawCommand(uint32_t faceCount, const float* minBounds, const float* maxBounds, uint32_t firstFaceIndex);
     
     // Clear all commands
