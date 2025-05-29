@@ -420,7 +420,7 @@ private:
         chunkManager = std::make_unique<Zerith::ChunkManager>();
         
         // Set initial render distance
-        chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
+        chunkManager->setRenderDistance(8); // Start with 2 chunks render distance
         
         // Don't update chunks yet - wait until after Vulkan is initialized
         LOG_INFO("Chunk manager initialized");
@@ -2228,7 +2228,7 @@ private:
         float aspect = swapChainExtent.width / (float)swapChainExtent.height;
         float fov = glm::radians(45.0f);
         float nearPlane = 0.1f;
-        float farPlane = 100.0f;
+        float farPlane = 1000.0f;
         ubo.proj = glm::perspective(fov, aspect, nearPlane, farPlane);
         ubo.proj[1][1] *= -1; // Flip Y coordinate for Vulkan
         
