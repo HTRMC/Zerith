@@ -473,7 +473,7 @@ namespace Zerith {
             if (hit.has_value()) {
                 // Destroy the block
                 chunkManager->setBlock(glm::vec3(hit->blockPos), BlockType::AIR);
-                LOG_INFO("Block destroyed at (%d, %d, %d)", hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+                LOG_DEBUG("Block destroyed at (%d, %d, %d)", hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
             }
         }
         
@@ -503,7 +503,7 @@ namespace Zerith {
                 
                 if (!m_aabb.intersects(blockAABB)) {
                     chunkManager->setBlock(glm::vec3(placePos), m_selectedBlockType);
-                    LOG_INFO("Block placed at (%d, %d, %d)", placePos.x, placePos.y, placePos.z);
+                    LOG_DEBUG("Block placed at (%d, %d, %d)", placePos.x, placePos.y, placePos.z);
                 }
             }
         }
