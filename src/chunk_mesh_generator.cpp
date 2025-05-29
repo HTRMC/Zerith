@@ -128,9 +128,38 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
     // Generate faces at this position
     auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
     
-    // Add all faces without culling using move semantics
+    // Face culling: only add faces that are visible
     for (auto&& face : blockFaces) {
-        faces.emplace_back(std::move(face));
+        bool shouldRender = false;
+        
+        // Check visibility based on face direction
+        switch (face.faceDirection) {
+            case 0: // Down face (Y-)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, -1, 0);
+                break;
+            case 1: // Up face (Y+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 1, 0);
+                break;
+            case 2: // North face (Z-)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 0, -1);
+                break;
+            case 3: // South face (Z+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 0, 1);
+                break;
+            case 4: // West face (X-)
+                shouldRender = chunk.isFaceVisible(x, y, z, -1, 0, 0);
+                break;
+            case 5: // East face (X+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 1, 0, 0);
+                break;
+            default:
+                shouldRender = true; // Render unknown faces by default
+                break;
+        }
+        
+        if (shouldRender) {
+            faces.emplace_back(std::move(face));
+        }
     }
 }
 
@@ -153,8 +182,44 @@ void ChunkMeshGenerator::generateBlockFacesPooled(const Chunk& chunk, int x, int
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
     blockWorldPos += glm::vec3(x, y, z);
     
-    // Generate faces at this position directly into the batch
-    it->second->generateInstancesAtPositionPooled(blockWorldPos, batch);
+    // Generate faces at this position into a temporary container
+    auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
+    
+    // Face culling: only add faces that are visible
+    for (auto&& face : blockFaces) {
+        bool shouldRender = false;
+        
+        // Check visibility based on face direction
+        switch (face.faceDirection) {
+            case 0: // Down face (Y-)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, -1, 0);
+                break;
+            case 1: // Up face (Y+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 1, 0);
+                break;
+            case 2: // North face (Z-)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 0, -1);
+                break;
+            case 3: // South face (Z+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 0, 1);
+                break;
+            case 4: // West face (X-)
+                shouldRender = chunk.isFaceVisible(x, y, z, -1, 0, 0);
+                break;
+            case 5: // East face (X+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 1, 0, 0);
+                break;
+            default:
+                shouldRender = true; // Render unknown faces by default
+                break;
+        }
+        
+        if (shouldRender) {
+            // Add face to batch through the pool
+            batch.addFace(face.position, face.rotation, face.scale, face.faceDirection, 
+                         face.uv, face.textureLayer, face.textureName);
+        }
+    }
 }
 
 } // namespace Zerith
