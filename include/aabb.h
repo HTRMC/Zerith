@@ -9,20 +9,46 @@ struct AABB {
     glm::vec3 min;
     glm::vec3 max;
     
-    AABB() = default;
-    AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
+    constexpr AABB() = default;
+    constexpr AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
     
-    static AABB fromCenterAndSize(const glm::vec3& center, const glm::vec3& size);
-    static AABB fromBlock(const glm::ivec3& blockPos);
+    static constexpr AABB fromCenterAndSize(const glm::vec3& center, const glm::vec3& size) {
+        glm::vec3 halfSize = size * 0.5f;
+        return AABB(center - halfSize, center + halfSize);
+    }
     
-    bool intersects(const AABB& other) const;
-    glm::vec3 getCenter() const;
-    glm::vec3 getSize() const;
+    static constexpr AABB fromBlock(const glm::ivec3& blockPos) {
+        return AABB(glm::vec3(blockPos), glm::vec3(blockPos) + glm::vec3(1.0f));
+    }
     
-    void translate(const glm::vec3& offset);
-    AABB translated(const glm::vec3& offset) const;
+    constexpr bool intersects(const AABB& other) const {
+        return (min.x < other.max.x && max.x > other.min.x) &&
+               (min.y < other.max.y && max.y > other.min.y) &&
+               (min.z < other.max.z && max.z > other.min.z);
+    }
     
-    bool contains(const glm::vec3& point) const;
+    constexpr glm::vec3 getCenter() const {
+        return (min + max) * 0.5f;
+    }
+    
+    constexpr glm::vec3 getSize() const {
+        return max - min;
+    }
+    
+    constexpr void translate(const glm::vec3& offset) {
+        min += offset;
+        max += offset;
+    }
+    
+    constexpr AABB translated(const glm::vec3& offset) const {
+        return AABB(min + offset, max + offset);
+    }
+    
+    constexpr bool contains(const glm::vec3& point) const {
+        return point.x >= min.x && point.x <= max.x &&
+               point.y >= min.y && point.y <= max.y &&
+               point.z >= min.z && point.z <= max.z;
+    }
 };
 
 // Debug rendering data for AABBs

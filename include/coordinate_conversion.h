@@ -6,7 +6,7 @@
 namespace CoordinateConversion {
 
 // Convert Blender position (Z-up) to Vulkan position (Y-up)
-inline glm::vec3 blenderToVulkanPosition(const glm::vec3& blenderPos) {
+inline constexpr glm::vec3 blenderToVulkanPosition(const glm::vec3& blenderPos) {
     // Blender (X, Y, Z) -> Vulkan (X, Z, -Y)
     return glm::vec3(
         blenderPos.x,      // X stays the same

@@ -132,11 +132,11 @@ bool Chunk::isFaceVisibleAdvanced(int x, int y, int z, int faceDir) const {
     return isFaceVisible(x, y, z, dx, dy, dz);
 }
 
-int Chunk::getIndex(int x, int y, int z) const {
+constexpr int Chunk::getIndex(int x, int y, int z) const {
     return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
 }
 
-bool Chunk::isInBounds(int x, int y, int z) const {
+constexpr bool Chunk::isInBounds(int x, int y, int z) const {
     return x >= 0 && x < CHUNK_SIZE &&
            y >= 0 && y < CHUNK_SIZE &&
            z >= 0 && z < CHUNK_SIZE;

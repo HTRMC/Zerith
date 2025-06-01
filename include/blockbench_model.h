@@ -49,7 +49,7 @@ struct Model {
 namespace Conversion {
     
     // Convert Blockbench coordinates (16x16x16) to Vulkan coordinates (1x1x1)
-    inline glm::vec3 blockbenchToVulkan(const glm::vec3& blockbenchPos) {
+    inline constexpr glm::vec3 blockbenchToVulkan(const glm::vec3& blockbenchPos) {
         return glm::vec3(
             blockbenchPos.x / 16.0f,    // X: 0-16 -> 0-1
             blockbenchPos.y / 16.0f,    // Y: 0-16 -> 0-1 
@@ -58,19 +58,19 @@ namespace Conversion {
     }
     
     // Convert a Blockbench element to Vulkan coordinates
-    inline void convertElement(const Element& bbElement, Element& vulkanElement) {
+    inline constexpr void convertElement(const Element& bbElement, Element& vulkanElement) {
         vulkanElement = bbElement; // Copy face data
         vulkanElement.from = blockbenchToVulkan(bbElement.from);
         vulkanElement.to = blockbenchToVulkan(bbElement.to);
     }
     
     // Calculate the center position of an element in Vulkan coordinates
-    inline glm::vec3 getElementCenter(const Element& vulkanElement) {
+    inline constexpr glm::vec3 getElementCenter(const Element& vulkanElement) {
         return (vulkanElement.from + vulkanElement.to) * 0.5f;
     }
     
     // Calculate the size of an element in Vulkan coordinates
-    inline glm::vec3 getElementSize(const Element& vulkanElement) {
+    inline constexpr glm::vec3 getElementSize(const Element& vulkanElement) {
         return glm::abs(vulkanElement.to - vulkanElement.from);
     }
     

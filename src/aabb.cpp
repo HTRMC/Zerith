@@ -6,43 +6,7 @@
 
 namespace Zerith {
 
-AABB AABB::fromCenterAndSize(const glm::vec3& center, const glm::vec3& size) {
-    glm::vec3 halfSize = size * 0.5f;
-    return AABB(center - halfSize, center + halfSize);
-}
-
-AABB AABB::fromBlock(const glm::ivec3& blockPos) {
-    return AABB(glm::vec3(blockPos), glm::vec3(blockPos) + glm::vec3(1.0f));
-}
-
-bool AABB::intersects(const AABB& other) const {
-    return (min.x < other.max.x && max.x > other.min.x) &&
-           (min.y < other.max.y && max.y > other.min.y) &&
-           (min.z < other.max.z && max.z > other.min.z);
-}
-
-glm::vec3 AABB::getCenter() const {
-    return (min + max) * 0.5f;
-}
-
-glm::vec3 AABB::getSize() const {
-    return max - min;
-}
-
-void AABB::translate(const glm::vec3& offset) {
-    min += offset;
-    max += offset;
-}
-
-AABB AABB::translated(const glm::vec3& offset) const {
-    return AABB(min + offset, max + offset);
-}
-
-bool AABB::contains(const glm::vec3& point) const {
-    return point.x >= min.x && point.x <= max.x &&
-           point.y >= min.y && point.y <= max.y &&
-           point.z >= min.z && point.z <= max.z;
-}
+// Constexpr implementations moved to header file
 
 CollisionSystem::CollisionResult CollisionSystem::checkAABBCollision(const AABB& a, const AABB& b) {
     CollisionResult result;

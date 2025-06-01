@@ -48,7 +48,7 @@ public:
     glm::ivec3 worldToLocal(const glm::vec3& worldPos) const;
     
     // Get chunk position in world
-    glm::ivec3 getChunkPosition() const { return m_chunkPosition; }
+    constexpr glm::ivec3 getChunkPosition() const { return m_chunkPosition; }
     
     // Check if a face should be rendered
     bool isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const;
@@ -58,10 +58,10 @@ public:
 
 private:
     // Convert 3D coordinates to 1D array index
-    int getIndex(int x, int y, int z) const;
+    constexpr int getIndex(int x, int y, int z) const;
     
     // Check if coordinates are within chunk bounds
-    bool isInBounds(int x, int y, int z) const;
+    constexpr bool isInBounds(int x, int y, int z) const;
 
     std::array<BlockType, CHUNK_VOLUME> m_blocks;
     glm::ivec3 m_chunkPosition; // Position of chunk in chunk coordinates

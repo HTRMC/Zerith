@@ -11,32 +11,33 @@ struct FaceBounds {
     glm::vec2 min;  // Minimum UV coordinates (0-1)
     glm::vec2 max;  // Maximum UV coordinates (0-1)
     
-    FaceBounds() : min(0.0f), max(1.0f) {}
-    FaceBounds(float minU, float minV, float maxU, float maxV) 
+    constexpr FaceBounds() : min(0.0f), max(1.0f) {}
+    constexpr FaceBounds(float minU, float minV, float maxU, float maxV) 
         : min(minU, minV), max(maxU, maxV) {}
     
     // Check if this face bounds overlaps with another
-    bool overlaps(const FaceBounds& other) const {
+    constexpr bool overlaps(const FaceBounds& other) const {
         return !(max.x <= other.min.x || min.x >= other.max.x ||
                  max.y <= other.min.y || min.y >= other.max.y);
     }
     
     // Check if this face fully covers another
-    bool covers(const FaceBounds& other) const {
+    constexpr bool covers(const FaceBounds& other) const {
         return min.x <= other.min.x && max.x >= other.max.x &&
                min.y <= other.min.y && max.y >= other.max.y;
     }
     
     // Get the area of the face (0-1)
-    float area() const {
+    constexpr float area() const {
         return (max.x - min.x) * (max.y - min.y);
     }
     
     // Check if this is a full face (covers the entire 1x1 area)
-    bool isFull() const {
+    constexpr bool isFull() const {
         const float epsilon = 0.001f;
-        return std::abs(min.x) < epsilon && std::abs(min.y) < epsilon &&
-               std::abs(max.x - 1.0f) < epsilon && std::abs(max.y - 1.0f) < epsilon;
+        auto abs_constexpr = [](float x) constexpr -> float { return x < 0 ? -x : x; };
+        return abs_constexpr(min.x) < epsilon && abs_constexpr(min.y) < epsilon &&
+               abs_constexpr(max.x - 1.0f) < epsilon && abs_constexpr(max.y - 1.0f) < epsilon;
     }
 };
 
