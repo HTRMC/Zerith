@@ -68,6 +68,11 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     const auto& currentProps = BlockProperties::getCullingProperties(currentBlock);
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
+    // HACK: Never let stairs cull anything
+    if (adjacentBlock == BlockType::OAK_STAIRS) {
+        return true;
+    }
+    
     // Special handling for transparent blocks
     if (currentProps.isTransparent) {
         // If both blocks are the same type (e.g., glass-to-glass), cull the face
@@ -100,7 +105,12 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     else if (dx == 1) adjacentFaceIndex = 4; // Adjacent block's west face
     
     // Check if the adjacent block's face can cull our face
-    if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL) {
+    // But only if the current block allows itself to be culled
+    if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL && currentProps.canBeCulled) {
+        // Additional check: don't cull stairs faces even if they can normally be culled
+        if (currentBlock == BlockType::OAK_STAIRS) {
+            return true; // Stairs faces are always visible
+        }
         return false; // Face is culled
     }
     

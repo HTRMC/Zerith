@@ -291,6 +291,11 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     const auto& currentProps = BlockProperties::getCullingProperties(currentBlock);
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
+    // HACK: Never let stairs cull anything
+    if (adjacentBlock == BlockType::OAK_STAIRS) {
+        return true;
+    }
+    
     // Special handling for transparent blocks
     if (currentProps.isTransparent) {
         // If both blocks are the same type (e.g., glass-to-glass), cull the face
@@ -335,14 +340,21 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
         const auto& faceBoundsRegistry = BlockFaceBoundsRegistry::getInstance();
         
         // Check if the adjacent face covers the current face
-        if (faceBoundsRegistry.shouldCullFaces(currentBlock, currentFaceIndex, 
+        // But don't cull stairs faces
+        if (currentBlock != BlockType::OAK_STAIRS && 
+            faceBoundsRegistry.shouldCullFaces(currentBlock, currentFaceIndex, 
                                                adjacentBlock, adjacentFaceIndex)) {
             return false; // Face is culled
         }
     }
     
     // Legacy check for backwards compatibility
-    if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL) {
+    if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL && currentProps.canBeCulled) {
+        // Additional check: don't cull stairs faces even if they can normally be culled
+        if (currentBlock == BlockType::OAK_STAIRS) {
+            return true; // Stairs faces are always visible
+        }
+        
         // Only use legacy culling if face bounds indicate full coverage
         const auto& faceBoundsRegistry = BlockFaceBoundsRegistry::getInstance();
         const auto& adjacentBounds = faceBoundsRegistry.getFaceBounds(adjacentBlock);
