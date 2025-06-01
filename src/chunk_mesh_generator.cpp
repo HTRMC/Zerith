@@ -14,7 +14,7 @@ ChunkMeshGenerator::ChunkMeshGenerator() {
 void ChunkMeshGenerator::loadBlockModels() {
     // Load oak planks (full block)
     try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/block.json");
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_planks.json");
         m_blockGenerators[BlockType::OAK_PLANKS] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_PLANKS, m_textureArray);
         LOG_DEBUG("Loaded oak planks model");
