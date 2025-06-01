@@ -14,7 +14,11 @@ enum class BlockType : uint8_t {
     OAK_STAIRS = 3,
     GRASS_BLOCK = 4,
     STONE = 5,
-    DIRT = 6
+    DIRT = 6,
+    OAK_LOG = 7,
+    OAK_LEAVES = 8,
+    CRAFTING_TABLE = 9,
+    GLASS = 10
 };
 
 class Chunk {

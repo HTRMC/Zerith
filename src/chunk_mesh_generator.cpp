@@ -71,6 +71,46 @@ void ChunkMeshGenerator::loadBlockModels() {
     } catch (const std::exception& e) {
         LOG_ERROR("Failed to load dirt block model: %s", e.what());
     }
+    
+    // Load oak log
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_log.json");
+        m_blockGenerators[BlockType::OAK_LOG] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_LOG, m_textureArray);
+        LOG_DEBUG("Loaded oak log model");
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to load oak log model: %s", e.what());
+    }
+    
+    // Load oak leaves
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_leaves.json");
+        m_blockGenerators[BlockType::OAK_LEAVES] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_LEAVES, m_textureArray);
+        LOG_DEBUG("Loaded oak leaves model");
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to load oak leaves model: %s", e.what());
+    }
+    
+    // Load crafting table
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/crafting_table.json");
+        m_blockGenerators[BlockType::CRAFTING_TABLE] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::CRAFTING_TABLE, m_textureArray);
+        LOG_DEBUG("Loaded crafting table model");
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to load crafting table model: %s", e.what());
+    }
+    
+    // Load glass block
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/glass.json");
+        m_blockGenerators[BlockType::GLASS] = 
+            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::GLASS, m_textureArray);
+        LOG_DEBUG("Loaded glass block model");
+    } catch (const std::exception& e) {
+        LOG_ERROR("Failed to load glass block model: %s", e.what());
+    }
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {

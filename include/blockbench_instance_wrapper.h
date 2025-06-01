@@ -19,6 +19,9 @@ public:
                                        const std::shared_ptr<Zerith::TextureArray>& textureArray)
         : m_model(std::move(model)), m_blockType(blockType), m_textureArray(textureArray)
     {
+        // Auto-register textures from model
+        registerModelTextures();
+        
         // Pre-generate base instances at origin
         m_baseInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(m_model);
 
@@ -74,6 +77,76 @@ private:
     BlockbenchInstanceGenerator::ModelInstances m_baseInstances;
     Zerith::BlockType m_blockType;
     std::shared_ptr<Zerith::TextureArray> m_textureArray;
+    
+    void registerModelTextures()
+    {
+        // Auto-register all textures referenced in the model
+        for (const auto& [key, texture] : m_model.textures)
+        {
+            // Skip texture references (they should have been resolved during parsing)
+            if (texture.empty() || texture[0] == '#') {
+                LOG_DEBUG("Skipping texture reference: %s = %s", key.c_str(), texture.c_str());
+                continue;
+            }
+            
+            // Convert minecraft texture path to asset path
+            // e.g., "minecraft:block/stone" -> "assets/stone.png"
+            std::string texturePath = texture;
+            
+            // Remove minecraft: prefix if present
+            if (texturePath.find("minecraft:") == 0) {
+                texturePath = texturePath.substr(10); // Remove "minecraft:"
+            }
+            
+            // Remove block/ prefix if present
+            if (texturePath.find("block/") == 0) {
+                texturePath = texturePath.substr(6); // Remove "block/"
+            }
+            
+            // Add assets/ prefix and .png extension
+            texturePath = "assets/" + texturePath + ".png";
+            
+            // Register the texture (will return existing layer if already registered)
+            m_textureArray->getOrRegisterTexture(texturePath);
+            
+            LOG_DEBUG("Auto-registered texture: %s", texturePath.c_str());
+        }
+        
+        // Also register textures from resolved faces
+        for (const auto& element : m_model.elements) {
+            // Check each face individually
+            auto registerFaceTexture = [this](const BlockbenchModel::Face& face, const std::string& faceName) {
+                if (!face.texture.empty() && face.texture[0] != '#') {
+                    std::string texturePath = face.texture;
+                    
+                    // Remove minecraft: prefix if present
+                    if (texturePath.find("minecraft:") == 0) {
+                        texturePath = texturePath.substr(10); // Remove "minecraft:"
+                    }
+                    
+                    // Remove block/ prefix if present
+                    if (texturePath.find("block/") == 0) {
+                        texturePath = texturePath.substr(6); // Remove "block/"
+                    }
+                    
+                    // Add assets/ prefix and .png extension
+                    texturePath = "assets/" + texturePath + ".png";
+                    
+                    // Register the texture (will return existing layer if already registered)
+                    m_textureArray->getOrRegisterTexture(texturePath);
+                    
+                    LOG_DEBUG("Auto-registered %s face texture: %s", faceName.c_str(), texturePath.c_str());
+                }
+            };
+            
+            registerFaceTexture(element.down, "down");
+            registerFaceTexture(element.up, "up");
+            registerFaceTexture(element.north, "north");
+            registerFaceTexture(element.south, "south");
+            registerFaceTexture(element.west, "west");
+            registerFaceTexture(element.east, "east");
+        }
+    }
 
     void assignTextureLayers()
     {
@@ -86,50 +159,51 @@ private:
             m_baseInstances.faces.erase(it, m_baseInstances.faces.end());
         }
         
-        // Assign texture layers based on block type and face direction
+        // Assign texture layers based on the resolved texture names from the model
         for (auto& face : m_baseInstances.faces)
         {
-            switch (m_blockType)
-            {
-            case Zerith::BlockType::OAK_PLANKS:
-            case Zerith::BlockType::OAK_SLAB:
-            case Zerith::BlockType::OAK_STAIRS:
-                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::OAK_PLANKS);
-                break;
-
-            case Zerith::BlockType::STONE:
-                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::STONE);
-                break;
-
-            case Zerith::BlockType::DIRT:
-                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::DIRT);
-                break;
-
-            case Zerith::BlockType::GRASS_BLOCK:
-                // Different texture for each face
-                // Note: In our coordinate system, face directions might be flipped
-
-                // Debug output for grass block faces
-                LOG_TRACE("Grass block face %d texture: %s", face.faceDirection, face.textureName.c_str());
-
-                switch (face.faceDirection)
-                {
-                case 0: // Down (Y-) - should show dirt
-                    face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::DIRT);
-                    break;
-                case 1: // Up (Y+) - should show grass
-                    face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::GRASS_TOP);
-                    break;
-                default: // Sides
-                    face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::GRASS_SIDE);
-                    break;
-                }
-                break;
-
-            default:
-                face.textureLayer = m_textureArray->getTextureLayer(Zerith::TextureLayer::OAK_PLANKS);
-                break;
+            // Use the texture name that was resolved from the model
+            std::string textureName = face.textureName;
+            
+            // Remove minecraft: prefix if present
+            if (textureName.find("minecraft:") == 0) {
+                textureName = textureName.substr(10); // Remove "minecraft:"
             }
+            
+            // Remove block/ prefix if present
+            if (textureName.find("block/") == 0) {
+                textureName = textureName.substr(6); // Remove "block/"
+            }
+            
+            // Skip texture references (should have been resolved)
+            if (!textureName.empty() && textureName[0] != '#') {
+                face.textureLayer = m_textureArray->getTextureLayer(textureName);
+                LOG_TRACE("Assigned texture layer for %s: %s -> layer %d", 
+                    toString(m_blockType).c_str(), textureName.c_str(), face.textureLayer);
+            } else {
+                // Fallback for unresolved textures
+                LOG_WARN("Unresolved texture reference for block %s: %s", 
+                    toString(m_blockType).c_str(), textureName.c_str());
+                face.textureLayer = 0; // Default texture
+            }
+        }
+    }
+    
+    // Helper function to convert BlockType to string for logging
+    std::string toString(Zerith::BlockType type) const {
+        switch(type) {
+            case Zerith::BlockType::AIR: return "AIR";
+            case Zerith::BlockType::OAK_PLANKS: return "OAK_PLANKS";
+            case Zerith::BlockType::OAK_SLAB: return "OAK_SLAB";
+            case Zerith::BlockType::OAK_STAIRS: return "OAK_STAIRS";
+            case Zerith::BlockType::GRASS_BLOCK: return "GRASS_BLOCK";
+            case Zerith::BlockType::STONE: return "STONE";
+            case Zerith::BlockType::DIRT: return "DIRT";
+            case Zerith::BlockType::OAK_LOG: return "OAK_LOG";
+            case Zerith::BlockType::OAK_LEAVES: return "OAK_LEAVES";
+            case Zerith::BlockType::CRAFTING_TABLE: return "CRAFTING_TABLE";
+            case Zerith::BlockType::GLASS: return "GLASS";
+            default: return "UNKNOWN";
         }
     }
 };

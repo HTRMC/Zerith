@@ -263,6 +263,19 @@ namespace Zerith {
         } else if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
             m_selectedBlockType = BlockType::OAK_PLANKS;
         }
+        else if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::OAK_SLAB;
+        } else if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::OAK_STAIRS;
+        } else if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::OAK_LOG;
+        } else if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::OAK_LEAVES;
+        } else if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::CRAFTING_TABLE;
+        } else if (glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS) {
+            m_selectedBlockType = BlockType::GLASS;
+        }
     }
 
     void Player::setPosition(const glm::vec3 &position) {
