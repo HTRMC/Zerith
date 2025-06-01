@@ -18,7 +18,8 @@ enum class BlockType : uint8_t {
     OAK_LOG = 7,
     OAK_LEAVES = 8,
     CRAFTING_TABLE = 9,
-    GLASS = 10
+    GLASS = 10,
+    NUM_BLOCK_TYPES = 11  // Must be last
 };
 
 class Chunk {

@@ -2,6 +2,8 @@
 #include "blockbench_parser.h"
 #include "logger.h"
 #include "block_properties.h"
+#include "block_face_bounds.h"
+#include "blockbench_face_extractor.h"
 
 namespace Zerith {
 
@@ -13,105 +15,58 @@ ChunkMeshGenerator::ChunkMeshGenerator() {
 }
 
 void ChunkMeshGenerator::loadBlockModels() {
+    // Helper to load a block model and extract face bounds
+    auto loadBlockModel = [this](const std::string& modelPath, BlockType blockType, const std::string& blockName) {
+        try {
+            auto model = BlockbenchParser::parseFromFileWithParents(modelPath);
+            
+            // Extract and register face bounds
+            auto faceBounds = BlockbenchFaceExtractor::extractBlockFaceBounds(model);
+            BlockFaceBoundsRegistry::getInstance().setFaceBounds(blockType, faceBounds);
+            
+            // Debug output for partial blocks
+            if (blockType == BlockType::OAK_SLAB || blockType == BlockType::OAK_STAIRS) {
+                BlockbenchFaceExtractor::printBlockFaceBounds(faceBounds, blockName);
+            }
+            
+            // Create the instance generator
+            m_blockGenerators[blockType] = 
+                std::make_unique<BlockbenchInstanceWrapper>(std::move(model), blockType, m_textureArray);
+            LOG_DEBUG("Loaded %s model", blockName.c_str());
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to load %s model: %s", blockName.c_str(), e.what());
+        }
+    };
+    
     // Load oak planks (full block)
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_planks.json");
-        m_blockGenerators[BlockType::OAK_PLANKS] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_PLANKS, m_textureArray);
-        LOG_DEBUG("Loaded oak planks model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load oak planks model: %s", e.what());
-    }
+    loadBlockModel("assets/oak_planks.json", BlockType::OAK_PLANKS, "oak planks");
     
     // Load oak slab
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_slab.json");
-        m_blockGenerators[BlockType::OAK_SLAB] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_SLAB, m_textureArray);
-        LOG_DEBUG("Loaded oak slab model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load oak slab model: %s", e.what());
-    }
+    loadBlockModel("assets/oak_slab.json", BlockType::OAK_SLAB, "oak slab");
     
     // Load oak stairs
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_stairs.json");
-        m_blockGenerators[BlockType::OAK_STAIRS] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_STAIRS, m_textureArray);
-        LOG_DEBUG("Loaded oak stairs model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load oak stairs model: %s", e.what());
-    }
+    loadBlockModel("assets/oak_stairs.json", BlockType::OAK_STAIRS, "oak stairs");
     
     // Load grass block
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/grass_block.json");
-        m_blockGenerators[BlockType::GRASS_BLOCK] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::GRASS_BLOCK, m_textureArray);
-        LOG_DEBUG("Loaded grass block model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load grass block model: %s", e.what());
-    }
+    loadBlockModel("assets/grass_block.json", BlockType::GRASS_BLOCK, "grass block");
     
     // Load stone block
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/stone.json");
-        m_blockGenerators[BlockType::STONE] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::STONE, m_textureArray);
-        LOG_DEBUG("Loaded stone block model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load stone block model: %s", e.what());
-    }
+    loadBlockModel("assets/stone.json", BlockType::STONE, "stone block");
     
     // Load dirt block
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/dirt.json");
-        m_blockGenerators[BlockType::DIRT] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::DIRT, m_textureArray);
-        LOG_DEBUG("Loaded dirt block model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load dirt block model: %s", e.what());
-    }
+    loadBlockModel("assets/dirt.json", BlockType::DIRT, "dirt block");
     
     // Load oak log
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_log.json");
-        m_blockGenerators[BlockType::OAK_LOG] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_LOG, m_textureArray);
-        LOG_DEBUG("Loaded oak log model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load oak log model: %s", e.what());
-    }
+    loadBlockModel("assets/oak_log.json", BlockType::OAK_LOG, "oak log");
     
     // Load oak leaves
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_leaves.json");
-        m_blockGenerators[BlockType::OAK_LEAVES] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_LEAVES, m_textureArray);
-        LOG_DEBUG("Loaded oak leaves model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load oak leaves model: %s", e.what());
-    }
+    loadBlockModel("assets/oak_leaves.json", BlockType::OAK_LEAVES, "oak leaves");
     
     // Load crafting table
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/crafting_table.json");
-        m_blockGenerators[BlockType::CRAFTING_TABLE] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::CRAFTING_TABLE, m_textureArray);
-        LOG_DEBUG("Loaded crafting table model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load crafting table model: %s", e.what());
-    }
+    loadBlockModel("assets/crafting_table.json", BlockType::CRAFTING_TABLE, "crafting table");
     
     // Load glass block
-    try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/glass.json");
-        m_blockGenerators[BlockType::GLASS] = 
-            std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::GLASS, m_textureArray);
-        LOG_DEBUG("Loaded glass block model");
-    } catch (const std::exception& e) {
-        LOG_ERROR("Failed to load glass block model: %s", e.what());
-    }
+    loadBlockModel("assets/glass.json", BlockType::GLASS, "glass block");
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
@@ -336,9 +291,14 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     const auto& currentProps = BlockProperties::getCullingProperties(currentBlock);
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
-    // If current block is transparent, don't render faces against opaque blocks
-    if (currentProps.isTransparent && !adjacentProps.isTransparent) {
-        return false;
+    // Special handling for transparent blocks
+    if (currentProps.isTransparent) {
+        // If both blocks are the same type (e.g., glass-to-glass), cull the face
+        if (currentBlock == adjacentBlock) {
+            return false;
+        }
+        // Glass should always show its faces except when adjacent to same type
+        return true;
     }
     
     // If adjacent block is transparent, always render the face
@@ -347,17 +307,48 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     }
     
     // Determine which face we're checking based on direction
+    int currentFaceIndex = -1;
     int adjacentFaceIndex = -1;
-    if (dy == -1) adjacentFaceIndex = 1; // Adjacent block's up face
-    else if (dy == 1) adjacentFaceIndex = 0; // Adjacent block's down face
-    else if (dz == -1) adjacentFaceIndex = 3; // Adjacent block's south face
-    else if (dz == 1) adjacentFaceIndex = 2; // Adjacent block's north face
-    else if (dx == -1) adjacentFaceIndex = 5; // Adjacent block's east face
-    else if (dx == 1) adjacentFaceIndex = 4; // Adjacent block's west face
     
-    // Check if the adjacent block's face can cull our face
+    if (dy == -1) {
+        currentFaceIndex = 0;      // Current block's down face
+        adjacentFaceIndex = 1;     // Adjacent block's up face
+    } else if (dy == 1) {
+        currentFaceIndex = 1;      // Current block's up face
+        adjacentFaceIndex = 0;     // Adjacent block's down face
+    } else if (dz == -1) {
+        currentFaceIndex = 2;      // Current block's north face
+        adjacentFaceIndex = 3;     // Adjacent block's south face
+    } else if (dz == 1) {
+        currentFaceIndex = 3;      // Current block's south face
+        adjacentFaceIndex = 2;     // Adjacent block's north face
+    } else if (dx == -1) {
+        currentFaceIndex = 4;      // Current block's west face
+        adjacentFaceIndex = 5;     // Adjacent block's east face
+    } else if (dx == 1) {
+        currentFaceIndex = 5;      // Current block's east face
+        adjacentFaceIndex = 4;     // Adjacent block's west face
+    }
+    
+    // Use face bounds for accurate culling
+    if (currentFaceIndex >= 0 && adjacentFaceIndex >= 0) {
+        const auto& faceBoundsRegistry = BlockFaceBoundsRegistry::getInstance();
+        
+        // Check if the adjacent face covers the current face
+        if (faceBoundsRegistry.shouldCullFaces(currentBlock, currentFaceIndex, 
+                                               adjacentBlock, adjacentFaceIndex)) {
+            return false; // Face is culled
+        }
+    }
+    
+    // Legacy check for backwards compatibility
     if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL) {
-        return false; // Face is culled
+        // Only use legacy culling if face bounds indicate full coverage
+        const auto& faceBoundsRegistry = BlockFaceBoundsRegistry::getInstance();
+        const auto& adjacentBounds = faceBoundsRegistry.getFaceBounds(adjacentBlock);
+        if (adjacentBounds.faces[adjacentFaceIndex].isFull()) {
+            return false; // Face is culled
+        }
     }
     
     return true; // Face is visible

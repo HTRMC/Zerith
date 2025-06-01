@@ -41,6 +41,11 @@ void main() {
         texColor.rgb = mix(texColor.rgb, overlayColor.rgb, overlayColor.a);
     }
     
+    // Discard fragments with 0 alpha (for transparency)
+    if (texColor.a == 0.0) {
+        discard;
+    }
+    
     // Output texture color
     outColor = texColor;
     

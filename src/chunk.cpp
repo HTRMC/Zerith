@@ -68,9 +68,14 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     const auto& currentProps = BlockProperties::getCullingProperties(currentBlock);
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
-    // If current block is transparent, don't render faces against opaque blocks
-    if (currentProps.isTransparent && !adjacentProps.isTransparent) {
-        return false;
+    // Special handling for transparent blocks
+    if (currentProps.isTransparent) {
+        // If both blocks are the same type (e.g., glass-to-glass), cull the face
+        if (currentBlock == adjacentBlock) {
+            return false;
+        }
+        // Glass should always show its faces except when adjacent to same type
+        return true;
     }
     
     // If adjacent block is transparent, always render the face

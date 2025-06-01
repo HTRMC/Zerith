@@ -81,6 +81,7 @@ add_executable(Zerith
     src/raycast.cpp
     src/indirect_draw.cpp
     src/block_properties.cpp
+    src/block_face_bounds.cpp
 )
 
 # Add shader dependencies

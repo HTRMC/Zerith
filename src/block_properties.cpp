@@ -10,13 +10,13 @@ const std::array<BlockCullingProperties, 11> BlockProperties::s_blockProperties 
     // OAK_PLANKS - full solid block
     { {CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL}, false, true },
     
-    // OAK_SLAB - only bottom face can cull (it's at y=0), other faces are partial
+    // OAK_SLAB - only bottom face can cull (it's at y=0), side faces don't cull because they're half-height
+    // Note: The slab top face (at y=8) also doesn't cull because it's in the middle of the block
     { {CullFace::FULL, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE}, false, true },
     
-    // OAK_STAIRS - complex shape, only certain faces can cull
-    // Stairs have a bottom slab (0-8) and an upper portion (8-16) on one side
-    // Only the bottom face and the back face (opposite the steps) can fully cull
-    { {CullFace::FULL, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE}, false, true },
+    // OAK_STAIRS - complex shape, don't cull any faces for now
+    // TODO: Implement proper culling based on stair orientation
+    { {CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE}, false, true },
     
     // GRASS_BLOCK - full solid block
     { {CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL}, false, true },
@@ -36,8 +36,8 @@ const std::array<BlockCullingProperties, 11> BlockProperties::s_blockProperties 
     // CRAFTING_TABLE - full solid block
     { {CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL}, false, true },
     
-    // GLASS - transparent block that doesn't cull but can be culled
-    { {CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE, CullFace::NONE}, true, true }
+    // GLASS - transparent block that culls other glass faces but not opaque faces
+    { {CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL, CullFace::FULL}, true, true }
 }};
 
 const BlockCullingProperties& BlockProperties::getCullingProperties(BlockType type) {
