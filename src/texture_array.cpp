@@ -18,6 +18,7 @@ void TextureArray::initializeTextureMap() {
     registerTexture("assets/grass_block_top.png");      // Layer 3
     registerTexture("assets/grass_block_side.png");     // Layer 4
     registerTexture("assets/grass_block_side_overlay.png"); // Layer 5
+    registerTexture("assets/oak_leaves.png");              // Layer 6
     
     // Build the name-to-layer map for different block types
     // These mappings are for compatibility with existing code
@@ -47,6 +48,9 @@ void TextureArray::initializeTextureMap() {
     
     // Oak stairs (same as planks)
     m_textureIndices["oak_stairs_all"] = 0;
+    
+    // Oak leaves
+    m_textureIndices["oak_leaves"] = 6;
 }
 
 TextureLayer TextureArray::registerTexture(const std::string& texturePath) {

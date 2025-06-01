@@ -66,6 +66,9 @@ TextureData loadPNG(const std::string& filename) {
     // Set the input file
     spng_set_png_file(ctx, fp);
 
+    // Set CRC action to fix possible CRC errors
+    spng_set_crc_action(ctx, SPNG_CRC_USE, SPNG_CRC_USE);
+
     // Get image info
     spng_ihdr ihdr;
     int ret = spng_get_ihdr(ctx, &ihdr);
@@ -81,6 +84,15 @@ TextureData loadPNG(const std::string& filename) {
     // Print image info for debugging
     LOG_TRACE("PNG Info: %s - Width: %u, Height: %u, Bit depth: %d, Color type: %d", 
               filename.c_str(), ihdr.width, ihdr.height, (int)ihdr.bit_depth, (int)ihdr.color_type);
+    
+    // Check if the image has transparency information (tRNS chunk for indexed color)
+    if (ihdr.color_type == SPNG_COLOR_TYPE_INDEXED) {
+        struct spng_trns trns = {0};
+        ret = spng_get_trns(ctx, &trns);
+        if (ret == 0) {
+            LOG_TRACE("PNG has tRNS chunk with %u transparent palette entries", trns.n_type3_entries);
+        }
+    }
     
     // Always decode to RGBA8 for consistency with Vulkan
     int fmt = SPNG_FMT_RGBA8;
@@ -98,8 +110,8 @@ TextureData loadPNG(const std::string& filename) {
     // Allocate buffer for the image
     texture.pixels.resize(out_size);
 
-    // Decode the image
-    ret = spng_decode_image(ctx, texture.pixels.data(), out_size, fmt, 0);
+    // Decode the image with transparency support
+    ret = spng_decode_image(ctx, texture.pixels.data(), out_size, fmt, SPNG_DECODE_TRNS);
     if (ret) {
         spng_ctx_free(ctx);
         fclose(fp);
