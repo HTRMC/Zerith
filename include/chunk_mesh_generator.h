@@ -73,6 +73,13 @@ private:
                                    const Chunk* neighborXMinus, const Chunk* neighborXPlus,
                                    const Chunk* neighborYMinus, const Chunk* neighborYPlus,
                                    const Chunk* neighborZMinus, const Chunk* neighborZPlus);
+    
+    // Advanced version that considers block properties
+    bool isFaceVisibleWithNeighborsAdvanced(const Chunk& chunk, int x, int y, int z, 
+                                           int faceDir,
+                                           const Chunk* neighborXMinus, const Chunk* neighborXPlus,
+                                           const Chunk* neighborYMinus, const Chunk* neighborYPlus,
+                                           const Chunk* neighborZMinus, const Chunk* neighborZPlus);
 
     // Block model generators
     std::unordered_map<BlockType, std::unique_ptr<BlockbenchInstanceWrapper>> m_blockGenerators;

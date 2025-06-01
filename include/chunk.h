@@ -49,8 +49,11 @@ public:
     // Get chunk position in world
     glm::ivec3 getChunkPosition() const { return m_chunkPosition; }
     
-    // Check if a face should be rendered (exposed to air)
+    // Check if a face should be rendered
     bool isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const;
+    
+    // Check if a face should be rendered considering block properties
+    bool isFaceVisibleAdvanced(int x, int y, int z, int faceDir) const;
 
 private:
     // Convert 3D coordinates to 1D array index

@@ -1,6 +1,7 @@
 #include "chunk_mesh_generator.h"
 #include "blockbench_parser.h"
 #include "logger.h"
+#include "block_properties.h"
 
 namespace Zerith {
 
@@ -268,7 +269,8 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
                                                    const Chunk* neighborYMinus, const Chunk* neighborYPlus,
                                                    const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
     // Check if current block is not air
-    if (chunk.getBlock(x, y, z) == BlockType::AIR) {
+    BlockType currentBlock = chunk.getBlock(x, y, z);
+    if (currentBlock == BlockType::AIR) {
         return false;
     }
     
@@ -277,51 +279,110 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     int ny = y + dy;
     int nz = z + dz;
     
+    BlockType adjacentBlock = BlockType::AIR;
+    
     // If adjacent block is within chunk bounds, use normal check
     if (nx >= 0 && nx < Chunk::CHUNK_SIZE &&
         ny >= 0 && ny < Chunk::CHUNK_SIZE &&
         nz >= 0 && nz < Chunk::CHUNK_SIZE) {
-        return chunk.getBlock(nx, ny, nz) == BlockType::AIR;
+        adjacentBlock = chunk.getBlock(nx, ny, nz);
+    } else {
+        // Adjacent block is in a neighboring chunk
+        const Chunk* neighborChunk = nullptr;
+        int neighborX = nx;
+        int neighborY = ny;
+        int neighborZ = nz;
+        
+        // Determine which neighbor chunk and adjust coordinates
+        if (nx < 0 && neighborXMinus) {
+            neighborChunk = neighborXMinus;
+            neighborX = Chunk::CHUNK_SIZE - 1;
+        } else if (nx >= Chunk::CHUNK_SIZE && neighborXPlus) {
+            neighborChunk = neighborXPlus;
+            neighborX = 0;
+        }
+        
+        if (ny < 0 && neighborYMinus) {
+            neighborChunk = neighborYMinus;
+            neighborY = Chunk::CHUNK_SIZE - 1;
+        } else if (ny >= Chunk::CHUNK_SIZE && neighborYPlus) {
+            neighborChunk = neighborYPlus;
+            neighborY = 0;
+        }
+        
+        if (nz < 0 && neighborZMinus) {
+            neighborChunk = neighborZMinus;
+            neighborZ = Chunk::CHUNK_SIZE - 1;
+        } else if (nz >= Chunk::CHUNK_SIZE && neighborZPlus) {
+            neighborChunk = neighborZPlus;
+            neighborZ = 0;
+        }
+        
+        // If no neighbor chunk exists, face is visible (edge of world)
+        if (!neighborChunk) {
+            return true;
+        }
+        
+        // Get the block in the neighbor chunk
+        adjacentBlock = neighborChunk->getBlock(neighborX, neighborY, neighborZ);
     }
     
-    // Adjacent block is in a neighboring chunk
-    const Chunk* neighborChunk = nullptr;
-    int neighborX = nx;
-    int neighborY = ny;
-    int neighborZ = nz;
-    
-    // Determine which neighbor chunk and adjust coordinates
-    if (nx < 0 && neighborXMinus) {
-        neighborChunk = neighborXMinus;
-        neighborX = Chunk::CHUNK_SIZE - 1;
-    } else if (nx >= Chunk::CHUNK_SIZE && neighborXPlus) {
-        neighborChunk = neighborXPlus;
-        neighborX = 0;
-    }
-    
-    if (ny < 0 && neighborYMinus) {
-        neighborChunk = neighborYMinus;
-        neighborY = Chunk::CHUNK_SIZE - 1;
-    } else if (ny >= Chunk::CHUNK_SIZE && neighborYPlus) {
-        neighborChunk = neighborYPlus;
-        neighborY = 0;
-    }
-    
-    if (nz < 0 && neighborZMinus) {
-        neighborChunk = neighborZMinus;
-        neighborZ = Chunk::CHUNK_SIZE - 1;
-    } else if (nz >= Chunk::CHUNK_SIZE && neighborZPlus) {
-        neighborChunk = neighborZPlus;
-        neighborZ = 0;
-    }
-    
-    // If no neighbor chunk exists, face is visible (edge of world)
-    if (!neighborChunk) {
+    // If adjacent block is air, face is always visible
+    if (adjacentBlock == BlockType::AIR) {
         return true;
     }
     
-    // Check the block in the neighbor chunk
-    return neighborChunk->getBlock(neighborX, neighborY, neighborZ) == BlockType::AIR;
+    // Get properties for both blocks
+    const auto& currentProps = BlockProperties::getCullingProperties(currentBlock);
+    const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
+    
+    // If current block is transparent, don't render faces against opaque blocks
+    if (currentProps.isTransparent && !adjacentProps.isTransparent) {
+        return false;
+    }
+    
+    // If adjacent block is transparent, always render the face
+    if (adjacentProps.isTransparent) {
+        return true;
+    }
+    
+    // Determine which face we're checking based on direction
+    int adjacentFaceIndex = -1;
+    if (dy == -1) adjacentFaceIndex = 1; // Adjacent block's up face
+    else if (dy == 1) adjacentFaceIndex = 0; // Adjacent block's down face
+    else if (dz == -1) adjacentFaceIndex = 3; // Adjacent block's south face
+    else if (dz == 1) adjacentFaceIndex = 2; // Adjacent block's north face
+    else if (dx == -1) adjacentFaceIndex = 5; // Adjacent block's east face
+    else if (dx == 1) adjacentFaceIndex = 4; // Adjacent block's west face
+    
+    // Check if the adjacent block's face can cull our face
+    if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL) {
+        return false; // Face is culled
+    }
+    
+    return true; // Face is visible
+}
+
+bool ChunkMeshGenerator::isFaceVisibleWithNeighborsAdvanced(const Chunk& chunk, int x, int y, int z, 
+                                                           int faceDir,
+                                                           const Chunk* neighborXMinus, const Chunk* neighborXPlus,
+                                                           const Chunk* neighborYMinus, const Chunk* neighborYPlus,
+                                                           const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
+    // Convert face direction to dx,dy,dz
+    int dx = 0, dy = 0, dz = 0;
+    switch (faceDir) {
+        case 0: dy = -1; break; // Down
+        case 1: dy = 1; break;  // Up
+        case 2: dz = -1; break; // North
+        case 3: dz = 1; break;  // South
+        case 4: dx = -1; break; // West
+        case 5: dx = 1; break;  // East
+    }
+    
+    return isFaceVisibleWithNeighbors(chunk, x, y, z, dx, dy, dz,
+                                     neighborXMinus, neighborXPlus,
+                                     neighborYMinus, neighborYPlus,
+                                     neighborZMinus, neighborZPlus);
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMeshWithNeighbors(
