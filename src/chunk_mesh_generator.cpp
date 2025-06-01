@@ -24,7 +24,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     
     // Load oak slab
     try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/slab.json");
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/oak_slab.json");
         m_blockGenerators[BlockType::OAK_SLAB] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::OAK_SLAB, m_textureArray);
         LOG_DEBUG("Loaded oak slab model");
@@ -64,7 +64,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     
     // Load dirt block
     try {
-        auto model = BlockbenchParser::parseFromFileWithParents("assets/block/cube_all.json");
+        auto model = BlockbenchParser::parseFromFileWithParents("assets/dirt.json");
         m_blockGenerators[BlockType::DIRT] = 
             std::make_unique<BlockbenchInstanceWrapper>(std::move(model), BlockType::DIRT, m_textureArray);
         LOG_DEBUG("Loaded dirt block model");
