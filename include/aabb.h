@@ -2,6 +2,9 @@
 
 #include <glm/glm.hpp>
 #include <vector>
+#include <algorithm>
+#include <limits>
+#include <cmath>
 
 namespace Zerith {
 
@@ -48,6 +51,71 @@ struct AABB {
         return point.x >= min.x && point.x <= max.x &&
                point.y >= min.y && point.y <= max.y &&
                point.z >= min.z && point.z <= max.z;
+    }
+    
+    // Check if this AABB completely contains another AABB
+    constexpr bool contains(const AABB& other) const {
+        return min.x <= other.min.x && max.x >= other.max.x &&
+               min.y <= other.min.y && max.y >= other.max.y &&
+               min.z <= other.min.z && max.z >= other.max.z;
+    }
+    
+    // Get half the size of the AABB
+    constexpr glm::vec3 getExtents() const {
+        return (max - min) * 0.5f;
+    }
+    
+    // Ray-AABB intersection test
+    bool intersectsRay(const glm::vec3& origin, const glm::vec3& direction, float& t) const {
+        // Check if ray direction is valid
+        if (glm::length(direction) < 0.00001f) {
+            return false;
+        }
+        
+        // Normalize direction if needed
+        glm::vec3 dir = glm::normalize(direction);
+        
+        // Calculate t values for each slab
+        float tMin = -std::numeric_limits<float>::infinity();
+        float tMax = std::numeric_limits<float>::infinity();
+        
+        for (int i = 0; i < 3; i++) {
+            float component = (&dir.x)[i];
+            
+            // Ray parallel to slab
+            if (std::abs(component) < 0.00001f) {
+                // If origin outside slab, no intersection
+                if ((&origin.x)[i] < (&min.x)[i] || (&origin.x)[i] > (&max.x)[i]) {
+                    return false;
+                }
+                // Otherwise, ray is inside this slab, so continue to next slab
+            } else {
+                // Calculate distances to slab planes
+                float invD = 1.0f / component;
+                float t1 = ((&min.x)[i] - (&origin.x)[i]) * invD;
+                float t2 = ((&max.x)[i] - (&origin.x)[i]) * invD;
+                
+                // Ensure t1 < t2
+                if (t1 > t2) {
+                    std::swap(t1, t2);
+                }
+                
+                // Update tMin and tMax
+                tMin = std::max(tMin, t1);
+                tMax = std::min(tMax, t2);
+                
+                // Check for no overlap
+                if (tMin > tMax) {
+                    return false;
+                }
+            }
+        }
+        
+        // Ray intersects AABB, store distance
+        t = tMin > 0 ? tMin : tMax; // Use tMin if positive, otherwise tMax
+        
+        // Only report hits in front of the ray origin
+        return t >= 0;
     }
 };
 

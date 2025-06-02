@@ -8,6 +8,14 @@ ChunkManager::ChunkManager() {
     m_meshGenerator = std::make_unique<ChunkMeshGenerator>();
     m_terrainGenerator = std::make_unique<TerrainGenerator>();
     
+    // Initialize octree with generous world bounds
+    // These bounds can be adjusted based on your world size requirements
+    AABB worldBounds(
+        glm::vec3(-1000.0f, -1000.0f, -1000.0f),
+        glm::vec3(1000.0f, 1000.0f, 1000.0f)
+    );
+    m_chunkOctree = std::make_unique<ChunkOctree>(worldBounds);
+    
     // Create worker threads for chunk loading
     unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
     for (unsigned int i = 0; i < numThreads; ++i) {
@@ -281,11 +289,21 @@ void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
     
     // Store chunk
     m_chunks[chunkPos] = std::move(chunk);
+    
+    // Add to octree for spatial queries
+    m_chunkOctree->addChunk(m_chunks[chunkPos].get());
 }
 
 void ChunkManager::unloadChunk(const glm::ivec3& chunkPos) {
     LOG_TRACE("Unloading chunk at (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
     std::lock_guard<std::mutex> lock(m_chunksMutex);
+    
+    // Remove from octree before erasing from the map
+    auto it = m_chunks.find(chunkPos);
+    if (it != m_chunks.end()) {
+        m_chunkOctree->removeChunk(it->second.get());
+    }
+    
     m_chunks.erase(chunkPos);
     m_chunkMeshes.erase(chunkPos);
 }
@@ -426,6 +444,9 @@ void ChunkManager::processCompletedChunks() {
             m_chunks[chunkPos] = std::move(chunkData->chunk);
             m_chunkMeshes[chunkPos] = std::move(chunkData->faces);
             
+            // Add the chunk to the octree for spatial queries
+            m_chunkOctree->addChunk(m_chunks[chunkPos].get());
+            
             // Check which neighboring chunks exist and need regeneration
             glm::ivec3 neighbors[6] = {
                 chunkPos + glm::ivec3(-1, 0, 0),
@@ -457,6 +478,18 @@ void ChunkManager::processCompletedChunks() {
         rebuildAllFaceInstances();
         // Don't reset m_needsRebuild here - let it be reset when face instances are consumed
     }
+}
+
+std::vector<Chunk*> ChunkManager::getChunksInRegion(const AABB& region) const {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
+    return m_chunkOctree->getChunksInRegion(region);
+}
+
+std::vector<Chunk*> ChunkManager::getChunksAlongRay(const glm::vec3& origin, 
+                                                  const glm::vec3& direction, 
+                                                  float maxDistance) const {
+    std::lock_guard<std::mutex> lock(m_chunksMutex);
+    return m_chunkOctree->getChunksAlongRay(origin, direction, maxDistance);
 }
 
 void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {

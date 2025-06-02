@@ -18,6 +18,14 @@ std::optional<RaycastHit> Raycast::cast(
 
     glm::vec3 normalizedDir = glm::normalize(direction);
     
+    // Use octree to get chunks along the ray (optimization)
+    auto chunksAlongRay = chunkManager->getChunksAlongRay(origin, normalizedDir, maxDistance);
+    
+    // If no chunks found along the ray, return early
+    if (chunksAlongRay.empty()) {
+        return std::nullopt;
+    }
+    
     // Current position in the grid
     glm::ivec3 current(
         static_cast<int>(std::floor(origin.x)),
@@ -64,21 +72,56 @@ std::optional<RaycastHit> Raycast::cast(
     
     float distance = 0.0f;
     
-    // Step through the grid
+    // Step through the grid, but only checking blocks in chunks from the octree
     while (distance < maxDistance) {
-        // Check current block
-        BlockType blockType = chunkManager->getBlock(glm::vec3(current));
-        
-        if (blockType != BlockType::AIR) {
-            RaycastHit hit;
-            hit.blockPos = current;
-            hit.previousPos = current - normal; // Calculate previous position using normal
-            hit.normal = normal;
-            hit.distance = distance;
-            hit.blockType = blockType;
-            hit.hitPoint = origin + normalizedDir * distance;
+        // Check if the current position is in one of the chunks returned by the octree
+        bool inLoadedChunk = false;
+        for (const auto* chunk : chunksAlongRay) {
+            // Convert world position to chunk-local coordinates
+            glm::ivec3 chunkPos = chunk->getChunkPosition();
+            glm::ivec3 localPos = current - chunkPos * Chunk::CHUNK_SIZE;
             
-            return hit;
+            // Check if within this chunk's bounds
+            if (localPos.x >= 0 && localPos.x < Chunk::CHUNK_SIZE &&
+                localPos.y >= 0 && localPos.y < Chunk::CHUNK_SIZE &&
+                localPos.z >= 0 && localPos.z < Chunk::CHUNK_SIZE) {
+                inLoadedChunk = true;
+                
+                // Get block directly from chunk for better performance
+                BlockType blockType = chunk->getBlock(localPos.x, localPos.y, localPos.z);
+                
+                if (blockType != BlockType::AIR) {
+                    RaycastHit hit;
+                    hit.blockPos = current;
+                    hit.previousPos = current - normal;
+                    hit.normal = normal;
+                    hit.distance = distance;
+                    hit.blockType = blockType;
+                    hit.hitPoint = origin + normalizedDir * distance;
+                    
+                    return hit;
+                }
+                
+                break; // Found the correct chunk, no need to check others
+            }
+        }
+        
+        // If current position is not in any loaded chunk, fall back to regular getBlock
+        // This handles the case where chunks might not be properly loaded in the octree yet
+        if (!inLoadedChunk) {
+            BlockType blockType = chunkManager->getBlock(glm::vec3(current));
+            
+            if (blockType != BlockType::AIR) {
+                RaycastHit hit;
+                hit.blockPos = current;
+                hit.previousPos = current - normal;
+                hit.normal = normal;
+                hit.distance = distance;
+                hit.blockType = blockType;
+                hit.hitPoint = origin + normalizedDir * distance;
+                
+                return hit;
+            }
         }
         
         // Move to next grid cell

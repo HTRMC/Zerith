@@ -5,6 +5,7 @@
 #include "terrain_generator.h"
 #include "blockbench_instance_generator.h"
 #include "indirect_draw.h"
+#include "chunk_octree.h"
 #include <unordered_map>
 #include <memory>
 #include <vector>
@@ -84,6 +85,12 @@ public:
     
     // Set block at world position
     void setBlock(const glm::vec3& worldPos, BlockType type);
+    
+    // Get chunks in a region using octree for fast spatial queries
+    std::vector<Chunk*> getChunksInRegion(const AABB& region) const;
+    
+    // Get chunks along a ray using octree for fast raycasting
+    std::vector<Chunk*> getChunksAlongRay(const glm::vec3& origin, const glm::vec3& direction, float maxDistance = std::numeric_limits<float>::max()) const;
     
     // Get render distance in chunks
     int getRenderDistance() const { return m_renderDistance; }
@@ -178,6 +185,9 @@ private:
     
     // Indirect draw manager
     IndirectDrawManager m_indirectDrawManager;
+    
+    // Chunk octree for spatial queries
+    std::unique_ptr<ChunkOctree> m_chunkOctree;
 };
 
 } // namespace Zerith

@@ -5,6 +5,12 @@
 
 namespace CoordinateConversion {
 
+// Convert chunk coordinates to world coordinates
+inline constexpr glm::vec3 chunkToWorld(const glm::ivec3& chunkPos) {
+    // Using Chunk::CHUNK_SIZE = 16
+    return glm::vec3(chunkPos) * 16.0f;
+}
+
 // Convert Blender position (Z-up) to Vulkan position (Y-up)
 inline constexpr glm::vec3 blenderToVulkanPosition(const glm::vec3& blenderPos) {
     // Blender (X, Y, Z) -> Vulkan (X, Z, -Y)
