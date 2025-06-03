@@ -1,6 +1,6 @@
 #pragma once
 
-#include "octree.h"
+#include "sparse_octree.h"
 #include "chunk.h"
 #include <memory>
 
@@ -33,7 +33,7 @@ public:
     size_t getChunkCount() const { return chunkCount; }
 
 private:
-    Octree<Chunk*> octree;
+    SparseOctree<Chunk*> octree;
     size_t chunkCount;
     
     // Helper function to calculate AABB for a chunk position

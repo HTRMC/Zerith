@@ -83,6 +83,7 @@ add_executable(Zerith
     src/block_properties.cpp
     src/block_face_bounds.cpp
     src/octree.cpp
+    src/sparse_octree.cpp
     src/chunk_octree.cpp
 )
 
