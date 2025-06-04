@@ -88,7 +88,37 @@ add_executable(Zerith
 )
 
 # Add shader dependencies
-add_dependencies(Zerith task_shader mesh_shader fragment_shader aabb_mesh_shader aabb_fragment_shader)
+add_dependencies(Zerith 
+    task_shader 
+    mesh_shader 
+    fragment_shader 
+    aabb_mesh_shader 
+    aabb_fragment_shader
+)
+
+if(MSVC)
+    target_compile_options(Zerith PRIVATE
+            # Always enable AVX2 SIMD instructions
+            /arch:AVX2
+
+            # Debug config: no optimization, runtime checks
+            $<$<CONFIG:Debug>:/Od /RTC1>
+
+            # Release config: optimize aggressively + intrinsics + whole program optimization
+            $<$<CONFIG:Release>:/O2 /Oi /GL>
+    )
+    target_link_options(Zerith PRIVATE
+            $<$<CONFIG:Release>:/LTCG>
+    )
+else()
+    target_compile_options(Zerith PRIVATE
+            # Debug config: no optimization + debug info
+            $<$<CONFIG:Debug>:-O0 -g>
+
+            # Release config: optimize + CPU native + loop unrolling
+            $<$<CONFIG:Release>:-march=native -O3 -funroll-loops>
+    )
+endif()
 
 # Link libraries
 target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> FastNoise2)
