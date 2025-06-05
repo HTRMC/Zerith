@@ -22,19 +22,29 @@ ChunkManager::ChunkManager() {
         m_workerThreads.emplace_back(&ChunkManager::chunkWorkerThread, this);
     }
     
-    LOG_INFO("ChunkManager initialized with render distance %d and %d worker threads", m_renderDistance, numThreads);
+    // Create dedicated thread for mesh generation
+    m_meshThread = std::thread(&ChunkManager::meshGenerationThread, this);
+    
+    LOG_INFO("ChunkManager initialized with render distance %d, %d worker threads, and dedicated mesh thread", 
+             m_renderDistance, numThreads);
 }
 
 ChunkManager::~ChunkManager() {
     // Signal shutdown
     m_shutdown = true;
     m_queueCondition.notify_all();
+    m_meshQueueCondition.notify_all();
     
     // Wait for all worker threads to finish
     for (auto& thread : m_workerThreads) {
         if (thread.joinable()) {
             thread.join();
         }
+    }
+    
+    // Wait for mesh generation thread to finish
+    if (m_meshThread.joinable()) {
+        m_meshThread.join();
     }
 }
 
@@ -362,10 +372,16 @@ void ChunkManager::chunkWorkerThread() {
             }
         }
         
-        // Load chunk in background
-        auto chunkData = loadChunkBackground(request.chunkPos);
+        // Create a new chunk and generate terrain only (no mesh yet)
+        auto chunk = std::make_unique<Chunk>(request.chunkPos);
+        generateTerrain(*chunk);
         
-        // Add to completed queue
+        // Create ChunkData with just the chunk (no mesh yet)
+        auto chunkData = std::make_unique<ChunkData>();
+        chunkData->chunk = std::move(chunk);
+        chunkData->ready = true;
+        
+        // Add to completed chunks queue
         {
             std::lock_guard<std::mutex> lock(m_completedMutex);
             m_completedChunks.push({request.chunkPos, std::move(chunkData)});
@@ -373,16 +389,62 @@ void ChunkManager::chunkWorkerThread() {
     }
 }
 
-std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& chunkPos) {
-    LOG_TRACE("Loading chunk at (%d, %d, %d) in background", chunkPos.x, chunkPos.y, chunkPos.z);
+void ChunkManager::meshGenerationThread() {
+    while (!m_shutdown) {
+        MeshGenerationRequest request;
+        
+        // Wait for work
+        {
+            std::unique_lock<std::mutex> lock(m_meshQueueMutex);
+            m_meshQueueCondition.wait(lock, [this] { 
+                return !m_meshQueue.empty() || m_shutdown; 
+            });
+            
+            if (m_shutdown) {
+                break;
+            }
+            
+            request = m_meshQueue.top();
+            m_meshQueue.pop();
+        }
+        
+        // Get the chunk to generate mesh for (either from the request or from the chunk map)
+        Chunk* chunk = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(m_chunksMutex);
+            
+            // Check if chunk is still loaded
+            auto it = m_chunks.find(request.chunkPos);
+            if (it == m_chunks.end()) {
+                continue; // Chunk was unloaded, skip
+            }
+            
+            // Use the chunk from the map
+            chunk = it->second.get();
+        }
+        
+        if (!chunk) continue; // Safety check
+        
+        // Generate mesh
+        auto faces = generateMeshForChunk(request.chunkPos, chunk);
+        
+        // Add to completed meshes queue
+        {
+            std::lock_guard<std::mutex> lock(m_completedMeshMutex);
+            CompletedMesh completedMesh;
+            completedMesh.chunkPos = request.chunkPos;
+            completedMesh.faces = std::move(faces);
+            m_completedMeshes.push(std::move(completedMesh));
+        }
+    }
+}
+
+std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkManager::generateMeshForChunk(
+    const glm::ivec3& chunkPos, Chunk* chunk) {
     
-    auto chunkData = std::make_unique<ChunkData>();
-    
-    // Create new chunk
-    chunkData->chunk = std::make_unique<Chunk>(chunkPos);
-    
-    // Generate terrain
-    generateTerrain(*chunkData->chunk);
+    if (!chunk) {
+        return {};
+    }
     
     // Get neighboring chunks for proper face culling
     const Chunk* neighborXMinus = nullptr;
@@ -392,9 +454,6 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
     const Chunk* neighborZMinus = nullptr;
     const Chunk* neighborZPlus = nullptr;
     
-    // Generate mesh with neighbor awareness
-    // We need to keep the mutex locked during mesh generation to prevent neighbor chunks from being unloaded
-    std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
     {
         std::lock_guard<std::mutex> lock(m_chunksMutex);
         
@@ -415,69 +474,137 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
         
         neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
         if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
-        
-        // Generate mesh while holding the lock to ensure neighbor chunks don't get unloaded
-        faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunkData->chunk,
-                                                               neighborXMinus, neighborXPlus,
-                                                               neighborYMinus, neighborYPlus,
-                                                               neighborZMinus, neighborZPlus);
     }
     
-    chunkData->faces = std::move(faces);
+    // Generate mesh with neighbor awareness
+    return m_meshGenerator->generateChunkMeshWithNeighbors(
+        *chunk,
+        neighborXMinus, neighborXPlus,
+        neighborYMinus, neighborYPlus,
+        neighborZMinus, neighborZPlus);
+}
+
+std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& chunkPos) {
+    LOG_TRACE("Loading chunk at (%d, %d, %d) in background", chunkPos.x, chunkPos.y, chunkPos.z);
+    
+    auto chunkData = std::make_unique<ChunkData>();
+    
+    // Create new chunk
+    chunkData->chunk = std::make_unique<Chunk>(chunkPos);
+    
+    // Generate terrain
+    generateTerrain(*chunkData->chunk);
     
     chunkData->ready = true;
     return chunkData;
 }
 
 void ChunkManager::processCompletedChunks() {
-    std::lock_guard<std::mutex> completedLock(m_completedMutex);
-    
-    std::vector<glm::ivec3> chunksToRegenerate;
-    
-    while (!m_completedChunks.empty()) {
-        auto [chunkPos, chunkData] = std::move(m_completedChunks.front());
-        m_completedChunks.pop();
+    // Process completed chunk loads (terrain generation)
+    {
+        std::lock_guard<std::mutex> completedLock(m_completedMutex);
         
-        // Move to main chunk storage
-        {
-            std::lock_guard<std::mutex> chunksLock(m_chunksMutex);
-            m_chunks[chunkPos] = std::move(chunkData->chunk);
-            m_chunkMeshes[chunkPos] = std::move(chunkData->faces);
+        std::vector<glm::ivec3> chunksToRegenerate;
+        
+        // Process all completed chunks
+        while (!m_completedChunks.empty()) {
+            auto [chunkPos, chunkData] = std::move(m_completedChunks.front());
+            m_completedChunks.pop();
             
-            // Add the chunk to the octree for spatial queries
-            m_chunkOctree->addChunk(m_chunks[chunkPos].get());
-            
-            // Check which neighboring chunks exist and need regeneration
-            glm::ivec3 neighbors[6] = {
-                chunkPos + glm::ivec3(-1, 0, 0),
-                chunkPos + glm::ivec3(1, 0, 0),
-                chunkPos + glm::ivec3(0, -1, 0),
-                chunkPos + glm::ivec3(0, 1, 0),
-                chunkPos + glm::ivec3(0, 0, -1),
-                chunkPos + glm::ivec3(0, 0, 1)
-            };
-            
-            for (const auto& neighborPos : neighbors) {
-                if (m_chunks.find(neighborPos) != m_chunks.end()) {
-                    chunksToRegenerate.push_back(neighborPos);
+            // Move to main chunk storage
+            {
+                std::lock_guard<std::mutex> chunksLock(m_chunksMutex);
+                m_chunks[chunkPos] = std::move(chunkData->chunk);
+                
+                // Add the chunk to the octree for spatial queries
+                m_chunkOctree->addChunk(m_chunks[chunkPos].get());
+                
+                // Check which neighboring chunks exist and need regeneration
+                glm::ivec3 neighbors[6] = {
+                    chunkPos + glm::ivec3(-1, 0, 0),
+                    chunkPos + glm::ivec3(1, 0, 0),
+                    chunkPos + glm::ivec3(0, -1, 0),
+                    chunkPos + glm::ivec3(0, 1, 0),
+                    chunkPos + glm::ivec3(0, 0, -1),
+                    chunkPos + glm::ivec3(0, 0, 1)
+                };
+                
+                for (const auto& neighborPos : neighbors) {
+                    if (m_chunks.find(neighborPos) != m_chunks.end()) {
+                        chunksToRegenerate.push_back(neighborPos);
+                    }
                 }
+            }
+            
+            // Queue for mesh generation with high priority
+            {
+                std::lock_guard<std::mutex> lock(m_meshQueueMutex);
+                MeshGenerationRequest request;
+                request.chunkPos = chunkPos;
+                request.priority = 1000; // High priority for newly loaded chunks
+                
+                m_meshQueue.push(std::move(request));
+                m_meshQueueCondition.notify_one();
             }
         }
         
-        // Mark for rebuild
-        m_needsRebuild = true;
+        // Queue neighbor chunks for mesh regeneration
+        for (const auto& chunkPos : chunksToRegenerate) {
+            std::lock_guard<std::mutex> lock(m_meshQueueMutex);
+            MeshGenerationRequest request;
+            request.chunkPos = chunkPos;
+            request.priority = 500; // Medium priority for regeneration
+            
+            m_meshQueue.push(std::move(request));
+            m_meshQueueCondition.notify_one();
+        }
     }
     
-    // Regenerate neighboring chunks' meshes to account for new neighbors
-    for (const auto& chunkPos : chunksToRegenerate) {
-        regenerateChunkMesh(chunkPos);
+    // Process completed mesh generations
+    {
+        std::lock_guard<std::mutex> completedMeshLock(m_completedMeshMutex);
+        
+        bool meshesUpdated = false;
+        
+        // Process all completed meshes
+        while (!m_completedMeshes.empty()) {
+            auto completedMesh = std::move(m_completedMeshes.front());
+            m_completedMeshes.pop();
+            
+            // Update the mesh storage
+            {
+                std::lock_guard<std::mutex> chunksLock(m_chunksMutex);
+                m_chunkMeshes[completedMesh.chunkPos] = std::move(completedMesh.faces);
+            }
+            
+            meshesUpdated = true;
+        }
+        
+        // Rebuild if needed
+        if (meshesUpdated) {
+            m_needsRebuild = true;
+            rebuildAllFaceInstances();
+        }
+    }
+}
+
+void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
+    // Check if chunk exists and queue it for mesh generation
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        if (m_chunks.find(chunkPos) == m_chunks.end()) {
+            return;
+        }
     }
     
-    // Rebuild if needed
-    if (m_needsRebuild) {
-        rebuildAllFaceInstances();
-        // Don't reset m_needsRebuild here - let it be reset when face instances are consumed
-    }
+    // Queue for mesh generation
+    std::lock_guard<std::mutex> lock(m_meshQueueMutex);
+    MeshGenerationRequest request;
+    request.chunkPos = chunkPos;
+    request.priority = 500; // Medium priority for regeneration
+    
+    m_meshQueue.push(std::move(request));
+    m_meshQueueCondition.notify_one();
 }
 
 std::vector<Chunk*> ChunkManager::getChunksInRegion(const AABB& region) const {
@@ -490,53 +617,6 @@ std::vector<Chunk*> ChunkManager::getChunksAlongRay(const glm::vec3& origin,
                                                   float maxDistance) const {
     std::lock_guard<std::mutex> lock(m_chunksMutex);
     return m_chunkOctree->getChunksAlongRay(origin, direction, maxDistance);
-}
-
-void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
-    std::lock_guard<std::mutex> lock(m_chunksMutex);
-    
-    auto chunkIt = m_chunks.find(chunkPos);
-    if (chunkIt == m_chunks.end()) {
-        return;
-    }
-    
-    // Get neighboring chunks for proper face culling
-    const Chunk* neighborXMinus = nullptr;
-    const Chunk* neighborXPlus = nullptr;
-    const Chunk* neighborYMinus = nullptr;
-    const Chunk* neighborYPlus = nullptr;
-    const Chunk* neighborZMinus = nullptr;
-    const Chunk* neighborZPlus = nullptr;
-    
-    auto neighborIt = m_chunks.find(chunkPos + glm::ivec3(-1, 0, 0));
-    if (neighborIt != m_chunks.end()) neighborXMinus = neighborIt->second.get();
-    
-    neighborIt = m_chunks.find(chunkPos + glm::ivec3(1, 0, 0));
-    if (neighborIt != m_chunks.end()) neighborXPlus = neighborIt->second.get();
-    
-    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, -1, 0));
-    if (neighborIt != m_chunks.end()) neighborYMinus = neighborIt->second.get();
-    
-    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 1, 0));
-    if (neighborIt != m_chunks.end()) neighborYPlus = neighborIt->second.get();
-    
-    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, -1));
-    if (neighborIt != m_chunks.end()) neighborZMinus = neighborIt->second.get();
-    
-    neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
-    if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
-    
-    // Generate mesh for this chunk with neighbor awareness
-    auto faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunkIt->second,
-                                                                 neighborXMinus, neighborXPlus,
-                                                                 neighborYMinus, neighborYPlus,
-                                                                 neighborZMinus, neighborZPlus);
-    
-    // Update the mesh storage
-    m_chunkMeshes[chunkPos] = std::move(faces);
-    
-    // Mark that face instances need rebuilding
-    m_needsRebuild = true;
 }
 
 } // namespace Zerith

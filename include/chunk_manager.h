@@ -31,6 +31,20 @@ struct ChunkLoadRequest {
     }
 };
 
+struct MeshGenerationRequest {
+    glm::ivec3 chunkPos;
+    int priority;
+    
+    bool operator<(const MeshGenerationRequest& other) const {
+        return priority < other.priority; // Higher priority first
+    }
+};
+
+struct CompletedMesh {
+    glm::ivec3 chunkPos;
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
+};
+
 struct ChunkData {
     std::unique_ptr<Chunk> chunk;
     std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
@@ -134,8 +148,14 @@ private:
     // Worker thread function
     void chunkWorkerThread();
     
+    // Mesh generation thread function
+    void meshGenerationThread();
+    
     // Background chunk loading function
     std::unique_ptr<ChunkData> loadChunkBackground(const glm::ivec3& chunkPos);
+    
+    // Background mesh generation function
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> generateMeshForChunk(const glm::ivec3& chunkPos, Chunk* chunk);
 
 private:
     // Chunk storage - key is chunk position
@@ -164,18 +184,26 @@ private:
     
     // Threading components
     std::vector<std::thread> m_workerThreads;
+    std::thread m_meshThread;
     std::priority_queue<ChunkLoadRequest> m_loadQueue;
+    std::priority_queue<MeshGenerationRequest> m_meshQueue;
     std::unordered_map<glm::ivec3, std::future<std::unique_ptr<ChunkData>>> m_loadingChunks;
     
     // Thread synchronization
     mutable std::mutex m_chunksMutex;
     mutable std::mutex m_queueMutex;
+    mutable std::mutex m_meshQueueMutex;
     std::condition_variable m_queueCondition;
+    std::condition_variable m_meshQueueCondition;
     std::atomic<bool> m_shutdown{false};
     
     // Completed chunks ready to be integrated
     std::queue<std::pair<glm::ivec3, std::unique_ptr<ChunkData>>> m_completedChunks;
     std::mutex m_completedMutex;
+    
+    // Completed meshes ready to be integrated
+    std::queue<CompletedMesh> m_completedMeshes;
+    std::mutex m_completedMeshMutex;
     
     // Rebuild the combined face instance vector
     void rebuildAllFaceInstances();
