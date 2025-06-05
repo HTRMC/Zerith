@@ -68,6 +68,11 @@ BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int 
         return BlockType::DIRT;
     }
     
+    // Limit stone to 62 blocks down from terrain height
+    if (worldY < -32) {
+        return BlockType::AIR;
+    }
+    
     return BlockType::STONE;
 }
 
