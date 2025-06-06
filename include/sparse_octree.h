@@ -4,6 +4,7 @@
 #include <vector>
 #include <optional>
 #include <unordered_map>
+#include <mutex>
 #include "aabb.h"
 #include <glm/glm.hpp>
 #include <algorithm>
@@ -68,6 +69,9 @@ public:
     const Node& getRoot() const { return nodes[rootIndex]; }
 
 private:
+    // Mutex for thread safety
+    mutable std::mutex m_octreeMutex;
+    
     // Store all nodes in a contiguous vector for better cache locality
     std::vector<Node> nodes;
     // Store all objects in a contiguous vector

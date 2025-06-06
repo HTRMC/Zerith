@@ -35,6 +35,8 @@ uint32_t SparseOctree<T>::addObject(const AABB& bounds, const T& object) {
 
 template <typename T>
 void SparseOctree<T>::insert(const AABB& bounds, const T& object) {
+    std::lock_guard<std::mutex> lock(m_octreeMutex);
+    
     if (!nodes[rootIndex].bounds.contains(bounds)) {
         LOG_WARN("SparseOctree: Object bounds outside of octree bounds");
         return;
@@ -45,68 +47,130 @@ void SparseOctree<T>::insert(const AABB& bounds, const T& object) {
 
 template <typename T>
 void SparseOctree<T>::insertInternal(int nodeIndex, const AABB& bounds, const T& object, int depth) {
-    Node& node = nodes[nodeIndex];
+    // Safety check for debug mode - ensure nodeIndex is valid
+    if (nodeIndex < 0 || nodeIndex >= static_cast<int>(nodes.size())) {
+        LOG_ERROR("SparseOctree: Invalid node index %d (max: %zu)", nodeIndex, nodes.size());
+        return;
+    }
     
+    // Don't hold reference - access by index when needed
+
     // If we've reached maximum depth or this object should be inserted at this level, add it here
     if (depth >= maxDepth || shouldInsertAtThisLevel(nodeIndex, bounds)) {
         uint32_t objectIndex = addObject(bounds, object);
-        node.objectIndices.push_back(objectIndex);
-        
+        nodes[nodeIndex].objectIndices.push_back(objectIndex);
+
         // Check if we need to subdivide based on object count
-        if (node.isLeaf() && node.objectIndices.size() > maxObjectsPerNode && depth < maxDepth) {
+        if (nodes[nodeIndex].isLeaf() &&
+            nodes[nodeIndex].objectIndices.size() > maxObjectsPerNode &&
+            depth < maxDepth) {
+
             // Create children for node
             for (int i = 0; i < CHILD_COUNT; i++) {
-                if (node.childIndices[i] == -1) {
+                if (nodes[nodeIndex].childIndices[i] == -1) {
                     createChild(nodeIndex, i);
                 }
             }
-            
-            // Redistribute objects to children
-            auto objectsToRedistribute = std::move(node.objectIndices);
-            node.objectIndices.clear();
-            
+
+            // Access by index after potential reallocation
+            // Move objects out before redistribution
+            auto objectsToRedistribute = std::move(nodes[nodeIndex].objectIndices);
+            nodes[nodeIndex].objectIndices.clear();
+
             for (uint32_t objIdx : objectsToRedistribute) {
+                // Check object index is valid
+                if (objIdx >= objects.size()) {
+                    LOG_ERROR("SparseOctree: Invalid object index %u (max: %zu)", objIdx, objects.size());
+                    continue;
+                }
+
                 const Object& obj = objects[objIdx];
-                
+
                 // Try to push down to appropriate child
-                const glm::vec3 center = node.bounds.getCenter();
+                const glm::vec3 center = nodes[nodeIndex].bounds.getCenter();
                 int childOctant = getChildIndex(center, obj.bounds.getCenter());
-                
-                if (node.hasChild(childOctant) && 
-                    nodes[node.childIndices[childOctant]].bounds.contains(obj.bounds)) {
-                    insertInternal(node.childIndices[childOctant], obj.bounds, obj.data, depth + 1);
+
+                // Validate childOctant
+                if (childOctant < 0 || childOctant >= CHILD_COUNT) {
+                    LOG_ERROR("SparseOctree: Invalid child octant %d", childOctant);
+                    nodes[nodeIndex].objectIndices.push_back(objIdx);
+                    continue;
+                }
+
+                if (nodes[nodeIndex].hasChild(childOctant)) {
+                    int childIndex = nodes[nodeIndex].childIndices[childOctant];
+
+                    // Validate child index
+                    if (childIndex < 0 || childIndex >= static_cast<int>(nodes.size())) {
+                        LOG_ERROR("SparseOctree: Invalid child node index %d (max: %zu)", childIndex, nodes.size());
+                        nodes[nodeIndex].objectIndices.push_back(objIdx);
+                        continue;
+                    }
+
+                    if (nodes[childIndex].bounds.contains(obj.bounds)) {
+                        // Only recurse if the object can fully fit in the child node
+                        insertInternal(childIndex, obj.bounds, obj.data, depth + 1);
+                    } else {
+                        // If can't push down, keep at this level
+                        nodes[nodeIndex].objectIndices.push_back(objIdx);
+                    }
                 } else {
-                    // If can't push down, keep at this level
-                    node.objectIndices.push_back(objIdx);
+                    // If no child exists at this octant, keep at this level
+                    nodes[nodeIndex].objectIndices.push_back(objIdx);
                 }
             }
         }
         return;
     }
-    
+
     // If node is a leaf but we're not at max depth, we need to create all children
-    if (node.isLeaf()) {
+    if (nodes[nodeIndex].isLeaf()) {
         for (int i = 0; i < CHILD_COUNT; i++) {
             createChild(nodeIndex, i);
         }
     }
-    
+
     // Try to insert into appropriate child based on center point
-    const glm::vec3 center = node.bounds.getCenter();
+    const glm::vec3 center = nodes[nodeIndex].bounds.getCenter();
     int childOctant = getChildIndex(center, bounds.getCenter());
-    
-    if (node.hasChild(childOctant) && 
-        nodes[node.childIndices[childOctant]].bounds.contains(bounds)) {
-        insertInternal(node.childIndices[childOctant], bounds, object, depth + 1);
+
+    // Validate childOctant
+    if (childOctant < 0 || childOctant >= CHILD_COUNT) {
+        LOG_ERROR("SparseOctree: Invalid child octant %d", childOctant);
+        uint32_t objectIndex = addObject(bounds, object);
+        nodes[nodeIndex].objectIndices.push_back(objectIndex);
+        return;
+    }
+
+    if (nodes[nodeIndex].hasChild(childOctant)) {
+        int childIndex = nodes[nodeIndex].childIndices[childOctant];
+
+        // Validate child index
+        if (childIndex < 0 || childIndex >= static_cast<int>(nodes.size())) {
+            LOG_ERROR("SparseOctree: Invalid child node index %d (max: %zu)", childIndex, nodes.size());
+            uint32_t objectIndex = addObject(bounds, object);
+            nodes[nodeIndex].objectIndices.push_back(objectIndex);
+            return;
+        }
+
+        if (nodes[childIndex].bounds.contains(bounds)) {
+            insertInternal(childIndex, bounds, object, depth + 1);
+        } else {
+            // If can't push down, add to this level
+            uint32_t objectIndex = addObject(bounds, object);
+            nodes[nodeIndex].objectIndices.push_back(objectIndex);
+        }
     } else {
         // If can't push down, add to this level
         uint32_t objectIndex = addObject(bounds, object);
-        node.objectIndices.push_back(objectIndex);
+        nodes[nodeIndex].objectIndices.push_back(objectIndex);
     }
 }
 
 template <typename T>
 bool SparseOctree<T>::remove(const AABB& bounds, const T& object) {
+    std::lock_guard<std::mutex> lock(m_octreeMutex);
+    
     if (!nodes[rootIndex].bounds.intersects(bounds)) {
         return false;
     }
@@ -159,9 +223,11 @@ bool SparseOctree<T>::removeInternal(int nodeIndex, const AABB& bounds, const T&
 
 template <typename T>
 bool SparseOctree<T>::update(const AABB& oldBounds, const AABB& newBounds, const T& object) {
+    std::lock_guard<std::mutex> lock(m_octreeMutex);
+    
     // Remove and re-insert (could be optimized further)
-    if (remove(oldBounds, object)) {
-        insert(newBounds, object);
+    if (removeInternal(rootIndex, oldBounds, object)) {
+        insertInternal(rootIndex, newBounds, object, 0);
         return true;
     }
     return false;
@@ -169,6 +235,8 @@ bool SparseOctree<T>::update(const AABB& oldBounds, const AABB& newBounds, const
 
 template <typename T>
 std::vector<std::pair<AABB, T>> SparseOctree<T>::queryRegion(const AABB& region) const {
+    std::lock_guard<std::mutex> lock(m_octreeMutex);
+    
     std::vector<std::pair<AABB, T>> result;
     
     if (!nodes[rootIndex].bounds.intersects(region)) {
@@ -212,6 +280,8 @@ template <typename T>
 std::vector<std::pair<AABB, T>> SparseOctree<T>::queryRay(const glm::vec3& origin, 
                                                   const glm::vec3& direction, 
                                                   float maxDistance) const {
+    std::lock_guard<std::mutex> lock(m_octreeMutex);
+    
     std::vector<std::pair<AABB, T>> result;
     
     // Check if ray intersects the root node
@@ -289,11 +359,15 @@ void SparseOctree<T>::queryRayInternal(int nodeIndex, const glm::vec3& origin,
 
 template <typename T>
 void SparseOctree<T>::clear() {
+    std::lock_guard<std::mutex> lock(m_octreeMutex);
+    
+    AABB rootBounds = nodes[rootIndex].bounds;
+    
     nodes.clear();
     objects.clear();
     
     // Recreate the root node
-    rootIndex = createNode(nodes[rootIndex].bounds);
+    rootIndex = createNode(rootBounds);
 }
 
 template <typename T>
