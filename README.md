@@ -11,7 +11,7 @@ A 3D voxel-based game engine built with Vulkan. Starting as a Minecraft-inspired
 
 > **Mesh Shader Rewrite**  
 > Zerith is a complete rewrite of the [original engine](https://github.com/HTRMC/Zerith-Old), now utilizing **mesh shaders** instead of the traditional vertex/fragment pipeline.  
-> This modern approach allows for significantly more efficient and scalable rendering—especially suited for voxel-based environments.
+> This modern approach allows for significantly more efficient and scalable rendering.
 
 ## Current Features
 - Vulkan rendering pipeline
