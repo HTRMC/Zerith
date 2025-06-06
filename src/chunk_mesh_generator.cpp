@@ -72,10 +72,10 @@ void ChunkMeshGenerator::loadBlockModels() {
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
     std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
     
-    // Iterate through all blocks in the chunk
-    for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
-        for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
-            for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+    // Iterate through all blocks in the chunk (xyz order)
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
                 generateBlockFaces(chunk, x, y, z, allFaces);
             }
         }
@@ -90,10 +90,10 @@ FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooled(
     // Estimate capacity based on chunk size (assume average 2 faces per block visible)
     batch.reserve(Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * 2);
     
-    // Iterate through all blocks in the chunk
-    for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
-        for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
-            for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+    // Iterate through all blocks in the chunk (xyz order)
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
                 generateBlockFacesPooled(chunk, x, y, z, batch);
             }
         }
@@ -396,10 +396,10 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     
     std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
     
-    // Iterate through all blocks in the chunk
-    for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
-        for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
-            for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+    // Iterate through all blocks in the chunk (xyz order)
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
                 generateBlockFacesWithNeighbors(chunk, x, y, z, allFaces,
                                               neighborXMinus, neighborXPlus,
                                               neighborYMinus, neighborYPlus,
@@ -422,10 +422,10 @@ FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooledW
     // Estimate capacity based on chunk size (assume average 2 faces per block visible)
     batch.reserve(Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * 2);
     
-    // Iterate through all blocks in the chunk
-    for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
-        for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
-            for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+    // Iterate through all blocks in the chunk (xyz order)
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
                 generateBlockFacesPooledWithNeighbors(chunk, x, y, z, batch,
                                                     neighborXMinus, neighborXPlus,
                                                     neighborYMinus, neighborYPlus,

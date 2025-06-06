@@ -133,7 +133,9 @@ bool Chunk::isFaceVisibleAdvanced(int x, int y, int z, int faceDir) const {
 }
 
 constexpr int Chunk::getIndex(int x, int y, int z) const {
-    return x + y * CHUNK_SIZE + z * CHUNK_SIZE * CHUNK_SIZE;
+    // Z-major ordering (z varies fastest) to match common xyz traversal order
+    // This improves cache coherency as adjacent memory locations are processed together
+    return z + y * CHUNK_SIZE + x * CHUNK_SIZE * CHUNK_SIZE;
 }
 
 constexpr bool Chunk::isInBounds(int x, int y, int z) const {
