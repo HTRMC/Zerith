@@ -244,35 +244,46 @@ void SparseOctree<T>::queryRayInternal(int nodeIndex, const glm::vec3& origin,
         return;
     }
     
-    // Sort children by distance from ray origin for more efficient traversal
+    // Use fixed-size array to avoid dynamic allocation and improve cache coherency
     struct ChildDist {
         int childIndex;
-        int octantIndex;
         float distance;
-        bool operator<(const ChildDist& other) const {
-            return distance < other.distance;
-        }
     };
     
-    std::vector<ChildDist> childrenDists;
-    childrenDists.reserve(CHILD_COUNT);
+    // Pre-allocated fixed-size array for better cache locality
+    ChildDist childrenDists[CHILD_COUNT];
+    int validChildCount = 0;
     
+    // First, collect all valid children
     for (int i = 0; i < CHILD_COUNT; i++) {
         if (node.hasChild(i)) {
             int childIndex = node.childIndices[i];
             float t;
             if (nodes[childIndex].bounds.intersectsRay(origin, direction, t) && t <= maxDistance) {
-                childrenDists.push_back({childIndex, i, t});
+                childrenDists[validChildCount].childIndex = childIndex;
+                childrenDists[validChildCount].distance = t;
+                validChildCount++;
             }
         }
     }
     
-    // Sort by distance
-    std::sort(childrenDists.begin(), childrenDists.end());
+    // Simple in-place insertion sort for small array (CHILD_COUNT is only 8)
+    // This avoids the overhead of std::sort for very small arrays
+    for (int i = 1; i < validChildCount; i++) {
+        ChildDist key = childrenDists[i];
+        int j = i - 1;
+        
+        while (j >= 0 && childrenDists[j].distance > key.distance) {
+            childrenDists[j + 1] = childrenDists[j];
+            j--;
+        }
+        
+        childrenDists[j + 1] = key;
+    }
     
     // Traverse children in order of distance
-    for (const auto& cd : childrenDists) {
-        queryRayInternal(cd.childIndex, origin, direction, maxDistance, result);
+    for (int i = 0; i < validChildCount; i++) {
+        queryRayInternal(childrenDists[i].childIndex, origin, direction, maxDistance, result);
     }
 }
 
