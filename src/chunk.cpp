@@ -133,9 +133,36 @@ bool Chunk::isFaceVisibleAdvanced(int x, int y, int z, int faceDir) const {
 }
 
 constexpr int Chunk::getIndex(int x, int y, int z) const {
-    // Z-major ordering (z varies fastest) to match common xyz traversal order
-    // This improves cache coherency as adjacent memory locations are processed together
-    return z + y * CHUNK_SIZE + x * CHUNK_SIZE * CHUNK_SIZE;
+    // Morton Z-order curve for better spatial locality in all dimensions
+    // This approach interleaves bits of x, y, and z coordinates to create
+    // a space-filling curve that preserves locality in all three dimensions
+    
+    // We assume CHUNK_SIZE is 16 (4 bits), so we need to interleave
+    // 4 bits from each coordinate (x, y, z)
+    
+    // Limit to valid range
+    x = x & 0xF;  // 0-15
+    y = y & 0xF;  // 0-15
+    z = z & 0xF;  // 0-15
+    
+    // Use pre-shifted lookup tables for efficiency (each 4-bit value expands to 12 bits)
+    static constexpr uint32_t morton_x[16] = {
+        0x000000, 0x000001, 0x000008, 0x000009, 0x000040, 0x000041, 0x000048, 0x000049,
+        0x000200, 0x000201, 0x000208, 0x000209, 0x000240, 0x000241, 0x000248, 0x000249
+    };
+    
+    static constexpr uint32_t morton_y[16] = {
+        0x000000, 0x000002, 0x000010, 0x000012, 0x000080, 0x000082, 0x000090, 0x000092,
+        0x000400, 0x000402, 0x000410, 0x000412, 0x000480, 0x000482, 0x000490, 0x000492
+    };
+    
+    static constexpr uint32_t morton_z[16] = {
+        0x000000, 0x000004, 0x000020, 0x000024, 0x000100, 0x000104, 0x000120, 0x000124,
+        0x000800, 0x000804, 0x000820, 0x000824, 0x000900, 0x000904, 0x000920, 0x000924
+    };
+    
+    // Combine the lookup values
+    return morton_x[x] | morton_y[y] | morton_z[z];
 }
 
 constexpr bool Chunk::isInBounds(int x, int y, int z) const {
