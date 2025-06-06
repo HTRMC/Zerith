@@ -116,41 +116,15 @@ A 3D voxel-based game engine built with Vulkan. Starting as a Minecraft-inspired
    ```
    ./Zerith
    ```
-
-### macOS
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/HTRMC/Zerith.git
-   cd Zerith
-   ```
-
-2. Generate build files:
-   ```
-   mkdir build
-   cd build
-   cmake ..
-   ```
-
-3. Build the project:
-   ```
-   cmake --build . --config Release
-   ```
-
-4. Run the application:
-   ```
-   ./Zerith
-   ```
-
+   
 ## Troubleshooting
 
 ### Shader Compilation Issues
 
 If you encounter shader compilation errors:
 
-1. Make sure shader files (`shader.vert` and `shader.frag`) are in the `shaders` directory
+1. Make sure shader files are in the `shaders` directory
 2. Make sure the Vulkan SDK is properly installed and the `VULKAN_SDK` environment variable is set
-3. Run `compile_shaders.bat` manually to see detailed error messages
 
 ### Validation Layer Errors
 
@@ -166,16 +140,15 @@ If you see validation layer errors:
 Zerith/
 ├── CMakeLists.txt           # CMake configuration
 ├── build.bat                # Build script for Windows
-├── compile_shaders.bat      # Script to compile GLSL shaders to SPIR-V
 ├── shaders/                 # Directory for shader files
 │   ├── shader.vert          # Vertex shader source (GLSL)
 │   ├── shader.frag          # Fragment shader source (GLSL)
 │   ├── vert.spv             # Compiled vertex shader (SPIR-V)
 │   └── frag.spv             # Compiled fragment shader (SPIR-V)
 └── src/                     # Source code directory
-├── main.cpp             # Application entry point
-├── VulkanApp.cpp        # Vulkan application implementation
-└── VulkanApp.hpp        # Vulkan application header
+   ├── main.cpp             # Application entry point
+   ├── VulkanApp.cpp        # Vulkan application implementation
+   └── VulkanApp.hpp        # Vulkan application header
 ```
 
 ## Contributing
