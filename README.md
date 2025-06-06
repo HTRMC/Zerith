@@ -16,13 +16,14 @@ A 3D voxel-based game engine built with Vulkan. Starting as a Minecraft-inspired
 ## Current Features
 - Vulkan rendering pipeline
 - Basic triangle rendering (foundation for 3D graphics)
-
-## Planned Features
 - Procedural terrain generation
 - Voxel-based world editing
 - Custom block types and textures
 - Physics and collision system
-- Unique gameplay mechanics
+
+## Planned Features
+- Task based multithreading system
+- Buffer pool system
 - Multiplayer support
 
 ## Requirements
