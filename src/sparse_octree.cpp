@@ -10,107 +10,145 @@ template <typename T>
 SparseOctree<T>::SparseOctree(const AABB& bounds, int maxDepth, int maxObjectsPerNode)
     : maxDepth(maxDepth), maxObjectsPerNode(maxObjectsPerNode)
 {
-    root = std::make_unique<Node>();
-    root->bounds = bounds;
+    // Reserve some space to avoid frequent reallocations
+    nodes.reserve(64);
+    objects.reserve(128);
+    
+    // Create root node
+    rootIndex = createNode(bounds);
+}
+
+template <typename T>
+int SparseOctree<T>::createNode(const AABB& bounds) {
+    int index = nodes.size();
+    nodes.emplace_back();
+    nodes[index].bounds = bounds;
+    return index;
+}
+
+template <typename T>
+uint32_t SparseOctree<T>::addObject(const AABB& bounds, const T& object) {
+    uint32_t index = objects.size();
+    objects.emplace_back(bounds, object);
+    return index;
 }
 
 template <typename T>
 void SparseOctree<T>::insert(const AABB& bounds, const T& object) {
-    if (!root->bounds.contains(bounds)) {
+    if (!nodes[rootIndex].bounds.contains(bounds)) {
         LOG_WARN("SparseOctree: Object bounds outside of octree bounds");
         return;
     }
     
-    insertInternal(root.get(), bounds, object, 0);
+    insertInternal(rootIndex, bounds, object, 0);
 }
 
 template <typename T>
-void SparseOctree<T>::insertInternal(Node* node, const AABB& bounds, const T& object, int depth) {
+void SparseOctree<T>::insertInternal(int nodeIndex, const AABB& bounds, const T& object, int depth) {
+    Node& node = nodes[nodeIndex];
+    
     // If we've reached maximum depth or this object should be inserted at this level, add it here
-    if (depth >= maxDepth || shouldInsertAtThisLevel(node, bounds)) {
-        node->objects.emplace_back(bounds, object);
+    if (depth >= maxDepth || shouldInsertAtThisLevel(nodeIndex, bounds)) {
+        uint32_t objectIndex = addObject(bounds, object);
+        node.objectIndices.push_back(objectIndex);
         
         // Check if we need to subdivide based on object count
-        if (node->isLeaf() && node->objects.size() > maxObjectsPerNode && depth < maxDepth) {
+        if (node.isLeaf() && node.objectIndices.size() > maxObjectsPerNode && depth < maxDepth) {
+            // Create children for node
+            for (int i = 0; i < CHILD_COUNT; i++) {
+                if (node.childIndices[i] == -1) {
+                    createChild(nodeIndex, i);
+                }
+            }
+            
             // Redistribute objects to children
-            auto objectsToRedistribute = std::move(node->objects);
-            for (const auto& [objBounds, obj] : objectsToRedistribute) {
-                // Try to push down to appropriate child
-                const glm::vec3 center = node->bounds.getCenter();
-                int childIndex = getChildIndex(center, objBounds.getCenter());
+            auto objectsToRedistribute = std::move(node.objectIndices);
+            node.objectIndices.clear();
+            
+            for (uint32_t objIdx : objectsToRedistribute) {
+                const Object& obj = objects[objIdx];
                 
-                // If this object fits in a single child
-                if (!shouldInsertAtThisLevel(node, objBounds)) {
-                    // Create child if it doesn't exist
-                    if (!node->hasChild(childIndex)) {
-                        createChild(node, childIndex);
-                    }
-                    
-                    // Insert into child
-                    insertInternal(node->children[childIndex].get(), objBounds, obj, depth + 1);
+                // Try to push down to appropriate child
+                const glm::vec3 center = node.bounds.getCenter();
+                int childOctant = getChildIndex(center, obj.bounds.getCenter());
+                
+                if (node.hasChild(childOctant) && 
+                    nodes[node.childIndices[childOctant]].bounds.contains(obj.bounds)) {
+                    insertInternal(node.childIndices[childOctant], obj.bounds, obj.data, depth + 1);
                 } else {
-                    // If no child fully contains the object, keep it at this level
-                    node->objects.emplace_back(objBounds, obj);
+                    // If can't push down, keep at this level
+                    node.objectIndices.push_back(objIdx);
                 }
             }
         }
         return;
     }
     
-    // Calculate which child this object belongs to
-    const glm::vec3 center = node->bounds.getCenter();
-    int childIndex = getChildIndex(center, bounds.getCenter());
-    
-    // If object doesn't fit in a single child, add it to this node
-    if (shouldInsertAtThisLevel(node, bounds)) {
-        node->objects.emplace_back(bounds, object);
-        return;
+    // If node is a leaf but we're not at max depth, we need to create all children
+    if (node.isLeaf()) {
+        for (int i = 0; i < CHILD_COUNT; i++) {
+            createChild(nodeIndex, i);
+        }
     }
     
-    // Create child if it doesn't exist
-    if (!node->hasChild(childIndex)) {
-        createChild(node, childIndex);
-    }
+    // Try to insert into appropriate child based on center point
+    const glm::vec3 center = node.bounds.getCenter();
+    int childOctant = getChildIndex(center, bounds.getCenter());
     
-    // Insert into appropriate child
-    insertInternal(node->children[childIndex].get(), bounds, object, depth + 1);
+    if (node.hasChild(childOctant) && 
+        nodes[node.childIndices[childOctant]].bounds.contains(bounds)) {
+        insertInternal(node.childIndices[childOctant], bounds, object, depth + 1);
+    } else {
+        // If can't push down, add to this level
+        uint32_t objectIndex = addObject(bounds, object);
+        node.objectIndices.push_back(objectIndex);
+    }
 }
 
 template <typename T>
 bool SparseOctree<T>::remove(const AABB& bounds, const T& object) {
-    if (!root->bounds.intersects(bounds)) {
+    if (!nodes[rootIndex].bounds.intersects(bounds)) {
         return false;
     }
     
-    return removeInternal(root.get(), bounds, object);
+    return removeInternal(rootIndex, bounds, object);
 }
 
 template <typename T>
-bool SparseOctree<T>::removeInternal(Node* node, const AABB& bounds, const T& object) {
+bool SparseOctree<T>::removeInternal(int nodeIndex, const AABB& bounds, const T& object) {
+    Node& node = nodes[nodeIndex];
+    
     // Check this node's objects
-    auto it = std::find_if(node->objects.begin(), node->objects.end(),
-                         [&object](const auto& pair) { 
-                             return pair.second == object; 
-                         });
-                         
-    if (it != node->objects.end()) {
-        node->objects.erase(it);
-        return true;
+    for (auto it = node.objectIndices.begin(); it != node.objectIndices.end(); ++it) {
+        if (objects[*it].data == object) {
+            node.objectIndices.erase(it);
+            return true;
+        }
     }
     
     // If this is a leaf node and we didn't find the object, it's not here
-    if (node->isLeaf()) {
+    if (node.isLeaf()) {
         return false;
     }
     
-    // Try all children that might contain the object
-    for (auto& [childIndex, child] : node->children) {
-        if (child->bounds.intersects(bounds)) {
-            if (removeInternal(child.get(), bounds, object)) {
-                // Clean up empty child nodes
-                if (child->isLeaf() && child->objects.empty()) {
-                    node->children.erase(childIndex);
-                }
+    // Check appropriate child first based on center point
+    const glm::vec3 center = node.bounds.getCenter();
+    int childOctant = getChildIndex(center, bounds.getCenter());
+    
+    if (node.hasChild(childOctant)) {
+        int childIndex = node.childIndices[childOctant];
+        if (nodes[childIndex].bounds.intersects(bounds) && 
+            removeInternal(childIndex, bounds, object)) {
+            return true;
+        }
+    }
+    
+    // Check other children if needed
+    for (int i = 0; i < CHILD_COUNT; i++) {
+        if (i != childOctant && node.hasChild(i)) {
+            int childIndex = node.childIndices[i];
+            if (nodes[childIndex].bounds.intersects(bounds) && 
+                removeInternal(childIndex, bounds, object)) {
                 return true;
             }
         }
@@ -133,73 +171,83 @@ template <typename T>
 std::vector<std::pair<AABB, T>> SparseOctree<T>::queryRegion(const AABB& region) const {
     std::vector<std::pair<AABB, T>> result;
     
-    if (!root->bounds.intersects(region)) {
+    if (!nodes[rootIndex].bounds.intersects(region)) {
         return result;
     }
     
-    queryRegionInternal(root.get(), region, result);
+    queryRegionInternal(rootIndex, region, result);
     return result;
 }
 
 template <typename T>
-void SparseOctree<T>::queryRegionInternal(const Node* node, const AABB& region, 
-                                       std::vector<std::pair<AABB, T>>& result) const {
+void SparseOctree<T>::queryRegionInternal(int nodeIndex, const AABB& region, 
+                                   std::vector<std::pair<AABB, T>>& result) const {
+    const Node& node = nodes[nodeIndex];
+    
     // Add any objects in this node that intersect with the query region
-    for (const auto& [objBounds, obj] : node->objects) {
-        if (objBounds.intersects(region)) {
-            result.push_back(std::make_pair(objBounds, obj));
+    for (uint32_t objIndex : node.objectIndices) {
+        const Object& obj = objects[objIndex];
+        if (obj.bounds.intersects(region)) {
+            result.emplace_back(obj.bounds, obj.data);
         }
     }
     
     // If leaf node, we're done
-    if (node->isLeaf()) {
+    if (node.isLeaf()) {
         return;
     }
     
     // Check children that intersect with the query region
-    for (const auto& [childIndex, child] : node->children) {
-        if (child->bounds.intersects(region)) {
-            queryRegionInternal(child.get(), region, result);
+    for (int i = 0; i < CHILD_COUNT; i++) {
+        if (node.hasChild(i)) {
+            int childIndex = node.childIndices[i];
+            if (nodes[childIndex].bounds.intersects(region)) {
+                queryRegionInternal(childIndex, region, result);
+            }
         }
     }
 }
 
 template <typename T>
 std::vector<std::pair<AABB, T>> SparseOctree<T>::queryRay(const glm::vec3& origin, 
-                                                      const glm::vec3& direction, 
-                                                      float maxDistance) const {
+                                                  const glm::vec3& direction, 
+                                                  float maxDistance) const {
     std::vector<std::pair<AABB, T>> result;
     
     // Check if ray intersects the root node
     float t;
-    if (!root->bounds.intersectsRay(origin, direction, t) || t > maxDistance) {
+    if (!nodes[rootIndex].bounds.intersectsRay(origin, direction, t) || t > maxDistance) {
         return result;
     }
     
-    queryRayInternal(root.get(), origin, direction, maxDistance, result);
+    queryRayInternal(rootIndex, origin, direction, maxDistance, result);
     return result;
 }
 
 template <typename T>
-void SparseOctree<T>::queryRayInternal(const Node* node, const glm::vec3& origin, 
-                                    const glm::vec3& direction, float maxDistance,
-                                    std::vector<std::pair<AABB, T>>& result) const {
+void SparseOctree<T>::queryRayInternal(int nodeIndex, const glm::vec3& origin, 
+                                const glm::vec3& direction, float maxDistance,
+                                std::vector<std::pair<AABB, T>>& result) const {
+    const Node& node = nodes[nodeIndex];
+    
     // Add any objects in this node that intersect with the ray
-    for (const auto& [objBounds, obj] : node->objects) {
+    for (uint32_t objIndex : node.objectIndices) {
+        const Object& obj = objects[objIndex];
         float t;
-        if (objBounds.intersectsRay(origin, direction, t) && t <= maxDistance) {
-            result.push_back(std::make_pair(objBounds, obj));
+        if (obj.bounds.intersectsRay(origin, direction, t) && t <= maxDistance) {
+            result.emplace_back(obj.bounds, obj.data);
         }
     }
     
     // If leaf node, we're done
-    if (node->isLeaf()) {
+    if (node.isLeaf()) {
         return;
     }
     
     // Sort children by distance from ray origin for more efficient traversal
     struct ChildDist {
-        int index;
+        int childIndex;
+        int octantIndex;
         float distance;
         bool operator<(const ChildDist& other) const {
             return distance < other.distance;
@@ -207,11 +255,15 @@ void SparseOctree<T>::queryRayInternal(const Node* node, const glm::vec3& origin
     };
     
     std::vector<ChildDist> childrenDists;
+    childrenDists.reserve(CHILD_COUNT);
     
-    for (const auto& [childIndex, child] : node->children) {
-        float t;
-        if (child->bounds.intersectsRay(origin, direction, t) && t <= maxDistance) {
-            childrenDists.push_back({childIndex, t});
+    for (int i = 0; i < CHILD_COUNT; i++) {
+        if (node.hasChild(i)) {
+            int childIndex = node.childIndices[i];
+            float t;
+            if (nodes[childIndex].bounds.intersectsRay(origin, direction, t) && t <= maxDistance) {
+                childrenDists.push_back({childIndex, i, t});
+            }
         }
     }
     
@@ -220,19 +272,38 @@ void SparseOctree<T>::queryRayInternal(const Node* node, const glm::vec3& origin
     
     // Traverse children in order of distance
     for (const auto& cd : childrenDists) {
-        queryRayInternal(node->children.at(cd.index).get(), origin, direction, maxDistance, result);
+        queryRayInternal(cd.childIndex, origin, direction, maxDistance, result);
     }
 }
 
 template <typename T>
 void SparseOctree<T>::clear() {
-    root = std::make_unique<Node>();
+    nodes.clear();
+    objects.clear();
+    
+    // Recreate the root node
+    rootIndex = createNode(nodes[rootIndex].bounds);
 }
 
 template <typename T>
-void SparseOctree<T>::createChild(Node* node, int childIndex) {
-    node->children[childIndex] = std::make_unique<Node>();
-    node->children[childIndex]->bounds = calculateChildBounds(node->bounds, childIndex);
+int SparseOctree<T>::createChild(int nodeIndex, int childOctant) {
+    Node& node = nodes[nodeIndex];
+    
+    // Check if the child already exists
+    if (node.hasChild(childOctant)) {
+        return node.childIndices[childOctant];
+    }
+    
+    // Calculate bounds for the child node
+    AABB childBounds = calculateChildBounds(node.bounds, childOctant);
+    
+    // Create new node
+    int childIndex = createNode(childBounds);
+    
+    // Update parent's child reference
+    node.childIndices[childOctant] = childIndex;
+    
+    return childIndex;
 }
 
 template <typename T>
@@ -246,7 +317,7 @@ AABB SparseOctree<T>::calculateChildBounds(const AABB& parentBounds, int childIn
     childCenter.y += ((childIndex & 2) ? extents.y : -extents.y);
     childCenter.z += ((childIndex & 4) ? extents.z : -extents.z);
     
-    // Return child bounds
+    // Return AABB with min and max points
     return AABB(childCenter - extents, childCenter + extents);
 }
 
@@ -260,9 +331,11 @@ int SparseOctree<T>::getChildIndex(const glm::vec3& nodeCenter, const glm::vec3&
 }
 
 template <typename T>
-bool SparseOctree<T>::shouldInsertAtThisLevel(const Node* node, const AABB& bounds) const {
+bool SparseOctree<T>::shouldInsertAtThisLevel(int nodeIndex, const AABB& bounds) const {
+    const Node& node = nodes[nodeIndex];
+    
     // If bounds span multiple children, keep at this level
-    const glm::vec3 center = node->bounds.getCenter();
+    const glm::vec3 center = node.bounds.getCenter();
     
     // Check if min and max points would go into different children
     int minIndex = getChildIndex(center, bounds.min);
