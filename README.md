@@ -29,28 +29,24 @@ A 3D voxel-based game engine built with Vulkan. Starting as a Minecraft-inspired
 ## Requirements
 
 - C++23 compatible compiler
-- CMake 3.30 or higher
-- Vulkan SDK 1.4.304.1 or higher
+- CMake 3.31 or higher
+- Vulkan SDK 1.4.313.0 or higher
 - (Optional) vcpkg for dependency management
 
 ## Tested Environments
 
-| OS | Compiler | CMake | Vulkan SDK | Status |
-|----|----------|-------|------------|--------|
-| Windows 11 | MSVC 19.38 | 3.30.0 | 1.4.304.1 | ✅ Working |
-| Windows 10 | MSVC 19.37 | 3.30.0 | 1.4.304.1 | ⚠️ Untested |
-| Ubuntu 22.04 | GCC 12.3 | 3.30.0 | 1.4.304.1 | ⚠️ Untested |
-| macOS 14 | AppleClang 15.0 | 3.30.0 | MoltenVK 1.2.0 | ⚠️ Untested |
+| OS | Compiler   | CMake | Vulkan SDK | Status |
+|----|------------|-------|------------|--------|
+| Windows 11 | MSVC 19.44 | 3.31.0 | 1.4.313.0 | ✅ Working |
 
 ## Building from Source
 
 ### Prerequisites
-1. Install [Vulkan SDK](https://vulkan.lunarg.com/) (version 1.4.304.1 or higher)
-2. Install [CMake](https://cmake.org/download/) (version 3.30 or higher)
+1. Install [Vulkan SDK](https://vulkan.lunarg.com/) (version 1.4.313.0 or higher)
+2. Install [CMake](https://cmake.org/download/) (version 3.31 or higher)
 3. Install a C++23 compatible compiler:
     - Windows: Visual Studio 2022 or newer
     - Linux: GCC 12 or newer
-    - macOS: Xcode 15 or newer
 
 ### Windows
 
