@@ -30,6 +30,7 @@
 #include "chunk_mesh_generator.h"
 #include "indirect_draw.h"
 #include "chunk_manager.h"
+#include "async_gpu_uploader.h"
 
 // Player and collision support
 #include "player.h"
@@ -372,6 +373,9 @@ private:
     // Chunk support
     std::unique_ptr<Zerith::ChunkManager> chunkManager;
     
+    // GPU upload system
+    std::unique_ptr<Zerith::AsyncGPUUploader> asyncGPUUploader;
+    
     // Debug data
     UniformBufferObject lastUBO{};
     
@@ -477,24 +481,42 @@ private:
     }
     
     void recreateFaceInstanceBuffer() {
-        // Wait for device to be idle
-        vkDeviceWaitIdle(device);
-        
-        // Clean up old buffer
-        if (faceInstanceBuffer != VK_NULL_HANDLE) {
-            vkDestroyBuffer(device, faceInstanceBuffer, nullptr);
-            vkFreeMemory(device, faceInstanceBufferMemory, nullptr);
+        if (!asyncGPUUploader) {
+            LOG_ERROR("AsyncGPUUploader not initialized");
+            return;
         }
         
-        // Create new buffer
-        createFaceInstanceBuffer();
+        // Queue async GPU buffer update with completion callback
+        asyncGPUUploader->queueBufferUpdate(
+            currentInstances.faces,
+            [this]() {
+                // This callback runs when upload completes
+                updateDescriptorSetsForNewBuffer();
+            }
+        );
         
-        // Update descriptor sets
+        LOG_DEBUG("Queued async buffer update with %zu face instances", currentInstances.faces.size());
+    }
+    
+    void updateDescriptorSetsForNewBuffer() {
+        // Get the updated buffer info from async uploader
+        auto bufferInfo = asyncGPUUploader->getCurrentBufferInfo();
+        
+        if (!bufferInfo.isValid || bufferInfo.buffer == VK_NULL_HANDLE) {
+            LOG_WARN("Attempted to update descriptor sets with invalid buffer");
+            return;
+        }
+        
+        // Update our local buffer references
+        faceInstanceBuffer = bufferInfo.buffer;
+        // Note: memory is managed by AsyncGPUUploader, we don't store it locally
+        
+        // Update descriptor sets for all frames
         for (size_t i = 0; i < swapChainImages.size(); i++) {
             VkDescriptorBufferInfo storageBufferInfo{};
-            storageBufferInfo.buffer = faceInstanceBuffer;
+            storageBufferInfo.buffer = bufferInfo.buffer;
             storageBufferInfo.offset = 0;
-            storageBufferInfo.range = sizeof(FaceInstanceData) * currentInstances.faces.size();
+            storageBufferInfo.range = sizeof(FaceInstanceData) * bufferInfo.instanceCount;
 
             VkWriteDescriptorSet descriptorWrite{};
             descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -507,6 +529,8 @@ private:
 
             vkUpdateDescriptorSets(device, 1, &descriptorWrite, 0, nullptr);
         }
+        
+        LOG_DEBUG("Updated descriptor sets for buffer with %zu instances", bufferInfo.instanceCount);
     }
     
     void createDefaultCube() {
@@ -543,6 +567,7 @@ private:
         createRenderPass();
         createDescriptorSetLayout();
         createCommandPool();  // Create command pool earlier
+        createAsyncGPUUploader();  // Initialize async GPU uploader
         createTextureImage();
         createTextureImageView();
         createTextureSampler();
@@ -1953,6 +1978,12 @@ private:
         }
     }
 
+    void createAsyncGPUUploader() {
+        asyncGPUUploader = std::make_unique<Zerith::AsyncGPUUploader>(
+            device, physicalDevice, commandPool, graphicsQueue);
+        LOG_INFO("AsyncGPUUploader created successfully");
+    }
+
     void createUniformBuffers() {
         VkDeviceSize bufferSize = sizeof(UniformBufferObject);
 
@@ -2720,6 +2751,14 @@ private:
             // Process input
             processInput(deltaTime);
             
+            // Process completed chunks from background threads
+            chunkManager->processCompletedChunks();
+            
+            // Update chunks if face instances changed (for GPU buffer updates)
+            if (chunkManager->hasFaceInstancesChanged()) {
+                updateChunks();
+            }
+            
             // Poll events and render
             glfwPollEvents();
             drawFrame();
@@ -2795,6 +2834,12 @@ private:
         // Clean up fences (one per frame in flight)
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroyFence(device, inFlightFences[i], nullptr);
+        }
+
+        // Shutdown async GPU uploader before destroying command pool
+        if (asyncGPUUploader) {
+            asyncGPUUploader.reset();
+            LOG_INFO("AsyncGPUUploader shut down");
         }
 
         vkDestroyCommandPool(device, commandPool, nullptr);
