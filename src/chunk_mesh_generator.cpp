@@ -4,6 +4,9 @@
 #include "block_properties.h"
 #include "block_face_bounds.h"
 #include "blockbench_face_extractor.h"
+#include "block_registry.h"
+#include "block_types.h"
+#include <filesystem>
 
 namespace Zerith {
 
@@ -15,58 +18,65 @@ ChunkMeshGenerator::ChunkMeshGenerator() {
 }
 
 void ChunkMeshGenerator::loadBlockModels() {
-    // Helper to load a block model and extract face bounds
-    auto loadBlockModel = [this](const std::string& modelPath, BlockType blockType, const std::string& blockName) {
+    // Initialize the block registry and types
+    Blocks::initialize();
+    BlockTypes::initialize();
+    BlockProperties::initialize();
+    
+    const std::string modelsPath = "assets/";
+    auto& registry = BlockRegistry::getInstance();
+    
+    // Initialize the face bounds registry
+    BlockFaceBoundsRegistry::getInstance().initialize(registry.getBlockCount());
+    
+    // Iterate through all registered blocks
+    for (const auto& blockDef : registry.getAllBlocks()) {
+        BlockType blockType = blockDef->getBlockType();
+        
+        // Skip air blocks
+        if (blockDef->getId() == "air") {
+            continue;
+        }
+        
+        // Construct model path from block's model name
+        std::string modelPath = modelsPath + blockDef->getModelName() + ".json";
+        
+        // Check if model file exists
+        if (!std::filesystem::exists(modelPath)) {
+            LOG_WARN("Model file not found for block '%s': %s", 
+                blockDef->getDisplayName().c_str(), modelPath.c_str());
+            continue;
+        }
+        
         try {
+            // Load the model
             auto model = BlockbenchParser::parseFromFileWithParents(modelPath);
             
             // Extract and register face bounds
             auto faceBounds = BlockbenchFaceExtractor::extractBlockFaceBounds(model);
             BlockFaceBoundsRegistry::getInstance().setFaceBounds(blockType, faceBounds);
             
-            // Debug output for partial blocks
-            if (blockType == BlockType::OAK_SLAB || blockType == BlockType::OAK_STAIRS) {
-                BlockbenchFaceExtractor::printBlockFaceBounds(faceBounds, blockName);
+            // Debug output for partial blocks (slabs, stairs)
+            if (blockDef->getId() == "oak_slab" || blockDef->getId() == "oak_stairs") {
+                BlockbenchFaceExtractor::printBlockFaceBounds(faceBounds, blockDef->getDisplayName());
             }
             
             // Create the instance generator
             m_blockGenerators[blockType] = 
                 std::make_unique<BlockbenchInstanceWrapper>(std::move(model), blockType, m_textureArray);
-            LOG_DEBUG("Loaded %s model", blockName.c_str());
+            
+            LOG_INFO("Loaded model for block '%s' (ID: %s, Type: %d)", 
+                blockDef->getDisplayName().c_str(), 
+                blockDef->getId().c_str(), 
+                static_cast<int>(blockType));
+                
         } catch (const std::exception& e) {
-            LOG_ERROR("Failed to load %s model: %s", blockName.c_str(), e.what());
+            LOG_ERROR("Failed to load model for block '%s': %s", 
+                blockDef->getDisplayName().c_str(), e.what());
         }
-    };
+    }
     
-    // Load oak planks (full block)
-    loadBlockModel("assets/oak_planks.json", BlockType::OAK_PLANKS, "oak planks");
-    
-    // Load oak slab
-    loadBlockModel("assets/oak_slab.json", BlockType::OAK_SLAB, "oak slab");
-    
-    // Load oak stairs
-    loadBlockModel("assets/oak_stairs.json", BlockType::OAK_STAIRS, "oak stairs");
-    
-    // Load grass block
-    loadBlockModel("assets/grass_block.json", BlockType::GRASS_BLOCK, "grass block");
-    
-    // Load stone block
-    loadBlockModel("assets/stone.json", BlockType::STONE, "stone block");
-    
-    // Load dirt block
-    loadBlockModel("assets/dirt.json", BlockType::DIRT, "dirt block");
-    
-    // Load oak log
-    loadBlockModel("assets/oak_log.json", BlockType::OAK_LOG, "oak log");
-    
-    // Load oak leaves
-    loadBlockModel("assets/oak_leaves.json", BlockType::OAK_LEAVES, "oak leaves");
-    
-    // Load crafting table
-    loadBlockModel("assets/crafting_table.json", BlockType::CRAFTING_TABLE, "crafting table");
-    
-    // Load glass block
-    loadBlockModel("assets/glass.json", BlockType::GLASS, "glass block");
+    LOG_INFO("Loaded models for %zu blocks", m_blockGenerators.size());
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
@@ -107,7 +117,7 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockType::AIR) {
+    if (blockType == BlockTypes::AIR) {
         return;
     }
     
@@ -164,7 +174,7 @@ void ChunkMeshGenerator::generateBlockFacesPooled(const Chunk& chunk, int x, int
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockType::AIR) {
+    if (blockType == BlockTypes::AIR) {
         return;
     }
     
@@ -225,7 +235,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
                                                    const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
     // Check if current block is not air
     BlockType currentBlock = chunk.getBlock(x, y, z);
-    if (currentBlock == BlockType::AIR) {
+    if (currentBlock == BlockTypes::AIR) {
         return false;
     }
     
@@ -234,7 +244,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     int ny = y + dy;
     int nz = z + dz;
     
-    BlockType adjacentBlock = BlockType::AIR;
+    BlockType adjacentBlock = BlockTypes::AIR;
     
     // If adjacent block is within chunk bounds, use normal check
     if (nx >= 0 && nx < Chunk::CHUNK_SIZE &&
@@ -283,7 +293,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     }
     
     // If adjacent block is air, face is always visible
-    if (adjacentBlock == BlockType::AIR) {
+    if (adjacentBlock == BlockTypes::AIR) {
         return true;
     }
     
@@ -292,7 +302,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
     // HACK: Never let stairs cull anything
-    if (adjacentBlock == BlockType::OAK_STAIRS) {
+    if (adjacentBlock == BlockTypes::OAK_STAIRS) {
         return true;
     }
     
@@ -341,7 +351,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
         
         // Check if the adjacent face covers the current face
         // But don't cull stairs faces
-        if (currentBlock != BlockType::OAK_STAIRS && 
+        if (currentBlock != BlockTypes::OAK_STAIRS && 
             faceBoundsRegistry.shouldCullFaces(currentBlock, currentFaceIndex, 
                                                adjacentBlock, adjacentFaceIndex)) {
             return false; // Face is culled
@@ -351,7 +361,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     // Legacy check for backwards compatibility
     if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL && currentProps.canBeCulled) {
         // Additional check: don't cull stairs faces even if they can normally be culled
-        if (currentBlock == BlockType::OAK_STAIRS) {
+        if (currentBlock == BlockTypes::OAK_STAIRS) {
             return true; // Stairs faces are always visible
         }
         
@@ -445,7 +455,7 @@ void ChunkMeshGenerator::generateBlockFacesWithNeighbors(const Chunk& chunk, int
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockType::AIR) {
+    if (blockType == BlockTypes::AIR) {
         return;
     }
     
@@ -523,7 +533,7 @@ void ChunkMeshGenerator::generateBlockFacesPooledWithNeighbors(const Chunk& chun
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockType::AIR) {
+    if (blockType == BlockTypes::AIR) {
         return;
     }
     

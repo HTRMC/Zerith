@@ -7,20 +7,8 @@
 
 namespace Zerith {
 
-enum class BlockType : uint8_t {
-    AIR = 0,
-    OAK_PLANKS = 1,
-    OAK_SLAB = 2,
-    OAK_STAIRS = 3,
-    GRASS_BLOCK = 4,
-    STONE = 5,
-    DIRT = 6,
-    OAK_LOG = 7,
-    OAK_LEAVES = 8,
-    CRAFTING_TABLE = 9,
-    GLASS = 10,
-    NUM_BLOCK_TYPES = 11  // Must be last
-};
+// BlockType is now just an index into the block registry
+using BlockType = uint8_t;
 
 class Chunk {
 public:

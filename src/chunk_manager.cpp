@@ -1,3 +1,4 @@
+#include "block_types.h"
 #include "chunk_manager.h"
 #include "logger.h"
 #include <algorithm>
@@ -202,7 +203,7 @@ BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
     std::lock_guard<std::mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(chunkPos);
     if (it == m_chunks.end()) {
-        return BlockType::AIR;
+        return BlockTypes::AIR;
     }
     
     return it->second->getBlockWorld(worldPos);

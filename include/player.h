@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include "aabb.h"
 #include "chunk.h"
+#include "block_types.h"
 
 struct GLFWwindow;
 
@@ -74,7 +75,7 @@ private:
     bool m_isMoving = false;
     
     // Block interaction state
-    BlockType m_selectedBlockType = BlockType::STONE;
+    BlockType m_selectedBlockType = BlockTypes::STONE;
     bool m_leftMousePressed = false;
     bool m_rightMousePressed = false;
     static constexpr float BLOCK_REACH = 5.0f;

@@ -1,5 +1,6 @@
 #include "terrain_generator.h"
 #include "logger.h"
+#include "block_types.h"
 #include <cmath>
 
 namespace Zerith {
@@ -53,27 +54,27 @@ BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int 
     float terrainHeight = m_seaLevel + (heightValue * m_heightScale);
     
     if (worldY > terrainHeight) {
-        return BlockType::AIR;
+        return BlockTypes::AIR;
     }
     
     if (caveValue > 0.3f && worldY > 0) {
-        return BlockType::AIR;
+        return BlockTypes::AIR;
     }
     
     if (worldY > terrainHeight - 1 && worldY <= terrainHeight) {
-        return BlockType::GRASS_BLOCK;
+        return BlockTypes::BRICKS;
     }
     
     if (worldY > terrainHeight - 4) {
-        return BlockType::DIRT;
+        return BlockTypes::DIRT;
     }
     
     // Limit stone to 62 blocks down from terrain height
     if (worldY < -32) {
-        return BlockType::AIR;
+        return BlockTypes::AIR;
     }
     
-    return BlockType::STONE;
+    return BlockTypes::STONE;
 }
 
 } // namespace Zerith

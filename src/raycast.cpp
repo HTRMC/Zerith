@@ -1,3 +1,4 @@
+#include "block_types.h"
 #include "raycast.h"
 #include "chunk_manager.h"
 #include <cmath>
@@ -90,7 +91,7 @@ std::optional<RaycastHit> Raycast::cast(
                 // Get block directly from chunk for better performance
                 BlockType blockType = chunk->getBlock(localPos.x, localPos.y, localPos.z);
                 
-                if (blockType != BlockType::AIR) {
+                if (blockType != BlockTypes::AIR) {
                     RaycastHit hit;
                     hit.blockPos = current;
                     hit.previousPos = current - normal;
@@ -111,7 +112,7 @@ std::optional<RaycastHit> Raycast::cast(
         if (!inLoadedChunk) {
             BlockType blockType = chunkManager->getBlock(glm::vec3(current));
             
-            if (blockType != BlockType::AIR) {
+            if (blockType != BlockTypes::AIR) {
                 RaycastHit hit;
                 hit.blockPos = current;
                 hit.previousPos = current - normal;

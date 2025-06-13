@@ -1,6 +1,7 @@
 #include "chunk.h"
 #include "logger.h"
 #include "block_properties.h"
+#include "block_types.h"
 #include <algorithm>
 
 namespace Zerith {
@@ -8,13 +9,13 @@ namespace Zerith {
 Chunk::Chunk(glm::ivec3 chunkPosition) 
     : m_chunkPosition(std::move(chunkPosition)) {
     // Initialize all blocks to air
-    std::fill(m_blocks.begin(), m_blocks.end(), BlockType::AIR);
+    std::fill(m_blocks.begin(), m_blocks.end(), BlockTypes::AIR);
     LOG_TRACE("Created chunk at position (%d, %d, %d)", m_chunkPosition.x, m_chunkPosition.y, m_chunkPosition.z);
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
     if (!isInBounds(x, y, z)) {
-        return BlockType::AIR;
+        return BlockTypes::AIR;
     }
     return m_blocks[getIndex(x, y, z)];
 }
@@ -43,7 +44,7 @@ glm::ivec3 Chunk::worldToLocal(const glm::vec3& worldPos) const {
 bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     // Check if current block is not air
     BlockType currentBlock = getBlock(x, y, z);
-    if (currentBlock == BlockType::AIR) {
+    if (currentBlock == BlockTypes::AIR) {
         return false;
     }
     
@@ -60,7 +61,7 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     BlockType adjacentBlock = getBlock(nx, ny, nz);
     
     // If adjacent block is air, face is always visible
-    if (adjacentBlock == BlockType::AIR) {
+    if (adjacentBlock == BlockTypes::AIR) {
         return true;
     }
     
@@ -69,7 +70,7 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
     // HACK: Never let stairs cull anything
-    if (adjacentBlock == BlockType::OAK_STAIRS) {
+    if (adjacentBlock == BlockTypes::OAK_STAIRS) {
         return true;
     }
     
@@ -108,7 +109,7 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     // But only if the current block allows itself to be culled
     if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL && currentProps.canBeCulled) {
         // Additional check: don't cull stairs faces even if they can normally be culled
-        if (currentBlock == BlockType::OAK_STAIRS) {
+        if (currentBlock == BlockTypes::OAK_STAIRS) {
             return true; // Stairs faces are always visible
         }
         return false; // Face is culled
@@ -132,6 +133,22 @@ bool Chunk::isFaceVisibleAdvanced(int x, int y, int z, int faceDir) const {
     return isFaceVisible(x, y, z, dx, dy, dz);
 }
 
+// Morton lookup tables for constexpr use
+constexpr uint32_t morton_x[16] = {
+    0x000000, 0x000001, 0x000008, 0x000009, 0x000040, 0x000041, 0x000048, 0x000049,
+    0x000200, 0x000201, 0x000208, 0x000209, 0x000240, 0x000241, 0x000248, 0x000249
+};
+
+constexpr uint32_t morton_y[16] = {
+    0x000000, 0x000002, 0x000010, 0x000012, 0x000080, 0x000082, 0x000090, 0x000092,
+    0x000400, 0x000402, 0x000410, 0x000412, 0x000480, 0x000482, 0x000490, 0x000492
+};
+
+constexpr uint32_t morton_z[16] = {
+    0x000000, 0x000004, 0x000020, 0x000024, 0x000100, 0x000104, 0x000120, 0x000124,
+    0x000800, 0x000804, 0x000820, 0x000824, 0x000900, 0x000904, 0x000920, 0x000924
+};
+
 constexpr int Chunk::getIndex(int x, int y, int z) const {
     // Morton Z-order curve for better spatial locality in all dimensions
     // This approach interleaves bits of x, y, and z coordinates to create
@@ -144,22 +161,6 @@ constexpr int Chunk::getIndex(int x, int y, int z) const {
     x = x & 0xF;  // 0-15
     y = y & 0xF;  // 0-15
     z = z & 0xF;  // 0-15
-    
-    // Use pre-shifted lookup tables for efficiency (each 4-bit value expands to 12 bits)
-    static constexpr uint32_t morton_x[16] = {
-        0x000000, 0x000001, 0x000008, 0x000009, 0x000040, 0x000041, 0x000048, 0x000049,
-        0x000200, 0x000201, 0x000208, 0x000209, 0x000240, 0x000241, 0x000248, 0x000249
-    };
-    
-    static constexpr uint32_t morton_y[16] = {
-        0x000000, 0x000002, 0x000010, 0x000012, 0x000080, 0x000082, 0x000090, 0x000092,
-        0x000400, 0x000402, 0x000410, 0x000412, 0x000480, 0x000482, 0x000490, 0x000492
-    };
-    
-    static constexpr uint32_t morton_z[16] = {
-        0x000000, 0x000004, 0x000020, 0x000024, 0x000100, 0x000104, 0x000120, 0x000124,
-        0x000800, 0x000804, 0x000820, 0x000824, 0x000900, 0x000904, 0x000920, 0x000924
-    };
     
     // Combine the lookup values
     return morton_x[x] | morton_y[y] | morton_z[z];

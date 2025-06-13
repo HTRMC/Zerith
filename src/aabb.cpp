@@ -1,3 +1,4 @@
+#include "block_types.h"
 #include "aabb.h"
 #include "chunk_manager.h"
 #include "chunk.h"
@@ -70,7 +71,7 @@ std::vector<AABB> CollisionSystem::getBlockAABBsInRegion(const AABB& region, Chu
                 glm::vec3 blockPos(x, y, z);
                 BlockType blockType = chunkManager->getBlock(blockPos);
                 
-                if (blockType != BlockType::AIR) {
+                if (blockType != BlockTypes::AIR) {
                     blockAABBs.emplace_back(AABB::fromBlock(glm::ivec3(x, y, z)));
                 }
             }

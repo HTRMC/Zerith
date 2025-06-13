@@ -1,0 +1,23 @@
+{
+  "block.minecraft.air": "Air",
+  "block.minecraft.stone": "Stone",
+  "block.minecraft.dirt": "Dirt",
+  "block.minecraft.grass_block": "Grass Block",
+  "block.minecraft.cobblestone": "Cobblestone",
+  "block.minecraft.sand": "Sand",
+  "block.minecraft.gravel": "Gravel",
+  "block.minecraft.oak_log": "Oak Log",
+  "block.minecraft.oak_planks": "Oak Planks",
+  "block.minecraft.oak_leaves": "Oak Log",
+  "block.minecraft.oak_slab": "Oak Slab",
+  "block.minecraft.oak_stairs": "Oak Stairs",
+  "block.minecraft.stone_bricks": "Stone Bricks",
+  "block.minecraft.bricks": "Bricks",
+  "block.minecraft.coal_ore": "Coal Ore",
+  "block.minecraft.iron_ore": "Iron Ore",
+  "block.minecraft.diamond_ore": "Diamond Ore",
+  "block.minecraft.glass": "Glass",
+  "block.minecraft.glowstone": "Glowstone",
+  "block.minecraft.water": "Water",
+  "block.minecraft.crafting_table": "Crafting Table"
+}

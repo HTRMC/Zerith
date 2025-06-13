@@ -1,3 +1,4 @@
+#include "block_types.h"
 #include "player.h"
 #include "chunk_manager.h"
 #include "raycast.h"
@@ -255,26 +256,26 @@ namespace Zerith {
         
         // Handle block selection with number keys
         if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::STONE;
+            m_selectedBlockType = BlockTypes::STONE;
         } else if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::DIRT;
+            m_selectedBlockType = BlockTypes::DIRT;
         } else if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::GRASS_BLOCK;
+            m_selectedBlockType = BlockTypes::GRASS_BLOCK;
         } else if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::OAK_PLANKS;
+            m_selectedBlockType = BlockTypes::OAK_PLANKS;
         }
         else if (glfwGetKey(window, GLFW_KEY_5) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::OAK_SLAB;
+            m_selectedBlockType = BlockTypes::OAK_SLAB;
         } else if (glfwGetKey(window, GLFW_KEY_6) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::OAK_STAIRS;
+            m_selectedBlockType = BlockTypes::OAK_STAIRS;
         } else if (glfwGetKey(window, GLFW_KEY_7) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::OAK_LOG;
+            m_selectedBlockType = BlockTypes::OAK_LOG;
         } else if (glfwGetKey(window, GLFW_KEY_8) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::OAK_LEAVES;
+            m_selectedBlockType = BlockTypes::OAK_LEAVES;
         } else if (glfwGetKey(window, GLFW_KEY_9) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::CRAFTING_TABLE;
+            m_selectedBlockType = BlockTypes::CRAFTING_TABLE;
         } else if (glfwGetKey(window, GLFW_KEY_0) == GLFW_PRESS) {
-            m_selectedBlockType = BlockType::GLASS;
+            m_selectedBlockType = BlockTypes::GLASS;
         }
     }
 
@@ -485,7 +486,7 @@ namespace Zerith {
             
             if (hit.has_value()) {
                 // Destroy the block
-                chunkManager->setBlock(glm::vec3(hit->blockPos), BlockType::AIR);
+                chunkManager->setBlock(glm::vec3(hit->blockPos), BlockTypes::AIR);
                 LOG_DEBUG("Block destroyed at (%d, %d, %d)", hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
             }
         }

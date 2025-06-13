@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <array>
+#include <vector>
 #include "chunk.h"
 
 namespace Zerith {
@@ -31,8 +32,11 @@ class BlockProperties {
 public:
     static const BlockCullingProperties& getCullingProperties(BlockType type);
     
+    // Initialize from block registry
+    static void initialize();
+    
 private:
-    static const std::array<BlockCullingProperties, 11> s_blockProperties;
+    static std::vector<BlockCullingProperties> s_blockProperties;
 };
 
 } // namespace Zerith

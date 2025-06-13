@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <array>
+#include <vector>
 #include "chunk.h"
 
 namespace Zerith {
@@ -70,6 +71,12 @@ public:
         return m_defaultBounds;
     }
     
+    // Initialize the registry with the correct number of blocks
+    void initialize(size_t blockCount) {
+        m_faceBounds.resize(blockCount);
+        initializeBlockBounds();
+    }
+    
     // Set face bounds for a block type
     void setFaceBounds(BlockType type, const BlockFaceBounds& bounds) {
         size_t index = static_cast<size_t>(type);
@@ -90,11 +97,7 @@ public:
 
 private:
     BlockFaceBoundsRegistry() {
-        // Initialize with default bounds (full faces for all blocks)
-        m_faceBounds.resize(static_cast<size_t>(BlockType::NUM_BLOCK_TYPES));
-        
-        // Set up specific bounds for partial blocks
-        initializeBlockBounds();
+        // Will be initialized by the mesh generator after blocks are registered
     }
     
     void initializeBlockBounds();

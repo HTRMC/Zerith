@@ -6,10 +6,13 @@
 #include "chunk.h"
 #include "logger.h"
 #include "face_instance_pool.h"
+#include "block_registry.h"
 #include <vector>
 #include <glm/glm.hpp>
 #include <memory>
 #include <algorithm>
+
+#include "block_types.h"
 
 // Wrapper class to generate instances at specific positions
 class BlockbenchInstanceWrapper
@@ -151,7 +154,7 @@ private:
     void assignTextureLayers()
     {
         // Remove overlay faces for grass blocks - they'll be handled in the shader
-        if (m_blockType == Zerith::BlockType::GRASS_BLOCK) {
+        if (m_blockType == Zerith::BlockTypes::GRASS_BLOCK) {
             auto it = std::remove_if(m_baseInstances.faces.begin(), m_baseInstances.faces.end(),
                 [](const BlockbenchInstanceGenerator::FaceInstance& face) {
                     return face.textureName.find("overlay") != std::string::npos;
@@ -191,19 +194,8 @@ private:
     
     // Helper function to convert BlockType to string for logging
     std::string toString(Zerith::BlockType type) const {
-        switch(type) {
-            case Zerith::BlockType::AIR: return "AIR";
-            case Zerith::BlockType::OAK_PLANKS: return "OAK_PLANKS";
-            case Zerith::BlockType::OAK_SLAB: return "OAK_SLAB";
-            case Zerith::BlockType::OAK_STAIRS: return "OAK_STAIRS";
-            case Zerith::BlockType::GRASS_BLOCK: return "GRASS_BLOCK";
-            case Zerith::BlockType::STONE: return "STONE";
-            case Zerith::BlockType::DIRT: return "DIRT";
-            case Zerith::BlockType::OAK_LOG: return "OAK_LOG";
-            case Zerith::BlockType::OAK_LEAVES: return "OAK_LEAVES";
-            case Zerith::BlockType::CRAFTING_TABLE: return "CRAFTING_TABLE";
-            case Zerith::BlockType::GLASS: return "GLASS";
-            default: return "UNKNOWN";
-        }
+        auto& registry = Zerith::BlockRegistry::getInstance();
+        auto block = registry.getBlock(type);
+        return block ? block->getId() : "UNKNOWN";
     }
 };

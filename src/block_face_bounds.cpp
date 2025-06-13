@@ -1,4 +1,5 @@
 #include "block_face_bounds.h"
+#include "block_types.h"
 #include "logger.h"
 
 namespace Zerith {
@@ -12,7 +13,7 @@ void BlockFaceBoundsRegistry::initializeBlockBounds() {
     for (auto& face : airBounds.faces) {
         face = FaceBounds(0.0f, 0.0f, 0.0f, 0.0f);  // No coverage
     }
-    setFaceBounds(BlockType::AIR, airBounds);
+    setFaceBounds(BlockTypes::AIR, airBounds);
     
     LOG_INFO("BlockFaceBoundsRegistry initialized");
 }

@@ -89,6 +89,8 @@ add_executable(Zerith
     src/block_face_bounds.cpp
     src/sparse_octree.cpp
     src/chunk_octree.cpp
+    src/block_registry.cpp
+    src/block_types.cpp
 )
 
 # Add shader dependencies
