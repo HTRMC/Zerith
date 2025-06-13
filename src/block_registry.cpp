@@ -75,7 +75,7 @@ const BlockDefPtr Blocks::STONE_BRICKS = registerBlock("stone_bricks", "Stone Br
 
 const BlockDefPtr Blocks::BRICKS = registerBlock("bricks", "Bricks",
     BlockSettings::create()
-        .model("brick")
+        .model("bricks")
         .material(BlockMaterial::STONE));
 
 const BlockDefPtr Blocks::COAL_ORE = registerBlock("coal_ore", "Coal Ore",
