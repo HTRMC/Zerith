@@ -9,6 +9,11 @@ find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(SPNG CONFIG REQUIRED)
 
+# Set C++ standard globally before adding subdirectories
+set(CMAKE_CXX_STANDARD 23)          
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Add FastNoise2 as subdirectory
 add_subdirectory(third_party/FastNoise2)
 
@@ -103,11 +108,8 @@ if(MSVC)
             # Debug config: no optimization, runtime checks
             $<$<CONFIG:Debug>:/Od /RTC1>
 
-            # Release config: optimize aggressively + intrinsics + whole program optimization
-            $<$<CONFIG:Release>:/O2 /Oi /GL>
-    )
-    target_link_options(Zerith PRIVATE
-            $<$<CONFIG:Release>:/LTCG>
+            # Release config: optimize aggressively + intrinsics
+            $<$<CONFIG:Release>:/O2 /Oi>
     )
 else()
     target_compile_options(Zerith PRIVATE
