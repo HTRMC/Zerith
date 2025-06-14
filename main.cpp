@@ -349,6 +349,14 @@ private:
     VkBuffer faceInstanceBuffer;
     VkDeviceMemory faceInstanceBufferMemory;
     
+    // Layered face instance buffers
+    VkBuffer opaqueInstanceBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory opaqueInstanceBufferMemory = VK_NULL_HANDLE;
+    VkBuffer cutoutInstanceBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory cutoutInstanceBufferMemory = VK_NULL_HANDLE;
+    VkBuffer translucentInstanceBuffer = VK_NULL_HANDLE;
+    VkDeviceMemory translucentInstanceBufferMemory = VK_NULL_HANDLE;
+    
     // Indirect draw buffers
     VkBuffer indirectDrawBuffer;
     VkDeviceMemory indirectDrawBufferMemory;
@@ -387,6 +395,13 @@ private:
     // Blockbench model support
     BlockbenchModel::Model currentModel;
     BlockbenchInstanceGenerator::ModelInstances currentInstances;
+    
+    // Layered face instances for proper transparency rendering
+    struct LayeredInstances {
+        std::vector<BlockbenchInstanceGenerator::FaceInstance> opaque;
+        std::vector<BlockbenchInstanceGenerator::FaceInstance> cutout;
+        std::vector<BlockbenchInstanceGenerator::FaceInstance> translucent;
+    } layeredInstances;
     
     // Chunk support
     std::unique_ptr<Zerith::ChunkManager> chunkManager;
@@ -490,9 +505,60 @@ private:
             auto newFaces = chunkManager->getFaceInstancesWhenChanged();
             currentInstances.faces = std::move(newFaces);
             
+            // Separate faces into render layers
+            separateFacesByRenderLayer();
+            
             // Recreate buffer since face instances changed
             recreateFaceInstanceBuffer();
+            recreateLayeredInstanceBuffers();
         }
+    }
+    
+    void separateFacesByRenderLayer() {
+        // Clear previous layered instances
+        layeredInstances.opaque.clear();
+        layeredInstances.cutout.clear();
+        layeredInstances.translucent.clear();
+        
+        if (!chunkManager) return;
+        
+        // For now, we need to classify faces based on the block registry
+        // since we don't have access to per-face block type information
+        // This is a temporary implementation - ideally faces would be 
+        // pre-separated during chunk mesh generation
+        
+        // Get all chunks and their face instances
+        const auto& allFaces = currentInstances.faces;
+        
+        // Separate faces based on texture layer (temporary hack)
+        // This is a simplified approach - proper implementation would need block type per face
+        auto meshGenerator = chunkManager->getMeshGenerator();
+        auto textureArray = meshGenerator->getTextureArray();
+        
+        for (const auto& face : allFaces) {
+            // Check if this is a water texture (layer 19 based on your logs)
+            if (face.textureLayer == 19) { // water_still.png
+                layeredInstances.translucent.push_back(face);
+            }
+            // Check if this is leaves texture (layer 11 based on your logs)  
+            else if (face.textureLayer == 11) { // oak_leaves.png
+                layeredInstances.cutout.push_back(face);
+            }
+            // Check if this is glass texture (layer 17 based on your logs)
+            else if (face.textureLayer == 17) { // glass.png
+                layeredInstances.translucent.push_back(face);
+            }
+            else {
+                // All other blocks go to opaque layer
+                layeredInstances.opaque.push_back(face);
+            }
+        }
+        
+        LOG_INFO("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent", 
+                 allFaces.size(),
+                 layeredInstances.opaque.size(),
+                 layeredInstances.cutout.size(), 
+                 layeredInstances.translucent.size());
     }
     
     void recreateFaceInstanceBuffer() {
@@ -566,10 +632,12 @@ private:
         createTextureImageView();
         createTextureSampler();
         createGraphicsPipeline();
+        createLayeredRenderPipelines();
         createAABBDebugPipeline();
         createFramebuffers();
         createUniformBuffers();
         createFaceInstanceBuffer();
+        createLayeredInstanceBuffers();
         createAABBInstanceBuffer();
         createIndirectDrawBuffers(); // Re-enabled for proper indirect drawing
         createDescriptorPool();
@@ -1815,6 +1883,7 @@ private:
     }
     
     void createLayeredRenderPipelines() {
+        LOG_INFO("Creating layered render pipelines...");
         // Load shader code from compiled spv files
         auto taskShaderCode = readFile("shaders/task_shader.spv");
         auto meshShaderCode = readFile("shaders/mesh_shader.spv");
@@ -1915,6 +1984,7 @@ private:
         if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &opaquePipelineInfo, nullptr, &opaquePipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create opaque pipeline!");
         }
+        LOG_INFO("Opaque pipeline created successfully");
 
         // CUTOUT PIPELINE - No blending (uses alpha testing in shader), depth write enabled
         VkPipelineColorBlendAttachmentState cutoutBlendAttachment{};
@@ -1953,6 +2023,7 @@ private:
         if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &cutoutPipelineInfo, nullptr, &cutoutPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create cutout pipeline!");
         }
+        LOG_INFO("Cutout pipeline created successfully");
 
         // TRANSLUCENT PIPELINE - Alpha blending enabled, depth write disabled
         VkPipelineColorBlendAttachmentState translucentBlendAttachment{};
@@ -1997,11 +2068,14 @@ private:
         if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &translucentPipelineInfo, nullptr, &translucentPipeline) != VK_SUCCESS) {
             throw std::runtime_error("failed to create translucent pipeline!");
         }
+        LOG_INFO("Translucent pipeline created successfully");
 
         // Clean up shader modules
         vkDestroyShaderModule(device, fragShaderModule, nullptr);
         vkDestroyShaderModule(device, meshShaderModule, nullptr);
         vkDestroyShaderModule(device, taskShaderModule, nullptr);
+        
+        LOG_INFO("All layered render pipelines created successfully");
     }
     
     void createAABBDebugPipeline() {
@@ -2240,6 +2314,70 @@ private:
         
         // LOG_DEBUG("Face instance buffer created with %zu instances (%zu bytes)", 
         //           currentInstances.faces.size(), bufferSize);
+    }
+    
+    void createLayeredInstanceBuffers() {
+        createLayeredInstanceBuffer(layeredInstances.opaque, opaqueInstanceBuffer, opaqueInstanceBufferMemory);
+        createLayeredInstanceBuffer(layeredInstances.cutout, cutoutInstanceBuffer, cutoutInstanceBufferMemory);
+        createLayeredInstanceBuffer(layeredInstances.translucent, translucentInstanceBuffer, translucentInstanceBufferMemory);
+    }
+    
+    void createLayeredInstanceBuffer(const std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces,
+                                   VkBuffer& buffer, VkDeviceMemory& bufferMemory) {
+        if (faces.empty()) {
+            buffer = VK_NULL_HANDLE;
+            bufferMemory = VK_NULL_HANDLE;
+            return;
+        }
+        
+        VkDeviceSize bufferSize = sizeof(FaceInstanceData) * faces.size();
+        
+        createBuffer(
+            bufferSize,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            buffer,
+            bufferMemory
+        );
+        
+        // Map and populate the buffer
+        void* bufferMapped;
+        vkMapMemory(device, bufferMemory, 0, bufferSize, 0, &bufferMapped);
+        
+        // Copy face instance data
+        FaceInstanceData* mappedData = static_cast<FaceInstanceData*>(bufferMapped);
+        for (size_t i = 0; i < faces.size(); i++) {
+            const auto& face = faces[i];
+            mappedData[i].position = glm::vec4(face.position, 1.0f);
+            mappedData[i].rotation = face.rotation;
+            mappedData[i].scale = glm::vec4(face.scale, static_cast<float>(face.faceDirection));
+            mappedData[i].uv = face.uv;
+            mappedData[i].textureLayer = face.textureLayer;
+            mappedData[i].padding[0] = 0;
+            mappedData[i].padding[1] = 0;
+            mappedData[i].padding[2] = 0;
+        }
+        
+        vkUnmapMemory(device, bufferMemory);
+    }
+    
+    void recreateLayeredInstanceBuffers() {
+        // Clean up old buffers
+        if (opaqueInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, opaqueInstanceBuffer, nullptr);
+            vkFreeMemory(device, opaqueInstanceBufferMemory, nullptr);
+        }
+        if (cutoutInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, cutoutInstanceBuffer, nullptr);
+            vkFreeMemory(device, cutoutInstanceBufferMemory, nullptr);
+        }
+        if (translucentInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, translucentInstanceBuffer, nullptr);
+            vkFreeMemory(device, translucentInstanceBufferMemory, nullptr);
+        }
+        
+        // Create new buffers
+        createLayeredInstanceBuffers();
     }
     
     void createAABBInstanceBuffer() {
@@ -2816,13 +2954,13 @@ private:
         scissor.extent = swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-        // RENDER LAYER 1: OPAQUE (solid blocks - stone, dirt, wood)
-        // Temporarily use the old pipeline until layered pipelines are fully working
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+        // For now, render all faces with opaque pipeline to verify basic rendering works
+        // The layered separation is working, but we need to update descriptor sets properly
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, opaquePipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
-        // Use indirect drawing with task shaders for GPU-driven culling
+        // Use original rendering approach but with new pipeline
         if (chunkManager && currentInstances.faces.size() > 0) {
             const auto& indirectManager = chunkManager->getIndirectDrawManager();
             const auto& drawCommands = indirectManager.getDrawCommands();
@@ -2834,7 +2972,6 @@ private:
                 updateChunkDataBuffer();
                 
                 // Single indirect draw call that launches all task workgroups
-                // We only have 1 draw command that specifies N task workgroups (one per chunk)
                 vkCmdDrawMeshTasksIndirectEXT(commandBuffer, 
                                             indirectDrawBuffer,
                                             0,      // offset
@@ -2850,14 +2987,8 @@ private:
             vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
         }
 
-        // RENDER LAYER 2: CUTOUT (blocks with binary alpha - leaves)
-        // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cutoutPipeline);
-        // TODO: Implement layered face instance separation to draw only cutout faces
-        
-        // RENDER LAYER 3: TRANSLUCENT (transparent blocks - glass, water)
-        // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, translucentPipeline);
-        // TODO: Implement layered face instance separation to draw only translucent faces
-        // TODO: Add back-to-front sorting for proper transparency
+        // TODO: Implement proper layered rendering with separate descriptor sets
+        // Currently disabled until descriptor set binding is properly implemented
         
         // Draw AABB debug wireframes if enabled
         if (showDebugAABBs && aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {
@@ -3002,7 +3133,7 @@ private:
         createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
-        // createLayeredRenderPipelines(); // Temporarily disabled to test
+        createLayeredRenderPipelines();
         createAABBDebugPipeline();
         createFramebuffers();
         createUniformBuffers();
@@ -3071,6 +3202,20 @@ private:
         }
         vkDestroyBuffer(device, faceInstanceBuffer, nullptr);
         vkFreeMemory(device, faceInstanceBufferMemory, nullptr);
+        
+        // Clean up layered instance buffers
+        if (opaqueInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, opaqueInstanceBuffer, nullptr);
+            vkFreeMemory(device, opaqueInstanceBufferMemory, nullptr);
+        }
+        if (cutoutInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, cutoutInstanceBuffer, nullptr);
+            vkFreeMemory(device, cutoutInstanceBufferMemory, nullptr);
+        }
+        if (translucentInstanceBuffer != VK_NULL_HANDLE) {
+            vkDestroyBuffer(device, translucentInstanceBuffer, nullptr);
+            vkFreeMemory(device, translucentInstanceBufferMemory, nullptr);
+        }
         
         // Clean up AABB debug resources
         if (aabbInstanceBufferMapped) {

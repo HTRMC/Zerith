@@ -60,14 +60,14 @@ public:
         const Chunk* neighborZMinus, const Chunk* neighborZPlus);
 
     // Generate layered mesh with faces separated by render layer
-    // LayeredChunkMesh generateLayeredChunkMesh(const Chunk& chunk);
+    LayeredChunkMesh generateLayeredChunkMesh(const Chunk& chunk);
     
     // Generate layered mesh with neighbor awareness
-    // LayeredChunkMesh generateLayeredChunkMeshWithNeighbors(
-    //     const Chunk& chunk,
-    //     const Chunk* neighborXMinus, const Chunk* neighborXPlus,
-    //     const Chunk* neighborYMinus, const Chunk* neighborYPlus,
-    //     const Chunk* neighborZMinus, const Chunk* neighborZPlus);
+    LayeredChunkMesh generateLayeredChunkMeshWithNeighbors(
+        const Chunk& chunk,
+        const Chunk* neighborXMinus, const Chunk* neighborXPlus,
+        const Chunk* neighborYMinus, const Chunk* neighborYPlus,
+        const Chunk* neighborZMinus, const Chunk* neighborZPlus);
 
     // Load block models
     void loadBlockModels();
@@ -120,15 +120,15 @@ private:
                                            const Chunk* neighborZMinus, const Chunk* neighborZPlus);
 
     // Generate faces for a single block with render layer separation
-    // void generateBlockFacesLayered(const Chunk& chunk, int x, int y, int z, 
-    //                               LayeredChunkMesh& layeredMesh);
+    void generateBlockFacesLayered(const Chunk& chunk, int x, int y, int z, 
+                                  LayeredChunkMesh& layeredMesh);
     
     // Generate faces for a single block with neighbor awareness and render layer separation
-    // void generateBlockFacesLayeredWithNeighbors(const Chunk& chunk, int x, int y, int z,
-    //                                            LayeredChunkMesh& layeredMesh,
-    //                                            const Chunk* neighborXMinus, const Chunk* neighborXPlus,
-    //                                            const Chunk* neighborYMinus, const Chunk* neighborYPlus,
-    //                                            const Chunk* neighborZMinus, const Chunk* neighborZPlus);
+    void generateBlockFacesLayeredWithNeighbors(const Chunk& chunk, int x, int y, int z,
+                                               LayeredChunkMesh& layeredMesh,
+                                               const Chunk* neighborXMinus, const Chunk* neighborXPlus,
+                                               const Chunk* neighborYMinus, const Chunk* neighborYPlus,
+                                               const Chunk* neighborZMinus, const Chunk* neighborZPlus);
 
     // Block model generators
     std::unordered_map<BlockType, std::unique_ptr<BlockbenchInstanceWrapper>> m_blockGenerators;

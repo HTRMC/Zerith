@@ -132,7 +132,6 @@ FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooled(
     return batch;
 }
 
-/*
 LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMesh(const Chunk& chunk) {
     LayeredChunkMesh layeredMesh;
     
@@ -188,8 +187,20 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
     
     // Get the render layer for this block
     // RenderLayer renderLayer = BlockRegistry::getInstance().getRenderLayer(blockType);
-    // Temporarily default to OPAQUE for all blocks to test
+    // Temporary implementation to avoid compilation issues
     RenderLayer renderLayer = RenderLayer::OPAQUE;
+    
+    // Get block definition to determine render layer
+    auto blockDef = BlockRegistry::getInstance().getBlock(blockType);
+    if (blockDef) {
+        const std::string& blockId = blockDef->getId();
+        if (blockId == "glass" || blockId == "water") {
+            renderLayer = RenderLayer::TRANSLUCENT;
+        } else if (blockId == "oak_leaves") {
+            renderLayer = RenderLayer::CUTOUT;
+        }
+        // All other blocks default to OPAQUE
+    }
     
     // Calculate world position of this block
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
@@ -254,8 +265,20 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
     
     // Get the render layer for this block
     // RenderLayer renderLayer = BlockRegistry::getInstance().getRenderLayer(blockType);
-    // Temporarily default to OPAQUE for all blocks to test
+    // Temporary implementation to avoid compilation issues
     RenderLayer renderLayer = RenderLayer::OPAQUE;
+    
+    // Get block definition to determine render layer
+    auto blockDef = BlockRegistry::getInstance().getBlock(blockType);
+    if (blockDef) {
+        const std::string& blockId = blockDef->getId();
+        if (blockId == "glass" || blockId == "water") {
+            renderLayer = RenderLayer::TRANSLUCENT;
+        } else if (blockId == "oak_leaves") {
+            renderLayer = RenderLayer::CUTOUT;
+        }
+        // All other blocks default to OPAQUE
+    }
     
     // Calculate world position of this block
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
@@ -317,7 +340,6 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
         }
     }
 }
-*/
 
 void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, int z, 
                                            std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces) {
