@@ -7,7 +7,8 @@ namespace Zerith {
 std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadToFaces(
     const MeshQuad& quad,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry
+    const BlockRegistry& blockRegistry,
+    const TextureArray& textureArray
 ) {
     std::vector<FaceInstance> faces;
     
@@ -32,6 +33,9 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
     // Calculate UV coordinates with proper tiling
     glm::vec4 uv = calculateQuadUV(quad, *blockDef, quad.faceDirection);
     
+    // Get the texture layer from the texture array
+    uint32_t textureLayer = textureArray.getTextureLayer(textureName);
+    
     // Create the face instance
     faces.emplace_back(
         worldPos,           // position
@@ -39,7 +43,7 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
         scale,              // scale
         quad.faceDirection, // face direction
         uv,                 // UV coordinates
-        0                   // texture layer (to be set by texture system)
+        textureLayer        // texture layer
     );
     
     return faces;
@@ -48,13 +52,14 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
 std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQuads(
     const std::vector<MeshQuad>& quads,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry
+    const BlockRegistry& blockRegistry,
+    const TextureArray& textureArray
 ) {
     std::vector<FaceInstance> allFaces;
     allFaces.reserve(quads.size()); // At least one face per quad
     
     for (const auto& quad : quads) {
-        auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, blockRegistry);
+        auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, blockRegistry, textureArray);
         allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
     }
     
@@ -83,10 +88,8 @@ std::string BinaryMeshConverter::getBlockTexture(
         return "missing_texture";
     }
     
-    // Try to get face-specific texture from block definition
-    // This would need to be implemented based on your block registry structure
-    // For now, return a generic texture name
-    return blockDef->getId() + "_texture";
+    // Return the block ID directly - this matches the texture naming in TextureArray
+    return blockDef->getId();
 }
 
 glm::vec3 BinaryMeshConverter::calculateQuadWorldPosition(
@@ -210,7 +213,8 @@ glm::vec4 BinaryMeshConverter::getDefaultFaceUV() {
 std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::generateOptimizedMesh(
     const Chunk& chunk,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry
+    const BlockRegistry& blockRegistry,
+    const TextureArray& textureArray
 ) {
     std::vector<FaceInstance> allFaces;
     
@@ -243,7 +247,7 @@ std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::ge
         }
         
         // Convert all simple quads to faces
-        auto faces = BinaryMeshConverter::convertAllQuads(simpleQuads, chunkWorldPos, blockRegistry);
+        auto faces = BinaryMeshConverter::convertAllQuads(simpleQuads, chunkWorldPos, blockRegistry, textureArray);
         allFaces.insert(allFaces.end(), faces.begin(), faces.end());
     }
     

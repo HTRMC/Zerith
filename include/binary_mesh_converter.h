@@ -3,6 +3,7 @@
 #include "binary_chunk_data.h"
 #include "blockbench_instance_generator.h"
 #include "block_registry.h"
+#include "texture_array.h"
 #include <vector>
 #include <optional>
 #include <glm/glm.hpp>
@@ -26,7 +27,8 @@ public:
     static std::vector<FaceInstance> convertQuadToFaces(
         const MeshQuad& quad,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry
+        const BlockRegistry& blockRegistry,
+        const TextureArray& textureArray
     );
     
     /**
@@ -35,7 +37,8 @@ public:
     static std::vector<FaceInstance> convertAllQuads(
         const std::vector<MeshQuad>& quads,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry
+        const BlockRegistry& blockRegistry,
+        const TextureArray& textureArray
     );
     
     /**
@@ -106,7 +109,8 @@ public:
     static std::vector<FaceInstance> generateOptimizedMesh(
         const Chunk& chunk,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry
+        const BlockRegistry& blockRegistry,
+        const TextureArray& textureArray
     );
     
 private:

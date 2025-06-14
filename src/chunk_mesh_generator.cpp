@@ -418,7 +418,7 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         auto& blockRegistry = BlockRegistry::getInstance();
         
         // Generate optimized mesh using binary greedy meshing
-        allFaces = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry);
+        allFaces = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry, *m_textureArray);
         
         // LOG_DEBUG("Binary meshing generated %zu faces for chunk", allFaces.size());
     } else {
