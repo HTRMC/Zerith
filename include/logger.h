@@ -12,6 +12,7 @@
 #include <atomic>
 #include <memory>
 #include <iomanip>
+#include <vector>
 
 // Log levels in increasing verbosity
 enum class LogLevel {
@@ -159,12 +160,15 @@ private:
 class LogMessage {
 public:
     LogMessage(LogLevel level, const char* file, int line);
+    LogMessage(); // Default constructor for no-op logging
     ~LogMessage();
 
     // Stream operator for easy logging
     template<typename T>
     LogMessage& operator<<(const T& value) {
-        stream << value;
+        if (enabled) {
+            stream << value;
+        }
         return *this;
     }
 
@@ -172,17 +176,13 @@ private:
     LogLevel level;
     const char* file;
     int line;
+    bool enabled;
     std::ostringstream stream;
 };
 
 // Variadic template for printf-style logging
 template<typename... Args>
 void logPrintf(LogLevel level, const char* file, int line, const char* format, Args... args) {
-    // Check if this level is enabled
-    if (!Logger::getInstance().isLevelEnabled(level)) {
-        return;
-    }
-
     // Calculate buffer size needed
     int size = snprintf(nullptr, 0, format, args...);
     if (size <= 0) {
@@ -197,18 +197,18 @@ void logPrintf(LogLevel level, const char* file, int line, const char* format, A
     Logger::getInstance().logMessage(level, buffer.data(), file, line);
 }
 
-// Convenience macros
-#define LOG_FATAL(...) logPrintf(LogLevel::FATAL, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_ERROR(...) logPrintf(LogLevel::ERROR, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_WARN(...)  logPrintf(LogLevel::WARN, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_INFO(...)  logPrintf(LogLevel::INFO, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_DEBUG(...) logPrintf(LogLevel::DEBUG, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_TRACE(...) logPrintf(LogLevel::TRACE, __FILE__, __LINE__, __VA_ARGS__)
+// Convenience macros - these check log level before evaluating arguments
+#define LOG_FATAL(...) do { if (Logger::getInstance().isLevelEnabled(LogLevel::FATAL)) logPrintf(LogLevel::FATAL, __FILE__, __LINE__, __VA_ARGS__); } while(0)
+#define LOG_ERROR(...) do { if (Logger::getInstance().isLevelEnabled(LogLevel::ERROR)) logPrintf(LogLevel::ERROR, __FILE__, __LINE__, __VA_ARGS__); } while(0)
+#define LOG_WARN(...)  do { if (Logger::getInstance().isLevelEnabled(LogLevel::WARN))  logPrintf(LogLevel::WARN, __FILE__, __LINE__, __VA_ARGS__); } while(0)
+#define LOG_INFO(...)  do { if (Logger::getInstance().isLevelEnabled(LogLevel::INFO))  logPrintf(LogLevel::INFO, __FILE__, __LINE__, __VA_ARGS__); } while(0)
+#define LOG_DEBUG(...) do { if (Logger::getInstance().isLevelEnabled(LogLevel::DEBUG)) logPrintf(LogLevel::DEBUG, __FILE__, __LINE__, __VA_ARGS__); } while(0)
+#define LOG_TRACE(...) do { if (Logger::getInstance().isLevelEnabled(LogLevel::TRACE)) logPrintf(LogLevel::TRACE, __FILE__, __LINE__, __VA_ARGS__); } while(0)
 
-// Stream-style logging macros
-#define LOG_FATAL_STREAM LogMessage(LogLevel::FATAL, __FILE__, __LINE__)
-#define LOG_ERROR_STREAM LogMessage(LogLevel::ERROR, __FILE__, __LINE__)
-#define LOG_WARN_STREAM  LogMessage(LogLevel::WARN, __FILE__, __LINE__)
-#define LOG_INFO_STREAM  LogMessage(LogLevel::INFO, __FILE__, __LINE__)
-#define LOG_DEBUG_STREAM LogMessage(LogLevel::DEBUG, __FILE__, __LINE__)
-#define LOG_TRACE_STREAM LogMessage(LogLevel::TRACE, __FILE__, __LINE__)
+// Stream-style logging macros - these use conditional expressions to avoid construction when disabled
+#define LOG_FATAL_STREAM (Logger::getInstance().isLevelEnabled(LogLevel::FATAL) ? LogMessage(LogLevel::FATAL, __FILE__, __LINE__) : LogMessage())
+#define LOG_ERROR_STREAM (Logger::getInstance().isLevelEnabled(LogLevel::ERROR) ? LogMessage(LogLevel::ERROR, __FILE__, __LINE__) : LogMessage())
+#define LOG_WARN_STREAM  (Logger::getInstance().isLevelEnabled(LogLevel::WARN)  ? LogMessage(LogLevel::WARN, __FILE__, __LINE__)  : LogMessage())
+#define LOG_INFO_STREAM  (Logger::getInstance().isLevelEnabled(LogLevel::INFO)  ? LogMessage(LogLevel::INFO, __FILE__, __LINE__)  : LogMessage())
+#define LOG_DEBUG_STREAM (Logger::getInstance().isLevelEnabled(LogLevel::DEBUG) ? LogMessage(LogLevel::DEBUG, __FILE__, __LINE__) : LogMessage())
+#define LOG_TRACE_STREAM (Logger::getInstance().isLevelEnabled(LogLevel::TRACE) ? LogMessage(LogLevel::TRACE, __FILE__, __LINE__) : LogMessage())

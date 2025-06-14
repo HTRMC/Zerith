@@ -270,10 +270,16 @@ void Logger::enableWindowsAnsiSupport() {
 
 // LogMessage implementation
 LogMessage::LogMessage(LogLevel level, const char* file, int line)
-    : level(level), file(file), line(line) {
+    : level(level), file(file), line(line), enabled(true) {
+}
+
+LogMessage::LogMessage()
+    : level(LogLevel::DEBUG), file(nullptr), line(0), enabled(false) {
 }
 
 LogMessage::~LogMessage() {
     // When the message object is destroyed, send the built message to the logger
-    Logger::getInstance().logMessage(level, stream.str(), file, line);
+    if (enabled && file) {
+        Logger::getInstance().logMessage(level, stream.str(), file, line);
+    }
 }
