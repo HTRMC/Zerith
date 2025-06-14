@@ -5,6 +5,7 @@
 #include "blockbench_instance_wrapper.h"
 #include "texture_array.h"
 #include "face_instance_pool.h"
+#include "binary_mesh_converter.h"
 #include <memory>
 #include <unordered_map>
 #include <string>
@@ -40,6 +41,10 @@ public:
     
     // Get the texture array for loading textures
     const std::shared_ptr<TextureArray>& getTextureArray() const { return m_textureArray; }
+    
+    // Enable/disable binary greedy meshing
+    void setBinaryMeshingEnabled(bool enabled) { m_binaryMeshingEnabled = enabled; }
+    bool isBinaryMeshingEnabled() const { return m_binaryMeshingEnabled; }
 
 private:
     // Get the model path for a block type
@@ -89,6 +94,9 @@ private:
     
     // Object pool for face instances
     std::unique_ptr<FaceInstancePool> m_faceInstancePool;
+    
+    // Binary meshing flag
+    bool m_binaryMeshingEnabled = true;
 };
 
 } // namespace Zerith

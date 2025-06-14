@@ -406,16 +406,39 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     
     std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
     
-    // Iterate through all blocks in the chunk (xyz order)
-    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
-        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
-            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
-                generateBlockFacesWithNeighbors(chunk, x, y, z, allFaces,
-                                              neighborXMinus, neighborXPlus,
-                                              neighborYMinus, neighborYPlus,
-                                              neighborZMinus, neighborZPlus);
+    // Use binary greedy meshing if enabled
+    if (m_binaryMeshingEnabled) {
+        LOG_DEBUG("Using binary greedy meshing for chunk (%d, %d, %d)", 
+                 chunk.getChunkPosition().x, chunk.getChunkPosition().y, chunk.getChunkPosition().z);
+        
+        // Convert chunk position to world position
+        glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
+        
+        // Get block registry
+        auto& blockRegistry = BlockRegistry::getInstance();
+        
+        // Generate optimized mesh using binary greedy meshing
+        allFaces = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry);
+        
+        LOG_DEBUG("Binary meshing generated %zu faces for chunk", allFaces.size());
+    } else {
+        // Use traditional per-block meshing
+        LOG_DEBUG("Using traditional meshing for chunk (%d, %d, %d)", 
+                 chunk.getChunkPosition().x, chunk.getChunkPosition().y, chunk.getChunkPosition().z);
+        
+        // Iterate through all blocks in the chunk (xyz order)
+        for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+            for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+                for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
+                    generateBlockFacesWithNeighbors(chunk, x, y, z, allFaces,
+                                                  neighborXMinus, neighborXPlus,
+                                                  neighborYMinus, neighborYPlus,
+                                                  neighborZMinus, neighborZPlus);
+                }
             }
         }
+        
+        LOG_DEBUG("Traditional meshing generated %zu faces for chunk", allFaces.size());
     }
     
     return allFaces;
