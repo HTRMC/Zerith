@@ -96,14 +96,43 @@ glm::vec3 BinaryMeshConverter::calculateQuadWorldPosition(
 ) {
     // Convert chunk coordinates to world coordinates
     glm::vec3 chunkWorldOffset = glm::vec3(chunkWorldPos) * static_cast<float>(Chunk::CHUNK_SIZE);
+    glm::vec3 basePos = chunkWorldOffset + glm::vec3(quad.position);
     
-    // Add the local quad position
-    return chunkWorldOffset + glm::vec3(quad.position);
+    // Apply face-specific corner offsets to match original BlockbenchInstanceGenerator behavior
+    switch (quad.faceDirection) {
+        case 0: // Down face - position at back corner (from.x, from.y, to.z)
+            return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
+        case 1: // Up face - position at front-top corner (from.x, to.y, from.z)
+            return basePos + glm::vec3(0.0f, static_cast<float>(quad.size.y), 0.0f);
+        case 2: // North face - no offset needed (from.x, from.y, from.z)
+            return basePos;
+        case 3: // South face - position at back-top corner (from.x, to.y, to.z)
+            return basePos + glm::vec3(0.0f, static_cast<float>(quad.size.y), static_cast<float>(quad.size.z));
+        case 4: // West face - position at back corner (from.x, from.y, to.z)
+            return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
+        case 5: // East face - position at front corner (to.x, from.y, from.z)
+            return basePos + glm::vec3(static_cast<float>(quad.size.x), 0.0f, 0.0f);
+        default:
+            return basePos;
+    }
 }
 
 glm::vec3 BinaryMeshConverter::calculateQuadScale(const MeshQuad& quad) {
-    // The scale represents the dimensions of the quad
-    return glm::vec3(quad.size);
+    // Map quad dimensions to correct axes based on face direction
+    // This matches the original BlockbenchInstanceGenerator scale calculations
+    switch (quad.faceDirection) {
+        case 0: // Down face (XZ plane)
+        case 1: // Up face (XZ plane)
+            return glm::vec3(static_cast<float>(quad.size.x), static_cast<float>(quad.size.z), 1.0f);
+        case 2: // North face (XY plane)
+        case 3: // South face (XY plane)
+            return glm::vec3(static_cast<float>(quad.size.x), static_cast<float>(quad.size.y), 1.0f);
+        case 4: // West face (ZY plane)
+        case 5: // East face (ZY plane)
+            return glm::vec3(static_cast<float>(quad.size.z), static_cast<float>(quad.size.y), 1.0f);
+        default:
+            return glm::vec3(static_cast<float>(quad.size.x), static_cast<float>(quad.size.y), static_cast<float>(quad.size.z));
+    }
 }
 
 glm::vec4 BinaryMeshConverter::getFaceRotation(int faceDirection) {
