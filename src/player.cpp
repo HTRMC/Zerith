@@ -471,6 +471,8 @@ namespace Zerith {
         
         // Handle left click (destroy block)
         if (leftMouseCurrentlyPressed && !m_leftMousePressed) {
+            LOG_DEBUG("Left mouse clicked - attempting to destroy block");
+            
             // Calculate camera direction
             glm::vec3 cameraFront;
             cameraFront.x = cos(m_rotation.y) * cos(m_rotation.x);
@@ -481,18 +483,29 @@ namespace Zerith {
             // Get eye position
             glm::vec3 eyePosition = m_position + glm::vec3(0.0f, m_eyeHeight, 0.0f);
             
+            LOG_DEBUG("Raycast from eye pos (%.2f, %.2f, %.2f) direction (%.2f, %.2f, %.2f)", 
+                     eyePosition.x, eyePosition.y, eyePosition.z,
+                     cameraFront.x, cameraFront.y, cameraFront.z);
+            
             // Perform raycast
             auto hit = Raycast::cast(eyePosition, cameraFront, BLOCK_REACH, chunkManager);
             
             if (hit.has_value()) {
+                LOG_DEBUG("Raycast hit block %d at (%d, %d, %d), distance %.2f", 
+                         hit->blockType, hit->blockPos.x, hit->blockPos.y, hit->blockPos.z, hit->distance);
+                
                 // Destroy the block
                 chunkManager->setBlock(glm::vec3(hit->blockPos), BlockTypes::AIR);
-                LOG_DEBUG("Block destroyed at (%d, %d, %d)", hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+                LOG_INFO("Block destroyed at (%d, %d, %d)", hit->blockPos.x, hit->blockPos.y, hit->blockPos.z);
+            } else {
+                LOG_DEBUG("Raycast did not hit any blocks");
             }
         }
         
         // Handle right click (place block)
         if (rightMouseCurrentlyPressed && !m_rightMousePressed) {
+            LOG_DEBUG("Right mouse clicked - attempting to place block type %d", m_selectedBlockType);
+            
             // Calculate camera direction
             glm::vec3 cameraFront;
             cameraFront.x = cos(m_rotation.y) * cos(m_rotation.x);
@@ -510,6 +523,11 @@ namespace Zerith {
                 // Place block adjacent to the hit block using the surface normal
                 glm::ivec3 placePos = hit->blockPos + hit->normal;
                 
+                LOG_DEBUG("Raycast hit block at (%d, %d, %d), normal (%d, %d, %d), placing at (%d, %d, %d)", 
+                         hit->blockPos.x, hit->blockPos.y, hit->blockPos.z,
+                         hit->normal.x, hit->normal.y, hit->normal.z,
+                         placePos.x, placePos.y, placePos.z);
+                
                 // Check if placement position would intersect with player
                 AABB blockAABB;
                 blockAABB.min = glm::vec3(placePos);
@@ -517,8 +535,13 @@ namespace Zerith {
                 
                 if (!m_aabb.intersects(blockAABB)) {
                     chunkManager->setBlock(glm::vec3(placePos), m_selectedBlockType);
-                    LOG_DEBUG("Block placed at (%d, %d, %d)", placePos.x, placePos.y, placePos.z);
+                    LOG_INFO("Block type %d placed at (%d, %d, %d)", m_selectedBlockType, placePos.x, placePos.y, placePos.z);
+                } else {
+                    LOG_DEBUG("Cannot place block at (%d, %d, %d) - would intersect with player", 
+                             placePos.x, placePos.y, placePos.z);
                 }
+            } else {
+                LOG_DEBUG("Raycast did not hit any blocks for placement");
             }
         }
         

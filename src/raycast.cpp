@@ -22,10 +22,8 @@ std::optional<RaycastHit> Raycast::cast(
     // Use octree to get chunks along the ray (optimization)
     auto chunksAlongRay = chunkManager->getChunksAlongRay(origin, normalizedDir, maxDistance);
     
-    // If no chunks found along the ray, return early
-    if (chunksAlongRay.empty()) {
-        return std::nullopt;
-    }
+    // If no chunks found along the ray, fall back to regular getBlock calls
+    bool useOctreeOptimization = !chunksAlongRay.empty();
     
     // Current position in the grid
     glm::ivec3 current(
@@ -73,56 +71,50 @@ std::optional<RaycastHit> Raycast::cast(
     
     float distance = 0.0f;
     
-    // Step through the grid, but only checking blocks in chunks from the octree
+    // Step through the grid
     while (distance < maxDistance) {
-        // Check if the current position is in one of the chunks returned by the octree
-        bool inLoadedChunk = false;
-        for (const auto* chunk : chunksAlongRay) {
-            // Convert world position to chunk-local coordinates
-            glm::ivec3 chunkPos = chunk->getChunkPosition();
-            glm::ivec3 localPos = current - chunkPos * Chunk::CHUNK_SIZE;
-            
-            // Check if within this chunk's bounds
-            if (localPos.x >= 0 && localPos.x < Chunk::CHUNK_SIZE &&
-                localPos.y >= 0 && localPos.y < Chunk::CHUNK_SIZE &&
-                localPos.z >= 0 && localPos.z < Chunk::CHUNK_SIZE) {
-                inLoadedChunk = true;
+        BlockType blockType = BlockTypes::AIR;
+        
+        if (useOctreeOptimization) {
+            // Check if the current position is in one of the chunks returned by the octree
+            bool inLoadedChunk = false;
+            for (const auto* chunk : chunksAlongRay) {
+                // Convert world position to chunk-local coordinates
+                glm::ivec3 chunkPos = chunk->getChunkPosition();
+                glm::ivec3 localPos = current - chunkPos * Chunk::CHUNK_SIZE;
                 
-                // Get block directly from chunk for better performance
-                BlockType blockType = chunk->getBlock(localPos.x, localPos.y, localPos.z);
-                
-                if (blockType != BlockTypes::AIR) {
-                    RaycastHit hit;
-                    hit.blockPos = current;
-                    hit.previousPos = current - normal;
-                    hit.normal = normal;
-                    hit.distance = distance;
-                    hit.blockType = blockType;
-                    hit.hitPoint = origin + normalizedDir * distance;
+                // Check if within this chunk's bounds
+                if (localPos.x >= 0 && localPos.x < Chunk::CHUNK_SIZE &&
+                    localPos.y >= 0 && localPos.y < Chunk::CHUNK_SIZE &&
+                    localPos.z >= 0 && localPos.z < Chunk::CHUNK_SIZE) {
+                    inLoadedChunk = true;
                     
-                    return hit;
+                    // Get block directly from chunk for better performance
+                    blockType = chunk->getBlock(localPos.x, localPos.y, localPos.z);
+                    break; // Found the correct chunk, no need to check others
                 }
-                
-                break; // Found the correct chunk, no need to check others
             }
+            
+            // If current position is not in any loaded chunk from octree, fall back to regular getBlock
+            if (!inLoadedChunk) {
+                blockType = chunkManager->getBlock(glm::vec3(current));
+            }
+        } else {
+            // No octree optimization available, use regular getBlock
+            blockType = chunkManager->getBlock(glm::vec3(current));
         }
         
-        // If current position is not in any loaded chunk, fall back to regular getBlock
-        // This handles the case where chunks might not be properly loaded in the octree yet
-        if (!inLoadedChunk) {
-            BlockType blockType = chunkManager->getBlock(glm::vec3(current));
+        // Check if we hit a solid block
+        if (blockType != BlockTypes::AIR) {
+            RaycastHit hit;
+            hit.blockPos = current;
+            hit.previousPos = current - normal;
+            hit.normal = normal;
+            hit.distance = distance;
+            hit.blockType = blockType;
+            hit.hitPoint = origin + normalizedDir * distance;
             
-            if (blockType != BlockTypes::AIR) {
-                RaycastHit hit;
-                hit.blockPos = current;
-                hit.previousPos = current - normal;
-                hit.normal = normal;
-                hit.distance = distance;
-                hit.blockType = blockType;
-                hit.hitPoint = origin + normalizedDir * distance;
-                
-                return hit;
-            }
+            return hit;
         }
         
         // Move to next grid cell

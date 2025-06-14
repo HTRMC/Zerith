@@ -212,16 +212,37 @@ BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
 void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
     glm::ivec3 chunkPos = worldToChunkPos(worldPos);
     
+    // First check if chunk is loaded
+    bool chunkExists = false;
+    {
+        std::lock_guard<std::mutex> lock(m_chunksMutex);
+        chunkExists = m_chunks.find(chunkPos) != m_chunks.end();
+    }
+    
+    // If chunk doesn't exist, load it synchronously
+    if (!chunkExists) {
+        LOG_DEBUG("Chunk at (%d, %d, %d) not loaded for setBlock, loading synchronously", 
+                 chunkPos.x, chunkPos.y, chunkPos.z);
+        loadChunk(chunkPos);
+    }
+    
     glm::ivec3 localPos;
     {
         std::lock_guard<std::mutex> lock(m_chunksMutex);
         auto it = m_chunks.find(chunkPos);
         if (it == m_chunks.end()) {
+            LOG_ERROR("Failed to load chunk at (%d, %d, %d) for setBlock", 
+                     chunkPos.x, chunkPos.y, chunkPos.z);
             return;
         }
         
         localPos = it->second->worldToLocal(worldPos);
         it->second->setBlock(localPos.x, localPos.y, localPos.z, type);
+        LOG_DEBUG("Block %s at world pos (%.1f, %.1f, %.1f) chunk pos (%d, %d, %d) local pos (%d, %d, %d)", 
+                 type == BlockTypes::AIR ? "destroyed" : "placed",
+                 worldPos.x, worldPos.y, worldPos.z,
+                 chunkPos.x, chunkPos.y, chunkPos.z,
+                 localPos.x, localPos.y, localPos.z);
     }
     
     // Regenerate mesh for this chunk
