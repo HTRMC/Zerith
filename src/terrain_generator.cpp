@@ -90,7 +90,7 @@ BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int 
     }
     
     if (worldY > terrainHeight - 1 && worldY <= terrainHeight) {
-        return BlockTypes::GRASS_BLOCK;
+        return BlockTypes::WATER;
     }
     
     if (worldY > terrainHeight - 4) {

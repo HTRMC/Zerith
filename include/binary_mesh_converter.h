@@ -2,6 +2,7 @@
 
 #include "binary_chunk_data.h"
 #include "blockbench_instance_generator.h"
+#include "blockbench_model.h"
 #include "block_registry.h"
 #include "texture_array.h"
 #include <vector>
@@ -133,6 +134,11 @@ private:
         const BlockRegistry& blockRegistry,
         const std::vector<BlockType>& complexBlockTypes
     );
+    
+    /**
+     * Check if a model represents a full cube (from 0,0,0 to 16,16,16).
+     */
+    static bool isFullCubeModel(const BlockbenchModel::Model& model);
 };
 
 } // namespace Zerith

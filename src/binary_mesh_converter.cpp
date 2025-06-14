@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <set>
 
+#include "blockbench_parser.h"
+
 namespace Zerith {
 
 std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadToFaces(
@@ -292,31 +294,24 @@ bool HybridChunkMeshGenerator::canUseBinaryMeshing(
         return false;
     }
     
-    // For now, only use binary meshing for simple full cube blocks
-    // This is a conservative approach to ensure complex blocks render correctly
-    std::string blockId = blockDef->getId();
+    // Skip air blocks
+    if (blockDef->getId() == "air") {
+        return false;
+    }
     
-    // List of known full cube blocks that can use binary meshing
-    static const std::set<std::string> fullCubeBlocks = {
-        "stone", "granite", "diorite", "andesite",
-        "deepslate", "cobblestone", "dirt", "grass_block",
-        "planks", "oak_planks", "spruce_planks", "birch_planks",
-        "jungle_planks", "acacia_planks", "dark_oak_planks",
-        "sand", "gravel", "gold_ore", "iron_ore", "coal_ore",
-        "log", "oak_log", "spruce_log", "birch_log",
-        "sponge", "glass", "lapis_ore", "lapis_block",
-        "sandstone", "wool", "gold_block", "iron_block",
-        "brick", "bookshelf", "mossy_cobblestone", "obsidian",
-        "diamond_ore", "diamond_block", "redstone_ore",
-        "ice", "snow_block", "clay", "netherrack",
-        "glowstone", "stone_bricks", "nether_bricks",
-        "end_stone", "emerald_ore", "emerald_block",
-        "quartz_block", "prismarine", "hay_block",
-        "terracotta", "coal_block", "packed_ice",
-        "red_sandstone", "purpur_block"
-    };
+    // Load the block's model to check if it's a full cube
+    std::string modelPath = "assets/zerith/models/block/" + blockDef->getModelName() + ".json";
     
-    return fullCubeBlocks.find(blockId) != fullCubeBlocks.end();
+    try {
+        // Parse the model to check its geometry
+        auto model = BlockbenchParser::parseFromFileWithParents(modelPath, nullptr);
+        
+        // Check if the model represents a full cube (from 0,0,0 to 16,16,16)
+        return isFullCubeModel(model);
+    } catch (const std::exception& e) {
+        // If we can't load the model, assume it's complex and use traditional meshing
+        return false;
+    }
 }
 
 std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::generateComplexBlockMesh(
@@ -391,6 +386,29 @@ std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::ge
     }
     
     return faces;
+}
+
+bool HybridChunkMeshGenerator::isFullCubeModel(const BlockbenchModel::Model& model) {
+    // A full cube model should have exactly one element that spans from [0,0,0] to [16,16,16]
+    // Or multiple elements that together form a complete cube without gaps or overlaps
+    
+    if (model.elements.empty()) {
+        return false;
+    }
+    
+    // For simplicity, check if there's a single element that covers the full cube
+    for (const auto& element : model.elements) {
+        // Check if this element spans the full cube
+        if (element.from[0] == 0.0f && element.from[1] == 0.0f && element.from[2] == 0.0f &&
+            element.to[0] == 16.0f && element.to[1] == 16.0f && element.to[2] == 16.0f) {
+            return true;
+        }
+    }
+    
+    // If no single element covers the full cube, check if all elements together
+    // form a complete cube (this would be more complex to implement perfectly,
+    // so for now we'll be conservative and only allow single-element full cubes)
+    return false;
 }
 
 } // namespace Zerith
