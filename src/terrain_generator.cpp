@@ -6,13 +6,41 @@
 namespace Zerith {
 
 TerrainGenerator::TerrainGenerator() {
-    auto heightGenerator = FastNoise::New<FastNoise::Simplex>();
-    auto heightFractal = FastNoise::New<FastNoise::FractalFBm>();
-    heightFractal->SetSource(heightGenerator);
-    heightFractal->SetOctaveCount(4);
-    heightFractal->SetLacunarity(2.0f);
-    heightFractal->SetGain(0.5f);
-    m_heightNoise = heightFractal;
+    // OpenSimplex2 noise source
+    auto openSimplex2 = FastNoise::New<FastNoise::OpenSimplex2>();
+    
+    // Fractal FBm with specified parameters
+    auto fractalFBm = FastNoise::New<FastNoise::FractalFBm>();
+    fractalFBm->SetSource(openSimplex2);
+    fractalFBm->SetOctaveCount(4);
+    fractalFBm->SetLacunarity(2.5f);
+    fractalFBm->SetGain(0.65f);
+    fractalFBm->SetWeightedStrength(0.5f);
+    
+    // Domain Scale
+    auto domainScale = FastNoise::New<FastNoise::DomainScale>();
+    domainScale->SetSource(fractalFBm);
+    domainScale->SetScale(0.66f);
+    
+    // Position Output for offset
+    auto positionOutput = FastNoise::New<FastNoise::PositionOutput>();
+    positionOutput->Set<FastNoise::Dim::X>(0.0f, 0.0f);
+    positionOutput->Set<FastNoise::Dim::Y>(3.0f, 0.0f);
+    positionOutput->Set<FastNoise::Dim::Z>(0.0f, 0.0f);
+    positionOutput->Set<FastNoise::Dim::W>(-7.24f, 0.0f);
+    
+    // Add node to combine position output with domain scale
+    auto addNode = FastNoise::New<FastNoise::Add>();
+    addNode->SetLHS(positionOutput);
+    addNode->SetRHS(domainScale);
+    
+    // Domain Warp Gradient
+    auto domainWarp = FastNoise::New<FastNoise::DomainWarpGradient>();
+    domainWarp->SetSource(addNode);
+    domainWarp->SetWarpAmplitude(0.2f);
+    domainWarp->SetWarpFrequency(2.0f);
+    
+    m_heightNoise = domainWarp;
     
     auto caveGenerator = FastNoise::New<FastNoise::Perlin>();
     auto caveFractal = FastNoise::New<FastNoise::FractalFBm>();
@@ -62,7 +90,7 @@ BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int 
     }
     
     if (worldY > terrainHeight - 1 && worldY <= terrainHeight) {
-        return BlockTypes::BRICKS;
+        return BlockTypes::GRASS_BLOCK;
     }
     
     if (worldY > terrainHeight - 4) {
