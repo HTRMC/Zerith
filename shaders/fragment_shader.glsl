@@ -15,9 +15,21 @@ layout(binding = 1) uniform sampler2DArray texArraySampler;
 layout(location = 0) out vec4 outColor;
 
 void main() {
-    // Sample from the texture array using the layer index
-    vec3 texCoords = vec3(v_in.texCoord, float(v_in.textureLayer));
-    vec4 texColor = texture(texArraySampler, texCoords);
+    vec4 texColor;
+    
+    // Check if this is the missing texture layer (0xFFFFFFFF)
+    if (v_in.textureLayer == 0xFFFFFFFFu) {
+        // Generate procedural checkerboard pattern: X = Black, O = Magenta
+        // [X][O]
+        // [O][X]
+        vec2 gridPos = floor(v_in.texCoord * 2.0);
+        bool isCheckerboard = mod(gridPos.x + gridPos.y, 2.0) == 0.0;
+        texColor = vec4(isCheckerboard ? vec3(0.0, 0.0, 0.0) : vec3(1.0, 0.0, 1.0), 1.0);
+    } else {
+        // Sample from the texture array using the layer index
+        vec3 texCoords = vec3(v_in.texCoord, float(v_in.textureLayer));
+        texColor = texture(texArraySampler, texCoords);
+    }
     
     // Define grass color for multiplication
     vec3 grassColor = vec3(121.0/255.0, 192.0/255.0, 90.0/255.0);

@@ -13,6 +13,7 @@ using TextureLayer = uint32_t;
 class TextureArray {
 public:
     static constexpr int TEXTURE_SIZE = 16;  // Each texture is 16x16
+    static constexpr uint32_t MISSING_TEXTURE_LAYER = 0xFFFFFFFF;  // Special layer ID for missing textures
     
     TextureArray();
     

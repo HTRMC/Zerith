@@ -93,8 +93,8 @@ uint32_t TextureArray::getTextureLayer(const std::string& textureName) const {
         return it->second;
     }
     
-    LOG_WARN("Texture '%s' not found, using default", textureName.c_str());
-    return 0; // Default to oak planks
+    LOG_WARN("Texture '%s' not found, using missing texture pattern", textureName.c_str());
+    return MISSING_TEXTURE_LAYER;
 }
 
 bool TextureArray::hasTexture(const std::string& texturePath) const {

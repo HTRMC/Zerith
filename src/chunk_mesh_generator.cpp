@@ -408,8 +408,8 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     
     // Use binary greedy meshing if enabled
     if (m_binaryMeshingEnabled) {
-        LOG_DEBUG("Using binary greedy meshing for chunk (%d, %d, %d)", 
-                 chunk.getChunkPosition().x, chunk.getChunkPosition().y, chunk.getChunkPosition().z);
+        // LOG_DEBUG("Using binary greedy meshing for chunk (%d, %d, %d)",
+        //          chunk.getChunkPosition().x, chunk.getChunkPosition().y, chunk.getChunkPosition().z);
         
         // Convert chunk position to world position
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
@@ -420,7 +420,7 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         // Generate optimized mesh using binary greedy meshing
         allFaces = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry);
         
-        LOG_DEBUG("Binary meshing generated %zu faces for chunk", allFaces.size());
+        // LOG_DEBUG("Binary meshing generated %zu faces for chunk", allFaces.size());
     } else {
         // Use traditional per-block meshing
         LOG_DEBUG("Using traditional meshing for chunk (%d, %d, %d)", 
