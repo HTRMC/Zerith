@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include "chunk.h"
 #include "block_properties.h"
+#include "translation_manager.h"
 
 namespace Zerith {
 
@@ -106,16 +107,20 @@ public:
 class BlockDefinition {
 private:
     std::string id_;
-    std::string displayName_;
     BlockSettings settings_;
     BlockType blockType_;
     
 public:
-    BlockDefinition(const std::string& id, const std::string& displayName, const BlockSettings& settings)
-        : id_(id), displayName_(displayName), settings_(settings) {}
+    BlockDefinition(const std::string& id, const BlockSettings& settings)
+        : id_(id), settings_(settings) {}
     
     const std::string& getId() const { return id_; }
-    const std::string& getDisplayName() const { return displayName_; }
+    
+    std::string getDisplayName() const { 
+        std::string translationKey = TranslationManager::getTranslationKey(id_);
+        return TranslationManager::getInstance().translate(translationKey);
+    }
+    
     const std::string& getModelName() const { return settings_.modelName_; }
     
     BlockCullingProperties getCullingProperties() const {
@@ -228,9 +233,9 @@ public:
     static void initialize();
     
 private:
-    static BlockDefPtr registerBlock(const std::string& id, const std::string& displayName, const BlockSettings& settings) {
+    static BlockDefPtr registerBlock(const std::string& id, const BlockSettings& settings) {
         return BlockRegistry::registerBlock(id, 
-            std::make_shared<BlockDefinition>(id, displayName, settings));
+            std::make_shared<BlockDefinition>(id, settings));
     }
 };
 

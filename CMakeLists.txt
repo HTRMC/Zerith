@@ -91,6 +91,7 @@ add_executable(Zerith
     src/chunk_octree.cpp
     src/block_registry.cpp
     src/block_types.cpp
+    src/translation_manager.cpp
 )
 
 # Add shader dependencies
