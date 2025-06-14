@@ -2,6 +2,7 @@
 
 #include "blockbench_model.h"
 #include "block_face_bounds.h"
+#include "logger.h"
 #include <algorithm>
 
 namespace BlockbenchFaceExtractor {
@@ -96,15 +97,13 @@ inline Zerith::BlockFaceBounds extractBlockFaceBounds(const BlockbenchModel::Mod
 inline void printBlockFaceBounds(const Zerith::BlockFaceBounds& bounds, const std::string& blockName) {
     const char* faceNames[] = {"down", "up", "north", "south", "west", "east"};
     
-    std::cout << "Face bounds for " << blockName << ":\n";
+    LOG_DEBUG("Face bounds for %s:", blockName.c_str());
     for (int i = 0; i < 6; ++i) {
         const auto& face = bounds.faces[i];
         if (face.area() > 0.001f) {
-            std::cout << "  " << faceNames[i] << ": ["
-                      << face.min.x << "," << face.min.y << "] to ["
-                      << face.max.x << "," << face.max.y << "]"
-                      << " (area: " << face.area() << ", full: " 
-                      << (face.isFull() ? "yes" : "no") << ")\n";
+            LOG_DEBUG("  %s: [%.3f,%.3f] to [%.3f,%.3f] (area: %.6f, full: %s)",
+                      faceNames[i], face.min.x, face.min.y, face.max.x, face.max.y,
+                      face.area(), face.isFull() ? "yes" : "no");
         }
     }
 }
