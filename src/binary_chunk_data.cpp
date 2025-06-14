@@ -221,11 +221,6 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::meshSlice(
         }
     }
     
-    // Debug output
-    if (!quads.empty()) {
-        printf("Generated %zu quads from %d visible faces (compression: %.1fx)\n", 
-               quads.size(), originalBits, (float)originalBits / quads.size());
-    }
     
     return quads;
 }
@@ -356,11 +351,6 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMask(
         }
     }
     
-    int visibleCount = static_cast<int>(visibleMask.count());
-    if (visibleCount > 0) {
-        printf("Found %d visible faces for blockType %d, faceDir %d, slice %d\n", 
-               visibleCount, blockType, faceDirection, sliceIndex);
-    }
     
     return visibleMask;
 }
