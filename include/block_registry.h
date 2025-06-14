@@ -121,7 +121,9 @@ public:
         return TranslationManager::getInstance().translate(translationKey);
     }
     
-    const std::string& getModelName() const { return settings_.modelName_; }
+    const std::string& getModelName() const { 
+        return settings_.modelName_.empty() ? id_ : settings_.modelName_; 
+    }
     
     BlockCullingProperties getCullingProperties() const {
         return {
