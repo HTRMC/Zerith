@@ -28,7 +28,7 @@ public:
         const MeshQuad& quad,
         const glm::ivec3& chunkWorldPos,
         const BlockRegistry& blockRegistry,
-        const TextureArray& textureArray
+        TextureArray& textureArray
     );
     
     /**
@@ -38,7 +38,7 @@ public:
         const std::vector<MeshQuad>& quads,
         const glm::ivec3& chunkWorldPos,
         const BlockRegistry& blockRegistry,
-        const TextureArray& textureArray
+        TextureArray& textureArray
     );
     
     /**
@@ -77,6 +77,11 @@ public:
      * Get the rotation quaternion for a face direction.
      */
     static glm::vec4 getFaceRotation(int faceDirection);
+
+    /**
+     * Get the default UV coordinates for a block face.
+     */
+    static glm::vec4 getDefaultFaceUV();
     
 private:
     /**
@@ -88,11 +93,6 @@ private:
         const glm::ivec3& quadSize,
         int faceDirection
     );
-    
-    /**
-     * Get the default UV coordinates for a block face.
-     */
-    static glm::vec4 getDefaultFaceUV();
 };
 
 /**
@@ -110,7 +110,7 @@ public:
         const Chunk& chunk,
         const glm::ivec3& chunkWorldPos,
         const BlockRegistry& blockRegistry,
-        const TextureArray& textureArray
+        TextureArray& textureArray
     );
     
 private:

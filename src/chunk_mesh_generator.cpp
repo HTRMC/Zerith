@@ -80,6 +80,19 @@ void ChunkMeshGenerator::loadBlockModels() {
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
+    // Use binary meshing if enabled
+    if (m_binaryMeshingEnabled) {
+        // Get chunk world position from the chunk itself
+        glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
+        return HybridChunkMeshGenerator::generateOptimizedMesh(
+            chunk, 
+            chunkWorldPos, 
+            BlockRegistry::getInstance(),
+            *m_textureArray
+        );
+    }
+    
+    // Fall back to traditional meshing
     std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
     
     // Iterate through all blocks in the chunk (xyz order)
