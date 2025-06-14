@@ -39,8 +39,7 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
         scale,              // scale
         quad.faceDirection, // face direction
         uv,                 // UV coordinates
-        0,                  // texture layer (to be set by texture system)
-        textureName         // texture name
+        0                   // texture layer (to be set by texture system)
     );
     
     return faces;

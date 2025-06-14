@@ -97,6 +97,16 @@ uint32_t TextureArray::getTextureLayer(const std::string& textureName) const {
     return MISSING_TEXTURE_LAYER;
 }
 
+uint32_t TextureArray::getTextureLayerByPath(const std::string& texturePath) const {
+    auto it = m_pathToLayer.find(texturePath);
+    if (it != m_pathToLayer.end()) {
+        return it->second;
+    }
+    
+    LOG_WARN("Texture path '%s' not found, using missing texture pattern", texturePath.c_str());
+    return MISSING_TEXTURE_LAYER;
+}
+
 bool TextureArray::hasTexture(const std::string& texturePath) const {
     return m_pathToLayer.find(texturePath) != m_pathToLayer.end();
 }

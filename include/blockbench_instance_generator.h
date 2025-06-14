@@ -18,12 +18,11 @@ struct FaceInstance {
     int faceDirection;   // 0=down, 1=up, 2=north, 3=south, 4=west, 5=east
     glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
     uint32_t textureLayer; // Texture array layer index
-    std::string textureName; // For debugging
     
     FaceInstance(const glm::vec3& pos = glm::vec3(0.0f), const glm::vec4& rot = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 
                  const glm::vec3& scl = glm::vec3(1.0f), int dir = -1, const glm::vec4& uvCoords = glm::vec4(0.0f, 0.0f, 16.0f, 16.0f),
-                 uint32_t layer = 0, const std::string& tex = "")
-        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureLayer(layer), textureName(tex) {}
+                 uint32_t layer = 0)
+        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureLayer(layer) {}
 };
 
 // Structure to hold all face instances for a complete model
@@ -186,7 +185,7 @@ namespace Generator {
                 //           << ") UV[" << face.uv.x << ", " << face.uv.y << ", " << face.uv.z << ", " << face.uv.w 
                 //           << "] with texture: " << face.texture << std::endl;
                 
-                instances.emplace_back(position, rotationVec4, scale, faceIndex, face.uv, 0, face.texture);
+                instances.emplace_back(position, rotationVec4, scale, faceIndex, face.uv, face.textureLayer);
             } else {
                 // Debug output commented out for performance
                 // std::cout << "  Skipping face: " << getFaceName(faceIndex) 

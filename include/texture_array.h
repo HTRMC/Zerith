@@ -26,6 +26,9 @@ public:
     // Get the texture layer index for a given texture name
     uint32_t getTextureLayer(const std::string& textureName) const;
     
+    // Get the texture layer index for a given texture path
+    uint32_t getTextureLayerByPath(const std::string& texturePath) const;
+    
     // Get the list of texture files to load in order
     const std::vector<std::string>& getTextureFiles() const { return m_textureFiles; }
     

@@ -49,8 +49,8 @@ void ChunkMeshGenerator::loadBlockModels() {
         }
         
         try {
-            // Load the model
-            auto model = BlockbenchParser::parseFromFileWithParents(modelPath);
+            // Load the model with texture array for immediate texture resolution
+            auto model = BlockbenchParser::parseFromFileWithParents(modelPath, m_textureArray.get());
             
             // Extract and register face bounds
             auto faceBounds = BlockbenchFaceExtractor::extractBlockFaceBounds(model);
@@ -223,7 +223,7 @@ void ChunkMeshGenerator::generateBlockFacesPooled(const Chunk& chunk, int x, int
         if (shouldRender) {
             // Add face to batch through the pool
             batch.addFace(face.position, face.rotation, face.scale, face.faceDirection, 
-                         face.uv, face.textureLayer, face.textureName);
+                         face.uv, face.textureLayer);
         }
     }
 }
@@ -623,7 +623,7 @@ void ChunkMeshGenerator::generateBlockFacesPooledWithNeighbors(const Chunk& chun
         if (shouldRender) {
             // Add face to batch through the pool
             batch.addFace(face.position, face.rotation, face.scale, face.faceDirection, 
-                         face.uv, face.textureLayer, face.textureName);
+                         face.uv, face.textureLayer);
         }
     }
 }

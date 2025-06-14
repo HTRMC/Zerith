@@ -48,8 +48,8 @@ public:
         // Add a face instance to the batch
         void addFace(const glm::vec3& position, const glm::vec4& rotation, 
                      const glm::vec3& scale, int faceDirection, const glm::vec4& uv, 
-                     uint32_t textureLayer, const std::string& textureName) {
-            m_instances.emplace_back(position, rotation, scale, faceDirection, uv, textureLayer, textureName);
+                     uint32_t textureLayer) {
+            m_instances.emplace_back(position, rotation, scale, faceDirection, uv, textureLayer);
         }
         
         // Get read-only access to instances

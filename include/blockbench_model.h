@@ -13,8 +13,9 @@ struct Face {
     std::string texture;    // Texture reference (e.g., "#down", "#up", etc.)
     std::string cullface;   // Cullface direction
     glm::vec4 uv;          // UV coordinates [u1, v1, u2, v2] (optional)
+    uint32_t textureLayer;  // Resolved texture layer index
     
-    Face() : uv(0.0f, 0.0f, 16.0f, 16.0f) {} // Default to full texture
+    Face() : uv(0.0f, 0.0f, 16.0f, 16.0f), textureLayer(0) {} // Default to full texture
 };
 
 // Represents a cube element in a Blockbench model

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "blockbench_model.h"
+#include "texture_array.h"
 #include "logger.h"
 #include <string>
 #include <iostream>
@@ -338,8 +339,50 @@ inline void resolveModelTextures(BlockbenchModel::Model& model) {
     }
 }
 
+// Helper function to resolve a texture path to a layer index
+inline uint32_t resolveTexturePathToLayer(const std::string& texturePath, Zerith::TextureArray* textureArray) {
+    if (texturePath.empty() || texturePath[0] == '#') {
+        return 0; // Default texture for unresolved references
+    }
+    
+    // Build the full texture path from the texture name
+    std::string fullTexturePath = texturePath;
+    
+    // Remove namespace prefixes if present
+    if (fullTexturePath.find("zerith:block/") == 0) {
+        fullTexturePath = fullTexturePath.substr(13); // Remove "zerith:block/"
+    } else if (fullTexturePath.find("zerith:") == 0) {
+        fullTexturePath = fullTexturePath.substr(7); // Remove "zerith:"
+    } else if (fullTexturePath.find("minecraft:block/") == 0) {
+        fullTexturePath = fullTexturePath.substr(16); // Remove "minecraft:block/"
+    } else if (fullTexturePath.find("minecraft:") == 0) {
+        fullTexturePath = fullTexturePath.substr(10); // Remove "minecraft:"
+    } else if (fullTexturePath.find("block/") == 0) {
+        fullTexturePath = fullTexturePath.substr(6); // Remove "block/"
+    }
+    
+    // Build the full path that matches how textures are registered
+    std::string registeredPath = "assets/zerith/textures/block/" + fullTexturePath + ".png";
+    
+    // Register the texture (or get existing layer if already registered)
+    return textureArray->getOrRegisterTexture(registeredPath);
+}
+
+// Resolve texture layers for all faces in a model
+inline void resolveTextureLayers(BlockbenchModel::Model& model, Zerith::TextureArray* textureArray) {
+    for (auto& element : model.elements) {
+        // Resolve texture layers for each face
+        element.down.textureLayer = resolveTexturePathToLayer(element.down.texture, textureArray);
+        element.up.textureLayer = resolveTexturePathToLayer(element.up.texture, textureArray);
+        element.north.textureLayer = resolveTexturePathToLayer(element.north.texture, textureArray);
+        element.south.textureLayer = resolveTexturePathToLayer(element.south.texture, textureArray);
+        element.west.textureLayer = resolveTexturePathToLayer(element.west.texture, textureArray);
+        element.east.textureLayer = resolveTexturePathToLayer(element.east.texture, textureArray);
+    }
+}
+
 // Parse a Blockbench model with recursive parent model resolution
-inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filename) {
+inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filename, Zerith::TextureArray* textureArray = nullptr) {
     // Parse the main model
     BlockbenchModel::Model model = parseFromFile(filename);
     
@@ -362,7 +405,7 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
         std::string parentPath = "assets/zerith/models/block/" + parentName + ".json";
         
         LOG_TRACE("Loading parent model: %s", parentPath.c_str());
-        BlockbenchModel::Model parentModel = parseFromFileWithParents(parentPath);
+        BlockbenchModel::Model parentModel = parseFromFileWithParents(parentPath, textureArray);
         
         // If the current model has no elements, inherit from parent
         if (model.elements.empty() && !parentModel.elements.empty()) {
@@ -383,6 +426,11 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
     
     // Resolve all texture references in the model
     resolveModelTextures(model);
+    
+    // Resolve texture layers if TextureArray is provided
+    if (textureArray != nullptr) {
+        resolveTextureLayers(model, textureArray);
+    }
     
     // Debug: Print resolved textures
     LOG_TRACE("Resolved textures for %s", filename.c_str());
