@@ -25,6 +25,13 @@ enum class BlockMaterial {
     LIQUID
 };
 
+// Render layer types for transparency handling
+enum class RenderLayer {
+    OPAQUE,      // Solid blocks (stone, dirt, wood) - render first with depth writing
+    CUTOUT,      // Blocks with binary alpha (leaves) - render second with alpha testing
+    TRANSLUCENT  // Transparent blocks (glass, water) - render last with alpha blending
+};
+
 // Block settings builder
 class BlockSettings {
 private:
@@ -133,6 +140,23 @@ public:
         };
     }
     
+    RenderLayer getRenderLayer() const {
+        switch (settings_.material_) {
+            case BlockMaterial::AIR:
+                return RenderLayer::OPAQUE; // Air doesn't render, but default to opaque
+            case BlockMaterial::GLASS:
+            case BlockMaterial::LIQUID:
+                return RenderLayer::TRANSLUCENT;
+            case BlockMaterial::LEAVES:
+                return RenderLayer::CUTOUT;
+            case BlockMaterial::SOLID:
+            case BlockMaterial::WOOD:
+            case BlockMaterial::STONE:
+            default:
+                return RenderLayer::OPAQUE;
+        }
+    }
+    
     void setBlockType(BlockType type) { blockType_ = type; }
     BlockType getBlockType() const { return blockType_; }
 };
@@ -190,6 +214,12 @@ public:
     // Get all blocks
     const std::vector<BlockDefPtr>& getAllBlocks() const {
         return blocks_;
+    }
+    
+    // Get render layer for a block type
+    RenderLayer getRenderLayer(BlockType type) const {
+        auto block = getBlock(type);
+        return block ? block->getRenderLayer() : RenderLayer::OPAQUE;
     }
     
     size_t getBlockCount() const {

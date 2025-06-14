@@ -132,6 +132,193 @@ FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooled(
     return batch;
 }
 
+/*
+LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMesh(const Chunk& chunk) {
+    LayeredChunkMesh layeredMesh;
+    
+    // Iterate through all blocks in the chunk (xyz order)
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
+                generateBlockFacesLayered(chunk, x, y, z, layeredMesh);
+            }
+        }
+    }
+    
+    return layeredMesh;
+}
+
+LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMeshWithNeighbors(
+    const Chunk& chunk,
+    const Chunk* neighborXMinus, const Chunk* neighborXPlus,
+    const Chunk* neighborYMinus, const Chunk* neighborYPlus,
+    const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
+    
+    LayeredChunkMesh layeredMesh;
+    
+    // Iterate through all blocks in the chunk (xyz order)
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
+                generateBlockFacesLayeredWithNeighbors(chunk, x, y, z, layeredMesh,
+                                                     neighborXMinus, neighborXPlus,
+                                                     neighborYMinus, neighborYPlus,
+                                                     neighborZMinus, neighborZPlus);
+            }
+        }
+    }
+    
+    return layeredMesh;
+}
+
+void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, int y, int z, 
+                                                  LayeredChunkMesh& layeredMesh) {
+    BlockType blockType = chunk.getBlock(x, y, z);
+    
+    // Skip air blocks
+    if (blockType == BlockTypes::AIR) {
+        return;
+    }
+    
+    // Find the generator for this block type
+    auto it = m_blockGenerators.find(blockType);
+    if (it == m_blockGenerators.end()) {
+        return; // No model for this block type
+    }
+    
+    // Get the render layer for this block
+    // RenderLayer renderLayer = BlockRegistry::getInstance().getRenderLayer(blockType);
+    // Temporarily default to OPAQUE for all blocks to test
+    RenderLayer renderLayer = RenderLayer::OPAQUE;
+    
+    // Calculate world position of this block
+    glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
+    blockWorldPos += glm::vec3(x, y, z);
+    
+    // Generate faces at this position
+    auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
+    
+    // Face culling: only add faces that are visible
+    for (auto&& face : blockFaces) {
+        bool shouldRender = false;
+        
+        // Check visibility based on face direction
+        switch (face.faceDirection) {
+            case 0: // Down face (Y-)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, -1, 0);
+                break;
+            case 1: // Up face (Y+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 1, 0);
+                break;
+            case 2: // North face (Z-)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 0, -1);
+                break;
+            case 3: // South face (Z+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 0, 0, 1);
+                break;
+            case 4: // West face (X-)
+                shouldRender = chunk.isFaceVisible(x, y, z, -1, 0, 0);
+                break;
+            case 5: // East face (X+)
+                shouldRender = chunk.isFaceVisible(x, y, z, 1, 0, 0);
+                break;
+            default:
+                shouldRender = true; // Render unknown faces by default
+                break;
+        }
+        
+        if (shouldRender) {
+            // Add face to the appropriate render layer
+            layeredMesh.getLayer(renderLayer).emplace_back(std::move(face));
+        }
+    }
+}
+
+void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chunk, int x, int y, int z,
+                                                               LayeredChunkMesh& layeredMesh,
+                                                               const Chunk* neighborXMinus, const Chunk* neighborXPlus,
+                                                               const Chunk* neighborYMinus, const Chunk* neighborYPlus,
+                                                               const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
+    BlockType blockType = chunk.getBlock(x, y, z);
+    
+    // Skip air blocks
+    if (blockType == BlockTypes::AIR) {
+        return;
+    }
+    
+    // Find the generator for this block type
+    auto it = m_blockGenerators.find(blockType);
+    if (it == m_blockGenerators.end()) {
+        return; // No model for this block type
+    }
+    
+    // Get the render layer for this block
+    // RenderLayer renderLayer = BlockRegistry::getInstance().getRenderLayer(blockType);
+    // Temporarily default to OPAQUE for all blocks to test
+    RenderLayer renderLayer = RenderLayer::OPAQUE;
+    
+    // Calculate world position of this block
+    glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
+    blockWorldPos += glm::vec3(x, y, z);
+    
+    // Generate faces at this position
+    auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
+    
+    // Face culling: only add faces that are visible
+    for (auto&& face : blockFaces) {
+        bool shouldRender = false;
+        
+        // Check visibility based on face direction
+        switch (face.faceDirection) {
+            case 0: // Down face (Y-)
+                shouldRender = isFaceVisibleWithNeighbors(chunk, x, y, z, 0, -1, 0,
+                                                         neighborXMinus, neighborXPlus,
+                                                         neighborYMinus, neighborYPlus,
+                                                         neighborZMinus, neighborZPlus);
+                break;
+            case 1: // Up face (Y+)
+                shouldRender = isFaceVisibleWithNeighbors(chunk, x, y, z, 0, 1, 0,
+                                                         neighborXMinus, neighborXPlus,
+                                                         neighborYMinus, neighborYPlus,
+                                                         neighborZMinus, neighborZPlus);
+                break;
+            case 2: // North face (Z-)
+                shouldRender = isFaceVisibleWithNeighbors(chunk, x, y, z, 0, 0, -1,
+                                                         neighborXMinus, neighborXPlus,
+                                                         neighborYMinus, neighborYPlus,
+                                                         neighborZMinus, neighborZPlus);
+                break;
+            case 3: // South face (Z+)
+                shouldRender = isFaceVisibleWithNeighbors(chunk, x, y, z, 0, 0, 1,
+                                                         neighborXMinus, neighborXPlus,
+                                                         neighborYMinus, neighborYPlus,
+                                                         neighborZMinus, neighborZPlus);
+                break;
+            case 4: // West face (X-)
+                shouldRender = isFaceVisibleWithNeighbors(chunk, x, y, z, -1, 0, 0,
+                                                         neighborXMinus, neighborXPlus,
+                                                         neighborYMinus, neighborYPlus,
+                                                         neighborZMinus, neighborZPlus);
+                break;
+            case 5: // East face (X+)
+                shouldRender = isFaceVisibleWithNeighbors(chunk, x, y, z, 1, 0, 0,
+                                                         neighborXMinus, neighborXPlus,
+                                                         neighborYMinus, neighborYPlus,
+                                                         neighborZMinus, neighborZPlus);
+                break;
+            default:
+                shouldRender = true; // Render unknown faces by default
+                break;
+        }
+        
+        if (shouldRender) {
+            // Add face to the appropriate render layer
+            layeredMesh.getLayer(renderLayer).emplace_back(std::move(face));
+        }
+    }
+}
+*/
+
 void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, int z, 
                                            std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces) {
     BlockType blockType = chunk.getBlock(x, y, z);

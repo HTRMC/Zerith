@@ -60,9 +60,26 @@ void main() {
         texColor.rgb = mix(texColor.rgb, overlayColor.rgb, overlayColor.a);
     }
     
-    // Discard fragments with 0 alpha (for transparency)
+    // Alpha handling based on render layer:
+    // - OPAQUE: No alpha testing needed (alpha always 1.0)
+    // - CUTOUT: Binary alpha test - discard if below threshold (leaves)
+    // - TRANSLUCENT: Keep all alpha values for blending (glass, water)
+    
+    // Cutout alpha test threshold for leaves and similar blocks
+    float alphaTestThreshold = 0.5;
+    
+    // Discard fragments with 0 alpha (for complete transparency)
     if (texColor.a == 0.0) {
         discard;
+    }
+    
+    // For cutout rendering (leaves), discard fragments below threshold
+    // This creates binary alpha behavior - pixels are either fully opaque or discarded
+    // Note: This will apply to all renders currently, but when we implement
+    // layered rendering, this should only apply to cutout pipeline
+    if (texColor.a < alphaTestThreshold && texColor.a > 0.0) {
+        // For now, keep the fragment but this would be discarded in cutout layer
+        // discard; // Uncomment when implementing full layered rendering
     }
     
     // Output texture color

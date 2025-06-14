@@ -322,7 +322,12 @@ private:
     VkRenderPass renderPass;
     VkDescriptorSetLayout descriptorSetLayout;
     VkPipelineLayout pipelineLayout;
-    VkPipeline graphicsPipeline;
+    VkPipeline graphicsPipeline = VK_NULL_HANDLE;
+    
+    // Render layer pipelines
+    VkPipeline opaquePipeline = VK_NULL_HANDLE;
+    VkPipeline cutoutPipeline = VK_NULL_HANDLE;
+    VkPipeline translucentPipeline = VK_NULL_HANDLE;
 
     VkCommandPool commandPool;
     std::vector<VkCommandBuffer> commandBuffers;
@@ -1809,6 +1814,196 @@ private:
         vkDestroyShaderModule(device, taskShaderModule, nullptr);
     }
     
+    void createLayeredRenderPipelines() {
+        // Load shader code from compiled spv files
+        auto taskShaderCode = readFile("shaders/task_shader.spv");
+        auto meshShaderCode = readFile("shaders/mesh_shader.spv");
+        auto fragShaderCode = readFile("shaders/fragment_shader.spv");
+
+        VkShaderModule taskShaderModule = createShaderModule(taskShaderCode);
+        VkShaderModule meshShaderModule = createShaderModule(meshShaderCode);
+        VkShaderModule fragShaderModule = createShaderModule(fragShaderCode);
+
+        VkPipelineShaderStageCreateInfo taskShaderStageInfo{};
+        taskShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        taskShaderStageInfo.stage = VK_SHADER_STAGE_TASK_BIT_EXT;
+        taskShaderStageInfo.module = taskShaderModule;
+        taskShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo meshShaderStageInfo{};
+        meshShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        meshShaderStageInfo.stage = VK_SHADER_STAGE_MESH_BIT_EXT;
+        meshShaderStageInfo.module = meshShaderModule;
+        meshShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        fragShaderStageInfo.module = fragShaderModule;
+        fragShaderStageInfo.pName = "main";
+
+        VkPipelineShaderStageCreateInfo shaderStages[] = {
+            taskShaderStageInfo,
+            meshShaderStageInfo,
+            fragShaderStageInfo
+        };
+
+        // Shared pipeline state
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.depthBiasEnable = VK_FALSE;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        std::vector<VkDynamicState> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
+        // OPAQUE PIPELINE - No blending, depth write enabled
+        VkPipelineColorBlendAttachmentState opaqueBlendAttachment{};
+        opaqueBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        opaqueBlendAttachment.blendEnable = VK_FALSE;
+
+        VkPipelineColorBlendStateCreateInfo opaqueBlending{};
+        opaqueBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        opaqueBlending.logicOpEnable = VK_FALSE;
+        opaqueBlending.attachmentCount = 1;
+        opaqueBlending.pAttachments = &opaqueBlendAttachment;
+
+        VkPipelineDepthStencilStateCreateInfo opaqueDepthStencil{};
+        opaqueDepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        opaqueDepthStencil.depthTestEnable = VK_TRUE;
+        opaqueDepthStencil.depthWriteEnable = VK_TRUE;
+        opaqueDepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        opaqueDepthStencil.depthBoundsTestEnable = VK_FALSE;
+        opaqueDepthStencil.stencilTestEnable = VK_FALSE;
+
+        VkGraphicsPipelineCreateInfo opaquePipelineInfo{};
+        opaquePipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        opaquePipelineInfo.stageCount = 3;
+        opaquePipelineInfo.pStages = shaderStages;
+        opaquePipelineInfo.pViewportState = &viewportState;
+        opaquePipelineInfo.pRasterizationState = &rasterizer;
+        opaquePipelineInfo.pMultisampleState = &multisampling;
+        opaquePipelineInfo.pDepthStencilState = &opaqueDepthStencil;
+        opaquePipelineInfo.pColorBlendState = &opaqueBlending;
+        opaquePipelineInfo.pDynamicState = &dynamicState;
+        opaquePipelineInfo.layout = pipelineLayout;
+        opaquePipelineInfo.renderPass = renderPass;
+        opaquePipelineInfo.subpass = 0;
+        opaquePipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &opaquePipelineInfo, nullptr, &opaquePipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create opaque pipeline!");
+        }
+
+        // CUTOUT PIPELINE - No blending (uses alpha testing in shader), depth write enabled
+        VkPipelineColorBlendAttachmentState cutoutBlendAttachment{};
+        cutoutBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        cutoutBlendAttachment.blendEnable = VK_FALSE;
+
+        VkPipelineColorBlendStateCreateInfo cutoutBlending{};
+        cutoutBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        cutoutBlending.logicOpEnable = VK_FALSE;
+        cutoutBlending.attachmentCount = 1;
+        cutoutBlending.pAttachments = &cutoutBlendAttachment;
+
+        VkPipelineDepthStencilStateCreateInfo cutoutDepthStencil{};
+        cutoutDepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        cutoutDepthStencil.depthTestEnable = VK_TRUE;
+        cutoutDepthStencil.depthWriteEnable = VK_TRUE;
+        cutoutDepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        cutoutDepthStencil.depthBoundsTestEnable = VK_FALSE;
+        cutoutDepthStencil.stencilTestEnable = VK_FALSE;
+
+        VkGraphicsPipelineCreateInfo cutoutPipelineInfo{};
+        cutoutPipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        cutoutPipelineInfo.stageCount = 3;
+        cutoutPipelineInfo.pStages = shaderStages;
+        cutoutPipelineInfo.pViewportState = &viewportState;
+        cutoutPipelineInfo.pRasterizationState = &rasterizer;
+        cutoutPipelineInfo.pMultisampleState = &multisampling;
+        cutoutPipelineInfo.pDepthStencilState = &cutoutDepthStencil;
+        cutoutPipelineInfo.pColorBlendState = &cutoutBlending;
+        cutoutPipelineInfo.pDynamicState = &dynamicState;
+        cutoutPipelineInfo.layout = pipelineLayout;
+        cutoutPipelineInfo.renderPass = renderPass;
+        cutoutPipelineInfo.subpass = 0;
+        cutoutPipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &cutoutPipelineInfo, nullptr, &cutoutPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create cutout pipeline!");
+        }
+
+        // TRANSLUCENT PIPELINE - Alpha blending enabled, depth write disabled
+        VkPipelineColorBlendAttachmentState translucentBlendAttachment{};
+        translucentBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        translucentBlendAttachment.blendEnable = VK_TRUE;
+        translucentBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        translucentBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        translucentBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+        translucentBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        translucentBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        translucentBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
+
+        VkPipelineColorBlendStateCreateInfo translucentBlending{};
+        translucentBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        translucentBlending.logicOpEnable = VK_FALSE;
+        translucentBlending.attachmentCount = 1;
+        translucentBlending.pAttachments = &translucentBlendAttachment;
+
+        VkPipelineDepthStencilStateCreateInfo translucentDepthStencil{};
+        translucentDepthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        translucentDepthStencil.depthTestEnable = VK_TRUE;
+        translucentDepthStencil.depthWriteEnable = VK_FALSE; // Don't write to depth buffer
+        translucentDepthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        translucentDepthStencil.depthBoundsTestEnable = VK_FALSE;
+        translucentDepthStencil.stencilTestEnable = VK_FALSE;
+
+        VkGraphicsPipelineCreateInfo translucentPipelineInfo{};
+        translucentPipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        translucentPipelineInfo.stageCount = 3;
+        translucentPipelineInfo.pStages = shaderStages;
+        translucentPipelineInfo.pViewportState = &viewportState;
+        translucentPipelineInfo.pRasterizationState = &rasterizer;
+        translucentPipelineInfo.pMultisampleState = &multisampling;
+        translucentPipelineInfo.pDepthStencilState = &translucentDepthStencil;
+        translucentPipelineInfo.pColorBlendState = &translucentBlending;
+        translucentPipelineInfo.pDynamicState = &dynamicState;
+        translucentPipelineInfo.layout = pipelineLayout;
+        translucentPipelineInfo.renderPass = renderPass;
+        translucentPipelineInfo.subpass = 0;
+        translucentPipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &translucentPipelineInfo, nullptr, &translucentPipeline) != VK_SUCCESS) {
+            throw std::runtime_error("failed to create translucent pipeline!");
+        }
+
+        // Clean up shader modules
+        vkDestroyShaderModule(device, fragShaderModule, nullptr);
+        vkDestroyShaderModule(device, meshShaderModule, nullptr);
+        vkDestroyShaderModule(device, taskShaderModule, nullptr);
+    }
+    
     void createAABBDebugPipeline() {
         // Create descriptor set layout for AABB debug
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
@@ -2606,8 +2801,7 @@ private:
 
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
+        // Set up viewport and scissor once (shared across all pipelines)
         VkViewport viewport{};
         viewport.x = 0.0f;
         viewport.y = 0.0f;
@@ -2622,6 +2816,9 @@ private:
         scissor.extent = swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+        // RENDER LAYER 1: OPAQUE (solid blocks - stone, dirt, wood)
+        // Temporarily use the old pipeline until layered pipelines are fully working
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
 
@@ -2652,6 +2849,15 @@ private:
             
             vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
         }
+
+        // RENDER LAYER 2: CUTOUT (blocks with binary alpha - leaves)
+        // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cutoutPipeline);
+        // TODO: Implement layered face instance separation to draw only cutout faces
+        
+        // RENDER LAYER 3: TRANSLUCENT (transparent blocks - glass, water)
+        // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, translucentPipeline);
+        // TODO: Implement layered face instance separation to draw only translucent faces
+        // TODO: Add back-to-front sorting for proper transparency
         
         // Draw AABB debug wireframes if enabled
         if (showDebugAABBs && aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {
@@ -2757,7 +2963,18 @@ private:
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);
 
-        vkDestroyPipeline(device, graphicsPipeline, nullptr);
+        if (graphicsPipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, graphicsPipeline, nullptr);
+        }
+        if (opaquePipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, opaquePipeline, nullptr);
+        }
+        if (cutoutPipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, cutoutPipeline, nullptr);
+        }
+        if (translucentPipeline != VK_NULL_HANDLE) {
+            vkDestroyPipeline(device, translucentPipeline, nullptr);
+        }
         vkDestroyPipelineLayout(device, pipelineLayout, nullptr);
         vkDestroyRenderPass(device, renderPass, nullptr);
 
@@ -2785,6 +3002,7 @@ private:
         createDepthResources();
         createRenderPass();
         createGraphicsPipeline();
+        // createLayeredRenderPipelines(); // Temporarily disabled to test
         createAABBDebugPipeline();
         createFramebuffers();
         createUniformBuffers();
