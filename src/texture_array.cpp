@@ -10,47 +10,7 @@ TextureArray::TextureArray() {
 }
 
 void TextureArray::initializeTextureMap() {
-    // Register the default textures that the game needs
-    // These will be at predictable indices for compatibility
-    registerTexture("assets/zerith/textures/block/oak_planks.png");           // Layer 0
-    registerTexture("assets/zerith/textures/block/stone.png");                // Layer 1
-    registerTexture("assets/zerith/textures/block/dirt.png");                 // Layer 2
-    registerTexture("assets/zerith/textures/block/grass_block_top.png");      // Layer 3
-    registerTexture("assets/zerith/textures/block/grass_block_side.png");     // Layer 4
-    registerTexture("assets/zerith/textures/block/grass_block_side_overlay.png"); // Layer 5
-    registerTexture("assets/zerith/textures/block/oak_leaves.png");              // Layer 6
-    
-    // Build the name-to-layer map for different block types
-    // These mappings are for compatibility with existing code
-    // New textures will automatically get their name from the filename
-    
-    // Oak planks block
-    m_textureIndices["oak_planks_all"] = 0;
-    m_textureIndices["oak_planks"] = 0;
-    
-    // Stone block
-    m_textureIndices["stone"] = 1;
-    
-    // Dirt block
-    m_textureIndices["dirt"] = 2;
-    
-    // Grass block faces
-    m_textureIndices["grass_bottom"] = 2;  // Dirt
-    m_textureIndices["grass_top"] = 3;     // Grass top
-    m_textureIndices["grass_block_top"] = 3;
-    m_textureIndices["grass_side"] = 4;    // Grass side
-    m_textureIndices["grass_block_side"] = 4;
-    m_textureIndices["grass_overlay"] = 5;  // Grass side overlay
-    m_textureIndices["grass_block_side_overlay"] = 5;
-    
-    // Oak slab (same as planks)
-    m_textureIndices["oak_slab_all"] = 0;
-    
-    // Oak stairs (same as planks)
-    m_textureIndices["oak_stairs_all"] = 0;
-    
-    // Oak leaves
-    m_textureIndices["oak_leaves"] = 6;
+    // Empty - textures are now loaded dynamically from models
 }
 
 TextureLayer TextureArray::registerTexture(const std::string& texturePath) {
