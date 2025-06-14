@@ -208,6 +208,14 @@ struct UniformBufferObject {
     // Total: 136 bytes (4 + 64 + 64 + 4)
 };
 
+// Grass texture indices uniform buffer
+struct GrassTextureIndices {
+    alignas(4) uint32_t grassTopLayer;      // Layer index for grass_block_top
+    alignas(4) uint32_t grassSideLayer;     // Layer index for grass_block_side
+    alignas(4) uint32_t grassOverlayLayer;  // Layer index for grass_block_side_overlay
+    alignas(4) uint32_t padding;            // Padding for alignment
+};
+
 // Face instance data for storage buffer
 struct FaceInstanceData {
     alignas(16) glm::vec4 position; // vec3 + padding
@@ -326,6 +334,11 @@ private:
     std::vector<VkBuffer> uniformBuffers;
     std::vector<VkDeviceMemory> uniformBuffersMemory;
     std::vector<void*> uniformBuffersMapped;
+    
+    // Grass texture indices uniform buffers
+    std::vector<VkBuffer> grassTextureBuffers;
+    std::vector<VkDeviceMemory> grassTextureBuffersMemory;
+    std::vector<void*> grassTextureBuffersMapped;
 
     // Storage buffer for face instances
     VkBuffer faceInstanceBuffer;
@@ -1622,7 +1635,15 @@ private:
         chunkDataLayoutBinding.stageFlags = VK_SHADER_STAGE_TASK_BIT_EXT;
         chunkDataLayoutBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 4> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding, chunkDataLayoutBinding};
+        // Grass texture indices binding for fragment shader  
+        VkDescriptorSetLayoutBinding grassTexturesLayoutBinding{};
+        grassTexturesLayoutBinding.binding = 4;
+        grassTexturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        grassTexturesLayoutBinding.descriptorCount = 1;
+        grassTexturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        grassTexturesLayoutBinding.pImmutableSamplers = nullptr;
+
+        std::array<VkDescriptorSetLayoutBinding, 5> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding, chunkDataLayoutBinding, grassTexturesLayoutBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -1968,6 +1989,21 @@ private:
 
             vkMapMemory(device, uniformBuffersMemory[i], 0, bufferSize, 0, &uniformBuffersMapped[i]);
         }
+        
+        // Create grass texture indices uniform buffers
+        VkDeviceSize grassBufferSize = sizeof(GrassTextureIndices);
+        
+        grassTextureBuffers.resize(swapChainImages.size());
+        grassTextureBuffersMemory.resize(swapChainImages.size());
+        grassTextureBuffersMapped.resize(swapChainImages.size());
+        
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            createBuffer(grassBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                        grassTextureBuffers[i], grassTextureBuffersMemory[i]);
+
+            vkMapMemory(device, grassTextureBuffersMemory[i], 0, grassBufferSize, 0, &grassTextureBuffersMapped[i]);
+        }
     }
     
     void createFaceInstanceBuffer() {
@@ -2099,7 +2135,7 @@ private:
     void createDescriptorPool() {
         std::array<VkDescriptorPoolSize, 3> poolSizes{};
         poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 2); // Double for AABB
+        poolSizes[0].descriptorCount = static_cast<uint32_t>(swapChainImages.size() * 3); // Triple for AABB + grass textures
         poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         poolSizes[1].descriptorCount = static_cast<uint32_t>(swapChainImages.size());
         poolSizes[2].type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -2148,7 +2184,13 @@ private:
             storageBufferInfo.offset = 0;
             storageBufferInfo.range = sizeof(FaceInstanceData) * currentInstances.faces.size();
 
-            std::array<VkWriteDescriptorSet, 4> descriptorWrites{};
+            // Grass texture indices buffer info
+            VkDescriptorBufferInfo grassTextureBufferInfo{};
+            grassTextureBufferInfo.buffer = grassTextureBuffers[i];
+            grassTextureBufferInfo.offset = 0;
+            grassTextureBufferInfo.range = sizeof(GrassTextureIndices);
+
+            std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
             
             // Uniform buffer descriptor
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2190,6 +2232,15 @@ private:
             descriptorWrites[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
             descriptorWrites[3].descriptorCount = 1;
             descriptorWrites[3].pBufferInfo = &chunkDataBufferInfo;
+            
+            // Grass texture indices descriptor
+            descriptorWrites[4].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[4].dstSet = descriptorSets[i];
+            descriptorWrites[4].dstBinding = 4;
+            descriptorWrites[4].dstArrayElement = 0;
+            descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[4].descriptorCount = 1;
+            descriptorWrites[4].pBufferInfo = &grassTextureBufferInfo;
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -2495,8 +2546,40 @@ private:
         // Copy UBO data to buffer
         memcpy(uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
         
+        // Update grass texture indices
+        GrassTextureIndices grassIndices = getGrassTextureIndices();
+        memcpy(grassTextureBuffersMapped[currentImage], &grassIndices, sizeof(grassIndices));
+        
         // Store for debug statistics
         lastUBO = ubo;
+    }
+    
+    GrassTextureIndices getGrassTextureIndices() {
+        GrassTextureIndices indices;
+        
+        // Get the texture array from the chunk mesh generator
+        if (chunkManager) {
+            auto meshGenerator = chunkManager->getMeshGenerator();
+            if (meshGenerator) {
+                auto textureArray = meshGenerator->getTextureArray();
+                
+                // Query texture layer indices for grass textures
+                indices.grassTopLayer = textureArray->getTextureLayerByPath("assets/zerith/textures/block/grass_block_top.png");
+                indices.grassSideLayer = textureArray->getTextureLayerByPath("assets/zerith/textures/block/grass_block_side.png");
+                indices.grassOverlayLayer = textureArray->getTextureLayerByPath("assets/zerith/textures/block/grass_block_side_overlay.png");
+                indices.padding = 0;
+                
+                return indices;
+            }
+        }
+        
+        // Fallback if chunk manager or mesh generator is not available
+        indices.grassTopLayer = 0xFFFFFFFF; // MISSING_TEXTURE_LAYER
+        indices.grassSideLayer = 0xFFFFFFFF;
+        indices.grassOverlayLayer = 0xFFFFFFFF;
+        indices.padding = 0;
+        
+        return indices;
     }
 
     void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
@@ -2667,6 +2750,9 @@ private:
         for (size_t i = 0; i < swapChainImages.size(); i++) {
             vkDestroyBuffer(device, uniformBuffers[i], nullptr);
             vkFreeMemory(device, uniformBuffersMemory[i], nullptr);
+            
+            vkDestroyBuffer(device, grassTextureBuffers[i], nullptr);
+            vkFreeMemory(device, grassTextureBuffersMemory[i], nullptr);
         }
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);

@@ -11,6 +11,13 @@ layout(location = 0) in PerVertexData {
 // Texture array sampler
 layout(binding = 1) uniform sampler2DArray texArraySampler;
 
+// Grass texture layer indices (passed as uniforms)
+layout(binding = 4) uniform GrassTextureIndices {
+    uint grassTopLayer;      // Layer index for grass_block_top
+    uint grassSideLayer;     // Layer index for grass_block_side
+    uint grassOverlayLayer;  // Layer index for grass_block_side_overlay
+} grassTextures;
+
 // Output color
 layout(location = 0) out vec4 outColor;
 
@@ -34,16 +41,16 @@ void main() {
     // Define grass color for multiplication
     vec3 grassColor = vec3(121.0/255.0, 192.0/255.0, 90.0/255.0);
     
-    // Apply color multiplication for grass top texture (layer 3)
-    if (v_in.textureLayer == 3u) {
+    // Apply color multiplication for grass top texture
+    if (v_in.textureLayer == grassTextures.grassTopLayer) {
         texColor.rgb *= grassColor;
     }
     
-    // Special handling for grass block sides (texture layer 4)
+    // Special handling for grass block sides
     // Check if this is a grass block side face (not top/bottom)
-    if (v_in.textureLayer == 4u && v_in.faceIndex >= 2u) {
-        // Sample the overlay texture (layer 5)
-        vec3 overlayCoords = vec3(v_in.texCoord, 5.0);
+    if (v_in.textureLayer == grassTextures.grassSideLayer && v_in.faceIndex >= 2u) {
+        // Sample the overlay texture
+        vec3 overlayCoords = vec3(v_in.texCoord, float(grassTextures.grassOverlayLayer));
         vec4 overlayColor = texture(texArraySampler, overlayCoords);
         
         // Apply color multiplication to the overlay

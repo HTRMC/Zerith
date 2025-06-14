@@ -38,6 +38,13 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
     std::string texturePath = "assets/zerith/textures/block/" + textureName + ".png";
     uint32_t textureLayer = textureArray.getOrRegisterTexture(texturePath);
     
+    // Special handling for grass blocks - ensure overlay is also registered
+    if (blockDef->getId() == "grass_block" && quad.faceDirection >= 2 && quad.faceDirection <= 5) {
+        // Register the overlay texture to ensure it's available for the shader
+        std::string overlayPath = "assets/zerith/textures/block/grass_block_side_overlay.png";
+        textureArray.getOrRegisterTexture(overlayPath);
+    }
+    
     // Create the face instance
     faces.emplace_back(
         worldPos,           // position
