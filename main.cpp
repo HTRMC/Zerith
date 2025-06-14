@@ -2392,7 +2392,7 @@ private:
         float cullingRate = (totalChunks > 0) ? 
             100.0f * (1.0f - static_cast<float>(visibleChunks) / static_cast<float>(totalChunks)) : 0.0f;
         
-        LOG_INFO("Frustum Culling: %d/%d chunks visible (%.1f%% culled)",
+        LOG_DEBUG("Frustum Culling: %d/%d chunks visible (%.1f%% culled)",
                  visibleChunks, totalChunks, cullingRate);
     }
     
