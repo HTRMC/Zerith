@@ -1,0 +1,8 @@
+{
+  "parent": "zerith:block/slab",
+  "textures": {
+    "bottom": "zerith:block/oak_planks",
+    "side": "zerith:block/oak_planks",
+    "top": "zerith:block/oak_planks"
+  }
+}

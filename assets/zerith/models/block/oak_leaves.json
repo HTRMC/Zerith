@@ -1,0 +1,6 @@
+{
+  "parent": "zerith:block/leaves",
+  "textures": {
+    "all": "zerith:block/oak_leaves"
+  }
+}

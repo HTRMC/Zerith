@@ -11,13 +11,13 @@ void TextureAtlas::initializeTextureMap() {
     // Define the texture layout in the atlas
     // Order matters! This determines the position in the atlas
     m_textureFiles = {
-        "assets/oak_planks.png",           // Index 0
-        "assets/stone.png",                // Index 1
-        "assets/dirt.png",                 // Index 2
-        "assets/grass_block_top.png",      // Index 3
-        "assets/grass_block_side.png",     // Index 4
-        "assets/oak_planks.png",           // Index 5 (slab uses same texture)
-        "assets/oak_planks.png"            // Index 6 (stairs uses same texture)
+        "assets/zerith/textures/block/oak_planks.png",           // Index 0
+        "assets/zerith/textures/block/stone.png",                // Index 1
+        "assets/zerith/textures/block/dirt.png",                 // Index 2
+        "assets/zerith/textures/block/grass_block_top.png",      // Index 3
+        "assets/zerith/textures/block/grass_block_side.png",     // Index 4
+        "assets/zerith/textures/block/oak_planks.png",           // Index 5 (slab uses same texture)
+        "assets/zerith/textures/block/oak_planks.png"            // Index 6 (stairs uses same texture)
     };
     
     // Build the name-to-index map

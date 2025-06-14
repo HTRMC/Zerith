@@ -346,14 +346,20 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
     // Recursively resolve parent models until we find elements
     std::string currentParent = model.parent;
     while (!currentParent.empty() && model.elements.empty()) {
-        // Remove minecraft: namespace and block/ prefix if present
+        // Remove namespace prefixes if present
         std::string parentName = currentParent;
-        if (parentName.find("minecraft:block/") == 0) {
+        if (parentName.find("zerith:block/") == 0) {
+            parentName = parentName.substr(13); // Remove "zerith:block/"
+        } else if (parentName.find("zerith:") == 0) {
+            parentName = parentName.substr(7); // Remove "zerith:"
+        } else if (parentName.find("minecraft:block/") == 0) {
             parentName = parentName.substr(16); // Remove "minecraft:block/"
         } else if (parentName.find("minecraft:") == 0) {
             parentName = parentName.substr(10); // Remove "minecraft:"
+        } else if (parentName.find("block/") == 0) {
+            parentName = parentName.substr(6); // Remove "block/"
         }
-        std::string parentPath = "assets/" + parentName + ".json";
+        std::string parentPath = "assets/zerith/models/block/" + parentName + ".json";
         
         LOG_TRACE("Loading parent model: %s", parentPath.c_str());
         BlockbenchModel::Model parentModel = parseFromFileWithParents(parentPath);

@@ -12,13 +12,13 @@ TextureArray::TextureArray() {
 void TextureArray::initializeTextureMap() {
     // Register the default textures that the game needs
     // These will be at predictable indices for compatibility
-    registerTexture("assets/oak_planks.png");           // Layer 0
-    registerTexture("assets/stone.png");                // Layer 1
-    registerTexture("assets/dirt.png");                 // Layer 2
-    registerTexture("assets/grass_block_top.png");      // Layer 3
-    registerTexture("assets/grass_block_side.png");     // Layer 4
-    registerTexture("assets/grass_block_side_overlay.png"); // Layer 5
-    registerTexture("assets/oak_leaves.png");              // Layer 6
+    registerTexture("assets/zerith/textures/block/oak_planks.png");           // Layer 0
+    registerTexture("assets/zerith/textures/block/stone.png");                // Layer 1
+    registerTexture("assets/zerith/textures/block/dirt.png");                 // Layer 2
+    registerTexture("assets/zerith/textures/block/grass_block_top.png");      // Layer 3
+    registerTexture("assets/zerith/textures/block/grass_block_side.png");     // Layer 4
+    registerTexture("assets/zerith/textures/block/grass_block_side_overlay.png"); // Layer 5
+    registerTexture("assets/zerith/textures/block/oak_leaves.png");              // Layer 6
     
     // Build the name-to-layer map for different block types
     // These mappings are for compatibility with existing code

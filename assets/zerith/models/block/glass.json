@@ -1,0 +1,6 @@
+{
+  "parent": "zerith:block/cube_all",
+  "textures": {
+    "all": "zerith:block/glass"
+  }
+}

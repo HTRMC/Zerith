@@ -96,18 +96,21 @@ private:
             // e.g., "minecraft:block/stone" -> "assets/stone.png"
             std::string texturePath = texture;
             
-            // Remove minecraft: prefix if present
-            if (texturePath.find("minecraft:") == 0) {
+            // Remove namespace prefixes if present
+            if (texturePath.find("zerith:block/") == 0) {
+                texturePath = texturePath.substr(13); // Remove "zerith:block/"
+            } else if (texturePath.find("zerith:") == 0) {
+                texturePath = texturePath.substr(7); // Remove "zerith:"
+            } else if (texturePath.find("minecraft:block/") == 0) {
+                texturePath = texturePath.substr(16); // Remove "minecraft:block/"
+            } else if (texturePath.find("minecraft:") == 0) {
                 texturePath = texturePath.substr(10); // Remove "minecraft:"
-            }
-            
-            // Remove block/ prefix if present
-            if (texturePath.find("block/") == 0) {
+            } else if (texturePath.find("block/") == 0) {
                 texturePath = texturePath.substr(6); // Remove "block/"
             }
             
-            // Add assets/ prefix and .png extension
-            texturePath = "assets/" + texturePath + ".png";
+            // Add assets/zerith/textures/block/ prefix and .png extension
+            texturePath = "assets/zerith/textures/block/" + texturePath + ".png";
             
             // Register the texture (will return existing layer if already registered)
             m_textureArray->getOrRegisterTexture(texturePath);
@@ -122,18 +125,21 @@ private:
                 if (!face.texture.empty() && face.texture[0] != '#') {
                     std::string texturePath = face.texture;
                     
-                    // Remove minecraft: prefix if present
-                    if (texturePath.find("minecraft:") == 0) {
+                    // Remove namespace prefixes if present
+                    if (texturePath.find("zerith:block/") == 0) {
+                        texturePath = texturePath.substr(13); // Remove "zerith:block/"
+                    } else if (texturePath.find("zerith:") == 0) {
+                        texturePath = texturePath.substr(7); // Remove "zerith:"
+                    } else if (texturePath.find("minecraft:block/") == 0) {
+                        texturePath = texturePath.substr(16); // Remove "minecraft:block/"
+                    } else if (texturePath.find("minecraft:") == 0) {
                         texturePath = texturePath.substr(10); // Remove "minecraft:"
-                    }
-                    
-                    // Remove block/ prefix if present
-                    if (texturePath.find("block/") == 0) {
+                    } else if (texturePath.find("block/") == 0) {
                         texturePath = texturePath.substr(6); // Remove "block/"
                     }
                     
-                    // Add assets/ prefix and .png extension
-                    texturePath = "assets/" + texturePath + ".png";
+                    // Add assets/zerith/textures/block/ prefix and .png extension
+                    texturePath = "assets/zerith/textures/block/" + texturePath + ".png";
                     
                     // Register the texture (will return existing layer if already registered)
                     m_textureArray->getOrRegisterTexture(texturePath);
@@ -168,13 +174,16 @@ private:
             // Use the texture name that was resolved from the model
             std::string textureName = face.textureName;
             
-            // Remove minecraft: prefix if present
-            if (textureName.find("minecraft:") == 0) {
+            // Remove namespace prefixes if present
+            if (textureName.find("zerith:block/") == 0) {
+                textureName = textureName.substr(13); // Remove "zerith:block/"
+            } else if (textureName.find("zerith:") == 0) {
+                textureName = textureName.substr(7); // Remove "zerith:"
+            } else if (textureName.find("minecraft:block/") == 0) {
+                textureName = textureName.substr(16); // Remove "minecraft:block/"
+            } else if (textureName.find("minecraft:") == 0) {
                 textureName = textureName.substr(10); // Remove "minecraft:"
-            }
-            
-            // Remove block/ prefix if present
-            if (textureName.find("block/") == 0) {
+            } else if (textureName.find("block/") == 0) {
                 textureName = textureName.substr(6); // Remove "block/"
             }
             

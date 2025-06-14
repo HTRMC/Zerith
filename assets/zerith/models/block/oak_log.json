@@ -1,0 +1,7 @@
+{
+  "parent": "zerith:block/cube_column",
+  "textures": {
+    "end": "zerith:block/oak_log_top",
+    "side": "zerith:block/oak_log"
+  }
+}

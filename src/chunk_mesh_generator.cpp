@@ -23,7 +23,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     BlockTypes::initialize();
     BlockProperties::initialize();
     
-    const std::string modelsPath = "assets/";
+    const std::string modelsPath = "assets/zerith/models/block/";
     auto& registry = BlockRegistry::getInstance();
     
     // Initialize the face bounds registry

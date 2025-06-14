@@ -1,0 +1,12 @@
+{
+  "parent": "zerith:block/cube",
+  "textures": {
+    "down": "zerith:block/oak_planks",
+    "east": "zerith:block/crafting_table_side",
+    "north": "zerith:block/crafting_table_front",
+    "particle": "zerith:block/crafting_table_front",
+    "south": "zerith:block/crafting_table_side",
+    "up": "zerith:block/crafting_table_top",
+    "west": "zerith:block/crafting_table_front"
+  }
+}
