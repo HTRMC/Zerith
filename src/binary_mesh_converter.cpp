@@ -106,8 +106,8 @@ glm::vec3 BinaryMeshConverter::calculateQuadWorldPosition(
             return basePos + glm::vec3(0.0f, static_cast<float>(quad.size.y), 0.0f);
         case 2: // North face - no offset needed (from.x, from.y, from.z)
             return basePos;
-        case 3: // South face - position at back-top corner (from.x, to.y, to.z)
-            return basePos + glm::vec3(0.0f, static_cast<float>(quad.size.y), static_cast<float>(quad.size.z));
+        case 3: // South face - position at back-bottom corner (to.x, from.y, to.z)
+            return basePos + glm::vec3(static_cast<float>(quad.size.x), 0.0f, static_cast<float>(quad.size.z));
         case 4: // West face - position at back corner (from.x, from.y, to.z)
             return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
         case 5: // East face - position at front corner (to.x, from.y, from.z)
