@@ -6,6 +6,7 @@
 #include "blockbench_instance_generator.h"
 #include "indirect_draw.h"
 #include "chunk_octree.h"
+#include "thread_pool.h"
 #include <unordered_map>
 #include <memory>
 #include <vector>
@@ -146,17 +147,15 @@ private:
     // Regenerate mesh for a chunk (e.g., when neighbors change)
     void regenerateChunkMesh(const glm::ivec3& chunkPos);
     
-    // Worker thread function
-    void chunkWorkerThread();
-    
-    // Mesh generation thread function
-    void meshGenerationThread();
     
     // Background chunk loading function
     std::unique_ptr<ChunkData> loadChunkBackground(const glm::ivec3& chunkPos);
     
     // Background mesh generation function
     std::vector<BlockbenchInstanceGenerator::FaceInstance> generateMeshForChunk(const glm::ivec3& chunkPos, Chunk* chunk);
+    
+    // Queue mesh generation for a chunk
+    void queueMeshGeneration(const glm::ivec3& chunkPos, int priority);
 
 private:
     // Chunk storage - key is chunk position
@@ -184,19 +183,13 @@ private:
     bool m_needsRebuild = true;
     
     // Threading components
-    std::vector<std::thread> m_workerThreads;
-    std::vector<std::thread> m_meshThreads;
-    std::priority_queue<ChunkLoadRequest> m_loadQueue;
-    std::priority_queue<MeshGenerationRequest> m_meshQueue;
-    std::unordered_map<glm::ivec3, std::future<std::unique_ptr<ChunkData>>> m_loadingChunks;
+    std::unordered_map<glm::ivec3, Task::TaskId> m_loadingChunks;
+    std::unordered_map<glm::ivec3, Task::TaskId> m_meshingChunks;
     
     // Thread synchronization
     mutable std::shared_mutex m_chunksMutex;  // Reader-writer lock for chunk map
-    mutable std::mutex m_queueMutex;
-    mutable std::mutex m_meshQueueMutex;
-    std::condition_variable m_queueCondition;
-    std::condition_variable m_meshQueueCondition;
-    std::atomic<bool> m_shutdown{false};
+    mutable std::mutex m_loadingMutex;
+    mutable std::mutex m_meshingMutex;
     
     // Per-chunk fine-grained locking
     mutable std::unordered_map<glm::ivec3, std::shared_ptr<std::mutex>> m_chunkMutexes;

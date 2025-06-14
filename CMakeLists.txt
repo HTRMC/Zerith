@@ -94,6 +94,7 @@ add_executable(Zerith
     src/translation_manager.cpp
     src/binary_chunk_data.cpp
     src/binary_mesh_converter.cpp
+    src/thread_pool.cpp
 )
 
 # Add shader dependencies

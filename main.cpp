@@ -17,8 +17,9 @@
 #include <spng.h>
 #include <cstring>
 
-// Logger
+// Logger and thread pool
 #include "logger.h"
+#include "thread_pool.h"
 
 // Blockbench model support
 #include "blockbench_model.h"
@@ -2826,16 +2827,24 @@ int main() {
     
     LOG_INFO("Zerith application starting...");
     
+    // Initialize global thread pool
+    Zerith::initializeThreadPool();
+    
     ZerithApplication app;
 
     try {
         app.run();
     } catch (const std::exception& e) {
         LOG_FATAL("Application crashed: %s", e.what());
+        Zerith::shutdownThreadPool();
         return EXIT_FAILURE;
     }
 
     LOG_INFO("Zerith application shutting down gracefully");
+    
+    // Shutdown thread pool
+    Zerith::shutdownThreadPool();
+    
     logger.shutdown();
     return EXIT_SUCCESS;
 }

@@ -17,40 +17,31 @@ ChunkManager::ChunkManager() {
     );
     m_chunkOctree = std::make_unique<ChunkOctree>(worldBounds);
     
-    // Create worker threads for chunk loading
-    unsigned int numThreads = std::max(1u, std::thread::hardware_concurrency() / 2);
-    for (unsigned int i = 0; i < numThreads; ++i) {
-        m_workerThreads.emplace_back(&ChunkManager::chunkWorkerThread, this);
+    // Initialize global thread pool if not already done
+    if (!g_threadPool) {
+        initializeThreadPool();
     }
     
-    // Create multiple mesh generation threads
-    unsigned int numMeshThreads = std::max(1u, std::thread::hardware_concurrency() / 4);
-    for (unsigned int i = 0; i < numMeshThreads; ++i) {
-        m_meshThreads.emplace_back(&ChunkManager::meshGenerationThread, this);
-    }
-    
-    LOG_INFO("ChunkManager initialized with render distance %d, %d worker threads, and %d mesh threads", 
-             m_renderDistance, numThreads, numMeshThreads);
+    LOG_INFO("ChunkManager initialized with render distance %d using global thread pool", 
+             m_renderDistance);
 }
 
 ChunkManager::~ChunkManager() {
-    // Signal shutdown
-    m_shutdown = true;
-    m_queueCondition.notify_all();
-    m_meshQueueCondition.notify_all();
-    
-    // Wait for all worker threads to finish
-    for (auto& thread : m_workerThreads) {
-        if (thread.joinable()) {
-            thread.join();
+    // Cancel all pending tasks
+    {
+        std::lock_guard<std::mutex> loadLock(m_loadingMutex);
+        for (const auto& [chunkPos, taskId] : m_loadingChunks) {
+            g_threadPool->cancelTask(taskId);
         }
+        m_loadingChunks.clear();
     }
     
-    // Wait for mesh generation threads to finish
-    for (auto& thread : m_meshThreads) {
-        if (thread.joinable()) {
-            thread.join();
+    {
+        std::lock_guard<std::mutex> meshLock(m_meshingMutex);
+        for (const auto& [chunkPos, taskId] : m_meshingChunks) {
+            g_threadPool->cancelTask(taskId);
         }
+        m_meshingChunks.clear();
     }
 }
 
@@ -100,8 +91,14 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
                 // Check if already loaded or loading
                 {
                     std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
-                    if (m_chunks.find(chunkPos) != m_chunks.end() || 
-                        m_loadingChunks.find(chunkPos) != m_loadingChunks.end()) {
+                    if (m_chunks.find(chunkPos) != m_chunks.end()) {
+                        continue;
+                    }
+                }
+                
+                {
+                    std::lock_guard<std::mutex> lock(m_loadingMutex);
+                    if (m_loadingChunks.find(chunkPos) != m_loadingChunks.end()) {
                         continue;
                     }
                 }
@@ -379,103 +376,44 @@ bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& 
 
 
 void ChunkManager::loadChunkAsync(const glm::ivec3& chunkPos, int priority) {
-    // Add to loading queue
-    std::lock_guard<std::mutex> lock(m_queueMutex);
-    m_loadQueue.push({chunkPos, priority});
-    m_queueCondition.notify_one();
-}
-
-void ChunkManager::chunkWorkerThread() {
-    while (!m_shutdown) {
-        ChunkLoadRequest request;
-        
-        // Wait for work
-        {
-            std::unique_lock<std::mutex> lock(m_queueMutex);
-            m_queueCondition.wait(lock, [this] { return !m_loadQueue.empty() || m_shutdown; });
+    // Calculate task priority based on distance
+    TaskPriority taskPriority = TaskPriority::Normal;
+    if (priority > 900) taskPriority = TaskPriority::Critical;
+    else if (priority > 700) taskPriority = TaskPriority::High;
+    else if (priority > 500) taskPriority = TaskPriority::Normal;
+    else if (priority > 300) taskPriority = TaskPriority::Low;
+    else taskPriority = TaskPriority::Idle;
+    
+    // Submit chunk loading task
+    auto future = g_threadPool->submitTask(
+        [this, chunkPos]() -> int {
+            auto chunkData = loadChunkBackground(chunkPos);
             
-            if (m_shutdown) {
-                break;
+            // Add to completed chunks queue
+            {
+                std::lock_guard<std::mutex> lock(m_completedMutex);
+                m_completedChunks.push({chunkPos, std::move(chunkData)});
             }
             
-            request = m_loadQueue.top();
-            m_loadQueue.pop();
-        }
-        
-        // Check if chunk is still needed
-        {
-            std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
-            if (m_chunks.find(request.chunkPos) != m_chunks.end()) {
-                continue; // Already loaded
+            // Remove from loading map
+            {
+                std::lock_guard<std::mutex> lock(m_loadingMutex);
+                m_loadingChunks.erase(chunkPos);
             }
-        }
-        
-        // Create a new chunk and generate terrain only (no mesh yet)
-        auto chunk = std::make_unique<Chunk>(request.chunkPos);
-        generateTerrain(*chunk);
-        
-        // Create ChunkData with just the chunk (no mesh yet)
-        auto chunkData = std::make_unique<ChunkData>();
-        chunkData->chunk = std::move(chunk);
-        chunkData->ready = true;
-        
-        // Add to completed chunks queue
-        {
-            std::lock_guard<std::mutex> lock(m_completedMutex);
-            m_completedChunks.push({request.chunkPos, std::move(chunkData)});
-        }
+            return 0;
+        },
+        taskPriority,
+        "LoadChunk_" + std::to_string(chunkPos.x) + "_" + std::to_string(chunkPos.y) + "_" + std::to_string(chunkPos.z)
+    );
+    
+    // Track the loading task - we'll use the chunk position hash as a simple ID
+    {
+        std::lock_guard<std::mutex> lock(m_loadingMutex);
+        std::hash<glm::ivec3> hasher;
+        m_loadingChunks[chunkPos] = static_cast<Task::TaskId>(hasher(chunkPos));
     }
 }
 
-void ChunkManager::meshGenerationThread() {
-    while (!m_shutdown) {
-        MeshGenerationRequest request;
-        
-        // Wait for work
-        {
-            std::unique_lock<std::mutex> lock(m_meshQueueMutex);
-            m_meshQueueCondition.wait(lock, [this] { 
-                return !m_meshQueue.empty() || m_shutdown; 
-            });
-            
-            if (m_shutdown) {
-                break;
-            }
-            
-            request = m_meshQueue.top();
-            m_meshQueue.pop();
-        }
-        
-        // Get the chunk to generate mesh for (read lock for chunk lookup)
-        Chunk* chunk = nullptr;
-        {
-            std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
-            
-            // Check if chunk is still loaded
-            auto it = m_chunks.find(request.chunkPos);
-            if (it == m_chunks.end()) {
-                continue; // Chunk was unloaded, skip
-            }
-            
-            // Use the chunk from the map
-            chunk = it->second.get();
-        }
-        
-        if (!chunk) continue; // Safety check
-        
-        // Generate mesh
-        auto faces = generateMeshForChunk(request.chunkPos, chunk);
-        
-        // Add to completed meshes queue
-        {
-            std::lock_guard<std::mutex> lock(m_completedMeshMutex);
-            CompletedMesh completedMesh;
-            completedMesh.chunkPos = request.chunkPos;
-            completedMesh.faces = std::move(faces);
-            m_completedMeshes.push(std::move(completedMesh));
-        }
-    }
-}
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkManager::generateMeshForChunk(
     const glm::ivec3& chunkPos, Chunk* chunk) {
@@ -575,26 +513,12 @@ void ChunkManager::processCompletedChunks() {
             }
             
             // Queue for mesh generation with high priority
-            {
-                std::lock_guard<std::mutex> lock(m_meshQueueMutex);
-                MeshGenerationRequest request;
-                request.chunkPos = chunkPos;
-                request.priority = 1000; // High priority for newly loaded chunks
-                
-                m_meshQueue.push(std::move(request));
-                m_meshQueueCondition.notify_one();
-            }
+            queueMeshGeneration(chunkPos, 1000);
         }
         
         // Queue neighbor chunks for mesh regeneration
         for (const auto& chunkPos : chunksToRegenerate) {
-            std::lock_guard<std::mutex> lock(m_meshQueueMutex);
-            MeshGenerationRequest request;
-            request.chunkPos = chunkPos;
-            request.priority = 500; // Medium priority for regeneration
-            
-            m_meshQueue.push(std::move(request));
-            m_meshQueueCondition.notify_one();
+            queueMeshGeneration(chunkPos, 500);
         }
     }
     
@@ -635,14 +559,71 @@ void ChunkManager::regenerateChunkMesh(const glm::ivec3& chunkPos) {
         }
     }
     
-    // Queue for mesh generation
-    std::lock_guard<std::mutex> lock(m_meshQueueMutex);
-    MeshGenerationRequest request;
-    request.chunkPos = chunkPos;
-    request.priority = 500; // Medium priority for regeneration
+    queueMeshGeneration(chunkPos, 500);
+}
+
+void ChunkManager::queueMeshGeneration(const glm::ivec3& chunkPos, int priority) {
+    // Check if already meshing
+    {
+        std::lock_guard<std::mutex> lock(m_meshingMutex);
+        if (m_meshingChunks.find(chunkPos) != m_meshingChunks.end()) {
+            return;
+        }
+    }
     
-    m_meshQueue.push(std::move(request));
-    m_meshQueueCondition.notify_one();
+    // Calculate task priority based on distance
+    TaskPriority taskPriority = TaskPriority::Normal;
+    if (priority > 900) taskPriority = TaskPriority::High;
+    else if (priority > 700) taskPriority = TaskPriority::Normal;
+    else if (priority > 500) taskPriority = TaskPriority::Low;
+    else taskPriority = TaskPriority::Idle;
+    
+    // Submit mesh generation task
+    auto future = g_threadPool->submitTask(
+        [this, chunkPos]() -> int {
+            // Get the chunk to generate mesh for
+            Chunk* chunk = nullptr;
+            {
+                std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
+                auto it = m_chunks.find(chunkPos);
+                if (it == m_chunks.end()) {
+                    // Chunk was unloaded, remove from meshing map and return
+                    std::lock_guard<std::mutex> meshLock(m_meshingMutex);
+                    m_meshingChunks.erase(chunkPos);
+                    return 0;
+                }
+                chunk = it->second.get();
+            }
+            
+            // Generate mesh
+            auto faces = generateMeshForChunk(chunkPos, chunk);
+            
+            // Add to completed meshes queue
+            {
+                std::lock_guard<std::mutex> lock(m_completedMeshMutex);
+                CompletedMesh completedMesh;
+                completedMesh.chunkPos = chunkPos;
+                completedMesh.faces = std::move(faces);
+                m_completedMeshes.push(std::move(completedMesh));
+            }
+            
+            // Remove from meshing map
+            {
+                std::lock_guard<std::mutex> lock(m_meshingMutex);
+                m_meshingChunks.erase(chunkPos);
+            }
+            return 0;
+        },
+        taskPriority,
+        "MeshGen_" + std::to_string(chunkPos.x) + "_" + std::to_string(chunkPos.y) + "_" + std::to_string(chunkPos.z)
+    );
+    
+    // Track the meshing task - we'll use the chunk position hash as a simple ID
+    {
+        std::lock_guard<std::mutex> lock(m_meshingMutex);
+        std::hash<glm::ivec3> hasher;
+        m_meshingChunks[chunkPos] = static_cast<Task::TaskId>(hasher(chunkPos));
+    }
 }
 
 std::vector<Chunk*> ChunkManager::getChunksInRegion(const AABB& region) const {
