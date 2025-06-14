@@ -46,10 +46,8 @@ void main() {
         discard;
     }
     
-    // Blend directional color with texture color
-    // Mix 70% texture color with 30% directional color for visibility
-    vec3 finalColor = mix(texColor.rgb, v_in.color, 0.3);
-    outColor = vec4(finalColor, texColor.a);
+    // Output texture color
+    outColor = texColor;
     
     // Debug UV coordinates with a pattern
     // Uncomment these lines to see a UV debug pattern instead of the texture

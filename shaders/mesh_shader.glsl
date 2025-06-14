@@ -25,12 +25,12 @@ const vec3 quadVertices[4] = {
 
 // Define cube face colors
 const vec3 faceColors[6] = {
-    vec3(1.0, 0.0, 0.0), // RED - DOWN FACE (Y-)
-    vec3(0.0, 1.0, 0.0), // GREEN - UP FACE (Y+)
-    vec3(0.0, 0.0, 1.0), // BLUE - NORTH FACE (Z-)
-    vec3(1.0, 1.0, 0.0), // YELLOW - SOUTH FACE (Z+)
-    vec3(1.0, 0.0, 1.0), // MAGENTA - WEST FACE (X-)
-    vec3(0.0, 1.0, 1.0)  // CYAN - EAST FACE (X+)
+    vec3(1.0, 0.0, 0.0), // RED - TOP FACE (Y+)
+    vec3(0.0, 1.0, 0.0), // GREEN - BOTTOM FACE (Y-)
+    vec3(0.0, 0.0, 1.0), // BLUE - FRONT FACE (Z+)
+    vec3(1.0, 1.0, 0.0), // YELLOW - BACK FACE (Z-)
+    vec3(1.0, 0.0, 1.0), // MAGENTA - LEFT FACE (X-)
+    vec3(0.0, 1.0, 1.0)  // CYAN - RIGHT FACE (X+)
 };
 
 
@@ -204,7 +204,6 @@ void main() {
     vec3 facePosition = faceInstanceBuffer.instances[faceIndex].position.xyz;
     vec4 faceRotation = faceInstanceBuffer.instances[faceIndex].rotation;
     vec3 faceScale = faceInstanceBuffer.instances[faceIndex].scale.xyz;
-    uint faceDirection = uint(faceInstanceBuffer.instances[faceIndex].scale.w);
     vec4 faceUV = faceInstanceBuffer.instances[faceIndex].uv;
     uint textureLayer = faceInstanceBuffer.instances[faceIndex].textureLayer;
     
@@ -250,7 +249,7 @@ void main() {
         gl_MeshVerticesEXT[vertexIndex].gl_Position = mvp * vec4(worldPos, 1.0);
         
         // Set per-vertex data
-        v_out[vertexIndex].color = faceColors[faceDirection];
+        v_out[vertexIndex].color = faceColors[faceIndex];
         v_out[vertexIndex].texCoord = texCoords[i];
         v_out[vertexIndex].faceIndex = faceIndex;
         v_out[vertexIndex].textureLayer = textureLayer;
