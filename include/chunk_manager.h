@@ -11,6 +11,7 @@
 #include <vector>
 #include <thread>
 #include <mutex>
+#include <shared_mutex>
 #include <condition_variable>
 #include <queue>
 #include <atomic>
@@ -184,18 +185,22 @@ private:
     
     // Threading components
     std::vector<std::thread> m_workerThreads;
-    std::thread m_meshThread;
+    std::vector<std::thread> m_meshThreads;
     std::priority_queue<ChunkLoadRequest> m_loadQueue;
     std::priority_queue<MeshGenerationRequest> m_meshQueue;
     std::unordered_map<glm::ivec3, std::future<std::unique_ptr<ChunkData>>> m_loadingChunks;
     
     // Thread synchronization
-    mutable std::mutex m_chunksMutex;
+    mutable std::shared_mutex m_chunksMutex;  // Reader-writer lock for chunk map
     mutable std::mutex m_queueMutex;
     mutable std::mutex m_meshQueueMutex;
     std::condition_variable m_queueCondition;
     std::condition_variable m_meshQueueCondition;
     std::atomic<bool> m_shutdown{false};
+    
+    // Per-chunk fine-grained locking
+    mutable std::unordered_map<glm::ivec3, std::shared_ptr<std::mutex>> m_chunkMutexes;
+    mutable std::mutex m_chunkMutexesMutex;
     
     // Completed chunks ready to be integrated
     std::queue<std::pair<glm::ivec3, std::unique_ptr<ChunkData>>> m_completedChunks;
@@ -210,6 +215,10 @@ private:
     
     // Rebuild indirect draw commands
     void rebuildIndirectCommands();
+    
+    // Per-chunk locking helpers
+    std::shared_ptr<std::mutex> getChunkMutex(const glm::ivec3& chunkPos) const;
+    void removeChunkMutex(const glm::ivec3& chunkPos);
     
     // Indirect draw manager
     IndirectDrawManager m_indirectDrawManager;
