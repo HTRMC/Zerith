@@ -235,52 +235,34 @@ glm::vec4 BinaryMeshConverter::getDefaultFaceUV() {
 
 // Hybrid Chunk Mesh Generator Implementation
 
-std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::generateOptimizedMesh(
+std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMeshGenerator::generateOptimizedMesh(
     const Chunk& chunk,
     const glm::ivec3& chunkWorldPos,
     const BlockRegistry& blockRegistry,
     TextureArray& textureArray
 ) {
-    std::vector<FaceInstance> allFaces;
-    
     // Create binary chunk data
     BinaryChunkData binaryData(chunk);
     
-    // Separate block types into simple and complex
-    std::vector<BlockType> simpleBlocks;
-    std::vector<BlockType> complexBlocks;
-    
+    // Check if all blocks can use binary meshing
+    bool canUseFullBinaryMeshing = true;
     for (BlockType blockType : binaryData.getActiveBlockTypes()) {
-        if (canUseBinaryMeshing(blockType, blockRegistry)) {
-            simpleBlocks.push_back(blockType);
-        } else {
-            complexBlocks.push_back(blockType);
+        if (!canUseBinaryMeshing(blockType, blockRegistry)) {
+            canUseFullBinaryMeshing = false;
+            break;
         }
     }
     
-    // Generate mesh for simple blocks using binary greedy meshing
-    if (!simpleBlocks.empty()) {
-        // Use binary greedy meshing for all simple blocks at once
-        auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
-        
-        // Filter quads to only include simple block types
-        std::vector<BinaryGreedyMesher::MeshQuad> simpleQuads;
-        for (const auto& quad : allQuads) {
-            if (std::find(simpleBlocks.begin(), simpleBlocks.end(), quad.blockType) != simpleBlocks.end()) {
-                simpleQuads.push_back(quad);
-            }
-        }
-        
-        // Convert all simple quads to faces
-        auto faces = BinaryMeshConverter::convertAllQuads(simpleQuads, chunkWorldPos, blockRegistry, textureArray);
-        allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+    // If any complex blocks are present, signal that traditional meshing should be used
+    if (!canUseFullBinaryMeshing) {
+        return std::nullopt;
     }
     
-    // Generate mesh for complex blocks using traditional method
-    if (!complexBlocks.empty()) {
-        auto complexFaces = generateComplexBlockMesh(chunk, chunkWorldPos, blockRegistry, complexBlocks);
-        allFaces.insert(allFaces.end(), complexFaces.begin(), complexFaces.end());
-    }
+    // All blocks are simple - use binary greedy meshing for optimal performance
+    std::vector<FaceInstance> allFaces;
+    auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
+    auto faces = BinaryMeshConverter::convertAllQuads(allQuads, chunkWorldPos, blockRegistry, textureArray);
+    allFaces.insert(allFaces.end(), faces.begin(), faces.end());
     
     return allFaces;
 }
@@ -322,13 +304,11 @@ std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::ge
 ) {
     std::vector<FaceInstance> faces;
     
-    // For complex blocks, we need to fall back to the traditional per-block meshing
-    // This ensures stairs, slabs, and other non-cubic blocks render correctly
-    
     // Create a set for quick lookup
     std::set<BlockType> complexSet(complexBlockTypes.begin(), complexBlockTypes.end());
     
-    // Iterate through all blocks in the chunk
+    // Iterate through all blocks in the chunk and generate faces for complex blocks
+    // using the traditional per-block approach
     for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
         for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
             for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
@@ -345,42 +325,11 @@ std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::ge
                     continue;
                 }
                 
-                // For now, create a simple cube face for complex blocks
-                // In a real implementation, this would load the actual model geometry
-                glm::vec3 blockWorldPos = glm::vec3(chunkWorldPos) * static_cast<float>(Chunk::CHUNK_SIZE);
-                blockWorldPos += glm::vec3(x, y, z);
-                
-                // Generate faces for all 6 directions if visible
-                for (int dir = 0; dir < 6; ++dir) {
-                    // Check face visibility
-                    int dx = 0, dy = 0, dz = 0;
-                    switch (dir) {
-                        case 0: dy = -1; break; // Down
-                        case 1: dy = 1; break;  // Up
-                        case 2: dz = -1; break; // North
-                        case 3: dz = 1; break;  // South
-                        case 4: dx = -1; break; // West
-                        case 5: dx = 1; break;  // East
-                    }
-                    
-                    if (!chunk.isFaceVisible(x, y, z, dx, dy, dz)) {
-                        continue;
-                    }
-                    
-                    // Get texture and create face
-                    std::string textureName = blockDef->getId();
-                    uint32_t textureLayer = 0; // Default texture
-                    
-                    // Create face instance
-                    faces.emplace_back(
-                        blockWorldPos,
-                        BinaryMeshConverter::getFaceRotation(dir),
-                        glm::vec3(1.0f), // Unit scale for now
-                        dir,
-                        BinaryMeshConverter::getDefaultFaceUV(),
-                        textureLayer
-                    );
-                }
+                // For complex blocks, we need to load their actual model and generate
+                // proper geometry. For now, we'll return empty to make them invisible
+                // rather than render incorrect geometry.
+                // The proper solution is to disable binary meshing entirely and
+                // fall back to traditional meshing for the whole chunk when complex blocks are present.
             }
         }
     }

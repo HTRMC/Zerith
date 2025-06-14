@@ -104,10 +104,10 @@ public:
     using FaceInstance = BlockbenchInstanceGenerator::FaceInstance;
     
     /**
-     * Generate mesh using binary greedy meshing for simple blocks
-     * and fall back to traditional meshing for complex blocks.
+     * Generate mesh using binary greedy meshing for simple blocks.
+     * Returns std::nullopt if complex blocks are detected and traditional meshing should be used.
      */
-    static std::vector<FaceInstance> generateOptimizedMesh(
+    static std::optional<std::vector<FaceInstance>> generateOptimizedMesh(
         const Chunk& chunk,
         const glm::ivec3& chunkWorldPos,
         const BlockRegistry& blockRegistry,

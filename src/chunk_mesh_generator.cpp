@@ -84,12 +84,19 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     if (m_binaryMeshingEnabled) {
         // Get chunk world position from the chunk itself
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
-        return HybridChunkMeshGenerator::generateOptimizedMesh(
+        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
             chunk, 
             chunkWorldPos, 
             BlockRegistry::getInstance(),
             *m_textureArray
         );
+        
+        // If binary meshing succeeded (returned a value), use those faces
+        if (binaryResult.has_value()) {
+            return binaryResult.value();
+        }
+        
+        // If binary meshing returned nullopt, fall through to traditional meshing
     }
     
     // Fall back to traditional meshing
@@ -431,10 +438,18 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         auto& blockRegistry = BlockRegistry::getInstance();
         
         // Generate optimized mesh using binary greedy meshing
-        allFaces = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry, *m_textureArray);
+        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry, *m_textureArray);
         
-        // LOG_DEBUG("Binary meshing generated %zu faces for chunk", allFaces.size());
+        // If binary meshing succeeded, use those faces
+        if (binaryResult.has_value()) {
+            allFaces = binaryResult.value();
+            // LOG_DEBUG("Binary meshing generated %zu faces for chunk", allFaces.size());
+        } else {
+            // Binary meshing detected complex blocks, fall through to traditional meshing
+            goto traditional_meshing;
+        }
     } else {
+        traditional_meshing:
         // Use traditional per-block meshing
         LOG_DEBUG("Using traditional meshing for chunk (%d, %d, %d)", 
                  chunk.getChunkPosition().x, chunk.getChunkPosition().y, chunk.getChunkPosition().z);
