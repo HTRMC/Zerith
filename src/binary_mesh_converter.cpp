@@ -163,17 +163,18 @@ glm::vec4 BinaryMeshConverter::adjustUVForTiling(
             break;
     }
     
-    // Adjust UV coordinates to tile the texture
-    // Assuming texture coordinates are normalized [0,1]
-    tiledUV.z = tiledUV.x + (tiledUV.z - tiledUV.x) * tileFactor.x;
-    tiledUV.w = tiledUV.y + (tiledUV.w - tiledUV.y) * tileFactor.y;
+    // Scale UV coordinates to repeat texture across the merged quad
+    // This maintains the texture appearance as if each block still has its own texture
+    // UV coordinates are in pixel coordinates (0-16 per block)
+    tiledUV.z = baseUV.z * tileFactor.x; // U max = 16 * quad_width
+    tiledUV.w = baseUV.w * tileFactor.y; // V max = 16 * quad_height
     
     return tiledUV;
 }
 
 glm::vec4 BinaryMeshConverter::getDefaultFaceUV() {
-    // Default UV coordinates covering the full texture
-    return glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+    // Default UV coordinates covering the full texture (in pixel coordinates 0-16)
+    return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
 }
 
 // Hybrid Chunk Mesh Generator Implementation

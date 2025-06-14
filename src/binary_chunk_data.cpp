@@ -196,19 +196,23 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::meshSlice(
             quad.faceDirection = faceDirection;
             
             // Set position and size based on face direction
+            // Note: (x,y) in the slice corresponds to different world coordinates based on face direction
             switch (faceDirection) {
-                case 0: // Down
-                case 1: // Up
+                case 0: // Down (Y- faces, sliced along XZ planes)
+                case 1: // Up (Y+ faces, sliced along XZ planes)
+                    // x,y in slice = x,z in world coords
                     quad.position = glm::ivec3(x, sliceIndex, y);
                     quad.size = glm::ivec3(width, 1, height);
                     break;
-                case 2: // North
-                case 3: // South
+                case 2: // North (Z- faces, sliced along XY planes)
+                case 3: // South (Z+ faces, sliced along XY planes)
+                    // x,y in slice = x,y in world coords
                     quad.position = glm::ivec3(x, y, sliceIndex);
                     quad.size = glm::ivec3(width, height, 1);
                     break;
-                case 4: // West
-                case 5: // East
+                case 4: // West (X- faces, sliced along YZ planes)
+                case 5: // East (X+ faces, sliced along YZ planes)
+                    // x,y in slice = y,z in world coords
                     quad.position = glm::ivec3(sliceIndex, x, y);
                     quad.size = glm::ivec3(1, width, height);
                     break;
