@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk.h"
+#include "world_constants.h"
 #include <FastNoise/FastNoise.h>
 #include <memory>
 #include <glm/glm.hpp>
@@ -21,8 +22,8 @@ private:
     FastNoise::SmartNode<> m_heightNoise;
     FastNoise::SmartNode<> m_caveNoise;
     
-    float m_heightScale = 32.0f;
-    int m_seaLevel = 8;
+    float m_heightScale = 64.0f; // Allows terrain up to ~Y=126, well below the 319 limit
+    int m_seaLevel = SEA_LEVEL; // Now uses the constant from world_constants.h
     int m_seed = 1337;
     
     BlockType getBlockTypeForPosition(int worldX, int worldY, int worldZ, float heightValue, float caveValue);

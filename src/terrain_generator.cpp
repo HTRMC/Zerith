@@ -1,6 +1,7 @@
 #include "terrain_generator.h"
 #include "logger.h"
 #include "block_types.h"
+#include "world_constants.h"
 #include <cmath>
 
 namespace Zerith {
@@ -81,27 +82,35 @@ void TerrainGenerator::generateTerrain(Chunk& chunk) {
 BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int worldZ, float heightValue, float caveValue) {
     float terrainHeight = m_seaLevel + (heightValue * m_heightScale);
     
+    // Clamp terrain height to world bounds
+    terrainHeight = std::min(terrainHeight, static_cast<float>(WORLD_MAX_Y - 1));
+    terrainHeight = std::max(terrainHeight, static_cast<float>(WORLD_MIN_Y));
+    
+    // Check world bounds
+    if (worldY < WORLD_MIN_Y || worldY > WORLD_MAX_Y) {
+        return BlockTypes::AIR;
+    }
+    
+    // Above terrain height
     if (worldY > terrainHeight) {
+        // All air blocks below sea level become water
+        if (worldY <= m_seaLevel) {
+            return BlockTypes::WATER;
+        }
         return BlockTypes::AIR;
     }
     
-    if (caveValue > 0.3f && worldY > 0) {
-        return BlockTypes::AIR;
+    // Surface layer - grass block at the surface
+    if (worldY == static_cast<int>(terrainHeight) && worldY > m_seaLevel) {
+        return BlockTypes::GRASS_BLOCK;
     }
     
-    if (worldY > terrainHeight - 1 && worldY <= terrainHeight) {
-        return BlockTypes::WATER;
-    }
-    
-    if (worldY > terrainHeight - 4) {
+    // Dirt layer (3 blocks deep from surface)
+    if (worldY > terrainHeight - 4 && worldY <= terrainHeight) {
         return BlockTypes::DIRT;
     }
     
-    // Limit stone to 62 blocks down from terrain height
-    if (worldY < -32) {
-        return BlockTypes::AIR;
-    }
-    
+    // Everything else is stone
     return BlockTypes::STONE;
 }
 

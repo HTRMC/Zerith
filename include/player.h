@@ -4,6 +4,7 @@
 #include "aabb.h"
 #include "chunk.h"
 #include "block_types.h"
+#include "world_constants.h"
 
 struct GLFWwindow;
 
@@ -13,7 +14,7 @@ class ChunkManager;
 
 class Player {
 public:
-    Player(const glm::vec3& position = glm::vec3(0.0f, 10.0f, 0.0f));
+    Player(const glm::vec3& position = glm::vec3(0.0f, SEA_LEVEL + 20.0f, 0.0f)); // Spawn 20 blocks above sea level
     
     void update(float deltaTime, ChunkManager* chunkManager);
     void handleInput(GLFWwindow* window, float deltaTime, ChunkManager* chunkManager);

@@ -1,6 +1,7 @@
 #include "block_types.h"
 #include "chunk_manager.h"
 #include "logger.h"
+#include "world_constants.h"
 #include <algorithm>
 
 namespace Zerith {
@@ -82,6 +83,12 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
         for (int dy = -m_renderDistance; dy <= m_renderDistance; ++dy) {
             for (int dz = -m_renderDistance; dz <= m_renderDistance; ++dz) {
                 glm::ivec3 chunkPos = playerChunkPos + glm::ivec3(dx, dy, dz);
+                
+                // Skip if outside world height limits
+                int worldY = chunkPos.y * Chunk::CHUNK_SIZE;
+                if (worldY < WORLD_MIN_Y || worldY > WORLD_MAX_Y) {
+                    continue;
+                }
                 
                 // Skip if outside render distance
                 if (!isChunkInRange(chunkPos, playerChunkPos)) {
