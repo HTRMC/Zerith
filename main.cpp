@@ -2851,23 +2851,40 @@ private:
         extractFrustumPlanes(viewProj, ubo.frustumPlanes);
         
         
-        // Update AABB debug data if enabled
-        if (showDebugAABBs && aabbDebugRenderer) {
+        // Update AABB debug data
+        if (aabbDebugRenderer) {
             // Clear previous frame's AABBs
             aabbDebugRenderer->clear();
             
-            // Add player AABB
+            // Always add the block outline for the block player is looking at
             if (player) {
-                aabbDebugRenderer->addPlayerAABB(player->getAABB());
+                glm::ivec3 lookedAtBlock;
+                if (player->getLookedAtBlock(lookedAtBlock)) {
+                    // Create AABB for the looked-at block
+                    Zerith::AABB blockAABB;
+                    blockAABB.min = glm::vec3(lookedAtBlock);
+                    blockAABB.max = blockAABB.min + glm::vec3(1.0f);
+                    
+                    // Add as a white highlighted block outline
+                    aabbDebugRenderer->addAABB(blockAABB, glm::vec3(1.0f, 1.0f, 1.0f));
+                }
             }
             
-            // Add block AABBs near player
-            if (player && chunkManager) {
-                Zerith::AABB searchRegion = player->getAABB();
-                searchRegion.min -= glm::vec3(3.0f);
-                searchRegion.max += glm::vec3(3.0f);
-                auto blockAABBs = Zerith::CollisionSystem::getBlockAABBsInRegion(searchRegion, chunkManager.get());
-                aabbDebugRenderer->addBlockAABBs(blockAABBs);
+            // Add debug AABBs if debug mode is enabled
+            if (showDebugAABBs) {
+                // Add player AABB
+                if (player) {
+                    aabbDebugRenderer->addPlayerAABB(player->getAABB());
+                }
+                
+                // Add block AABBs near player
+                if (player && chunkManager) {
+                    Zerith::AABB searchRegion = player->getAABB();
+                    searchRegion.min -= glm::vec3(3.0f);
+                    searchRegion.max += glm::vec3(3.0f);
+                    auto blockAABBs = Zerith::CollisionSystem::getBlockAABBsInRegion(searchRegion, chunkManager.get());
+                    aabbDebugRenderer->addBlockAABBs(blockAABBs);
+                }
             }
             
             // Copy AABB data to buffer
@@ -2878,7 +2895,7 @@ private:
             }
             
             // Update AABB count in UBO (reuse faceCount field when in debug mode)
-            if (showDebugAABBs) {
+            if (aabbDebugRenderer->getCount() > 0) {
                 ubo.faceCount = static_cast<uint32_t>(aabbDebugRenderer->getCount());
             }
         }
@@ -3006,8 +3023,8 @@ private:
         vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &renderLayer);
         renderCurrentFaces();
         
-        // Draw AABB debug wireframes if enabled
-        if (showDebugAABBs && aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {
+        // Draw AABB debug wireframes (including block outline)
+        if (aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {
             // Switch pipeline
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, aabbDebugPipeline);
             

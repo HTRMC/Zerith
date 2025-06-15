@@ -17,6 +17,31 @@ namespace Zerith {
     void Player::update(float deltaTime, ChunkManager *chunkManager) {
         applyGravity(deltaTime);
         
+        // Update which block we're looking at
+        if (chunkManager) {
+            // Calculate camera direction
+            glm::vec3 cameraFront;
+            cameraFront.x = cos(m_rotation.y) * cos(m_rotation.x);
+            cameraFront.y = sin(m_rotation.x);
+            cameraFront.z = sin(m_rotation.y) * cos(m_rotation.x);
+            cameraFront = glm::normalize(cameraFront);
+            
+            // Get eye position
+            glm::vec3 eyePosition = m_position + glm::vec3(0.0f, m_eyeHeight, 0.0f);
+            
+            // Perform raycast to find the block we're looking at
+            auto hit = Raycast::cast(eyePosition, cameraFront, BLOCK_REACH, chunkManager);
+            
+            if (hit.has_value()) {
+                m_hasLookedAtBlock = true;
+                m_lookedAtBlockPos = hit->blockPos;
+            } else {
+                m_hasLookedAtBlock = false;
+            }
+        } else {
+            m_hasLookedAtBlock = false;
+        }
+        
         // Calculate desired movement
         glm::vec3 deltaPosition = m_velocity * deltaTime;
         

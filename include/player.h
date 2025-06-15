@@ -37,6 +37,15 @@ public:
     void setSelectedBlockType(BlockType type) { m_selectedBlockType = type; }
     BlockType getSelectedBlockType() const { return m_selectedBlockType; }
     
+    // Get the block position the player is looking at (if any)
+    bool getLookedAtBlock(glm::ivec3& blockPos) const { 
+        if (m_hasLookedAtBlock) {
+            blockPos = m_lookedAtBlockPos;
+            return true;
+        }
+        return false;
+    }
+    
 private:
     void updateAABB();
     void applyGravity(float deltaTime);
@@ -80,6 +89,10 @@ private:
     bool m_leftMousePressed = false;
     bool m_rightMousePressed = false;
     static constexpr float BLOCK_REACH = 5.0f;
+    
+    // Block the player is currently looking at
+    bool m_hasLookedAtBlock = false;
+    glm::ivec3 m_lookedAtBlockPos{0, 0, 0};
 };
 
 } // namespace Zerith
