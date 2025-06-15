@@ -79,7 +79,7 @@ void ChunkManager::updateLoadedChunks(const glm::vec3& playerPosition) {
     
     // Load chunks within render distance asynchronously
     for (int dx = -m_renderDistance; dx <= m_renderDistance; ++dx) {
-        for (int dy = -2; dy <= 2; ++dy) { // Limit vertical range
+        for (int dy = -m_renderDistance; dy <= m_renderDistance; ++dy) {
             for (int dz = -m_renderDistance; dz <= m_renderDistance; ++dz) {
                 glm::ivec3 chunkPos = playerChunkPos + glm::ivec3(dx, dy, dz);
                 
@@ -360,14 +360,9 @@ void ChunkManager::generateTerrain(Chunk& chunk) {
 bool ChunkManager::isChunkInRange(const glm::ivec3& chunkPos, const glm::ivec3& centerChunkPos) const {
     glm::ivec3 diff = chunkPos - centerChunkPos;
     
-    // Check horizontal distance (circular)
-    int horizontalDist = diff.x * diff.x + diff.z * diff.z;
-    if (horizontalDist > m_renderDistance * m_renderDistance) {
-        return false;
-    }
-    
-    // Check vertical distance (limited range)
-    if (std::abs(diff.y) > 2) {
+    // Check spherical distance for all dimensions
+    int distSquared = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+    if (distSquared > m_renderDistance * m_renderDistance) {
         return false;
     }
     

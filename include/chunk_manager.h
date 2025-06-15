@@ -110,7 +110,9 @@ public:
     
     // Get render distance in chunks
     int getRenderDistance() const { return m_renderDistance; }
-    void setRenderDistance(int distance) { m_renderDistance = distance; }
+    void setRenderDistance(int distance) { 
+        m_renderDistance = std::min(std::max(distance, 1), 32); // Clamp between 1 and 32
+    }
     
     // Get statistics
     size_t getLoadedChunkCount() const { return m_chunks.size(); }
@@ -171,7 +173,7 @@ private:
     std::unique_ptr<TerrainGenerator> m_terrainGenerator;
     
     // Render distance in chunks
-    int m_renderDistance = 2;
+    int m_renderDistance = 8;
     
     // Last player chunk position to detect when to update loaded chunks
     glm::ivec3 m_lastPlayerChunkPos = glm::ivec3(INT_MAX);

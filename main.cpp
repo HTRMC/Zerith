@@ -1848,11 +1848,18 @@ private:
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
 
+        // Push constant for render layer
+        VkPushConstantRange pushConstantRange{};
+        pushConstantRange.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        pushConstantRange.offset = 0;
+        pushConstantRange.size = sizeof(uint32_t);
+
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
         pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout;
-        // No push constants - better performance
+        pipelineLayoutInfo.pushConstantRangeCount = 1;
+        pipelineLayoutInfo.pPushConstantRanges = &pushConstantRange;
 
         if (vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr, &pipelineLayout) != VK_SUCCESS) {
             throw std::runtime_error("failed to create pipeline layout!");
@@ -2959,36 +2966,45 @@ private:
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, opaquePipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                               pipelineLayout, 0, 1, &descriptorSets[imageIndex], 0, nullptr);
+        
+        // Set render layer push constant for opaque rendering
+        uint32_t renderLayer = 0; // OPAQUE
+        vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &renderLayer);
 
-        // Use original rendering approach but with new pipeline
-        if (chunkManager && currentInstances.faces.size() > 0) {
-            const auto& indirectManager = chunkManager->getIndirectDrawManager();
-            const auto& drawCommands = indirectManager.getDrawCommands();
-            const auto& chunkData = indirectManager.getChunkData();
-            
-            if (!drawCommands.empty()) {
-                // Update indirect and chunk data buffers
-                updateIndirectDrawBuffer();
-                updateChunkDataBuffer();
+        // Helper lambda to render with current setup
+        auto renderCurrentFaces = [&]() {
+            if (chunkManager && currentInstances.faces.size() > 0) {
+                const auto& indirectManager = chunkManager->getIndirectDrawManager();
+                const auto& drawCommands = indirectManager.getDrawCommands();
                 
-                // Single indirect draw call that launches all task workgroups
-                vkCmdDrawMeshTasksIndirectEXT(commandBuffer, 
-                                            indirectDrawBuffer,
-                                            0,      // offset
-                                            1,      // drawCount (single draw)
-                                            sizeof(Zerith::DrawMeshTasksIndirectCommand));
+                if (!drawCommands.empty()) {
+                    updateIndirectDrawBuffer();
+                    updateChunkDataBuffer();
+                    vkCmdDrawMeshTasksIndirectEXT(commandBuffer, indirectDrawBuffer, 0, 1, 
+                                                sizeof(Zerith::DrawMeshTasksIndirectCommand));
+                }
+            } else if (currentInstances.faces.size() > 0) {
+                uint32_t facesPerWorkgroup = 32;
+                uint32_t faceCount = static_cast<uint32_t>(currentInstances.faces.size());
+                uint32_t totalWorkgroups = (faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
+                vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
             }
-        } else if (currentInstances.faces.size() > 0) {
-            // Fallback to direct drawing
-            uint32_t facesPerWorkgroup = 32;
-            uint32_t faceCount = static_cast<uint32_t>(currentInstances.faces.size());
-            uint32_t totalWorkgroups = (faceCount + facesPerWorkgroup - 1) / facesPerWorkgroup;
-            
-            vkCmdDrawMeshTasksEXT(commandBuffer, totalWorkgroups, 1, 1);
-        }
+        };
 
-        // TODO: Implement proper layered rendering with separate descriptor sets
-        // Currently disabled until descriptor set binding is properly implemented
+        // OPAQUE PASS - Render all faces, shader will handle opaque materials
+        renderCurrentFaces();
+
+        // CUTOUT PASS - Render all faces again, shader will handle cutout materials (leaves)
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, cutoutPipeline);
+        renderLayer = 1; // CUTOUT
+        vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &renderLayer);
+        renderCurrentFaces();
+
+        // TRANSLUCENT PASS - Render all faces again, shader will handle translucent materials (water/glass)
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, translucentPipeline);
+        renderLayer = 2; // TRANSLUCENT
+        vkCmdPushConstants(commandBuffer, pipelineLayout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &renderLayer);
+        renderCurrentFaces();
         
         // Draw AABB debug wireframes if enabled
         if (showDebugAABBs && aabbDebugRenderer && aabbDebugRenderer->getCount() > 0) {

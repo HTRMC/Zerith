@@ -8,6 +8,11 @@ layout(location = 0) in PerVertexData {
     flat uint textureLayer;
 } v_in;
 
+// Push constant for render layer
+layout(push_constant) uniform PushConstants {
+    uint renderLayer; // 0=OPAQUE, 1=CUTOUT, 2=TRANSLUCENT
+} pc;
+
 // Texture array sampler
 layout(binding = 1) uniform sampler2DArray texArraySampler;
 
@@ -73,13 +78,34 @@ void main() {
         discard;
     }
     
-    // For cutout rendering (leaves), discard fragments below threshold
-    // This creates binary alpha behavior - pixels are either fully opaque or discarded
-    // Note: This will apply to all renders currently, but when we implement
-    // layered rendering, this should only apply to cutout pipeline
-    if (texColor.a < alphaTestThreshold && texColor.a > 0.0) {
-        // For now, keep the fragment but this would be discarded in cutout layer
-        // discard; // Uncomment when implementing full layered rendering
+    // Apply render layer specific processing based on texture layer
+    bool shouldRender = false;
+    
+    if (pc.renderLayer == 0u) { // OPAQUE layer
+        // Only render non-transparent textures
+        if (v_in.textureLayer != 19u && v_in.textureLayer != 17u && v_in.textureLayer != 11u) {
+            shouldRender = true;
+        }
+    } else if (pc.renderLayer == 1u) { // CUTOUT layer  
+        // Only render leaves (texture layer 11)
+        if (v_in.textureLayer == 11u) {
+            shouldRender = true;
+            // Apply alpha testing for cutout materials
+            if (texColor.a < alphaTestThreshold) {
+                discard;
+            }
+        }
+    } else if (pc.renderLayer == 2u) { // TRANSLUCENT layer
+        // Only render water (19) and glass (17) 
+        if (v_in.textureLayer == 19u || v_in.textureLayer == 17u) {
+            shouldRender = true;
+            // Keep all alpha values for blending
+        }
+    }
+    
+    // Discard fragments that don't belong to this render layer
+    if (!shouldRender) {
+        discard;
     }
     
     // Output texture color
