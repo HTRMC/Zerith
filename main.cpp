@@ -2396,8 +2396,8 @@ private:
     }
     
     void createAABBInstanceBuffer() {
-        // Create initial buffer for max 1000 AABBs
-        VkDeviceSize bufferSize = sizeof(Zerith::AABBDebugData) * 1000;
+        // Create initial buffer for max 10000 AABBs
+        VkDeviceSize bufferSize = sizeof(Zerith::AABBDebugData) * 10000;
         
         createBuffer(
             bufferSize,
@@ -2410,12 +2410,12 @@ private:
         // Map the buffer
         vkMapMemory(device, aabbInstanceBufferMemory, 0, bufferSize, 0, &aabbInstanceBufferMapped);
         
-        LOG_DEBUG("AABB instance buffer created with capacity for 1000 AABBs");
+        LOG_DEBUG("AABB instance buffer created with capacity for 10000 AABBs");
     }
     
     void createIndirectDrawBuffers() {
         // Create indirect draw command buffer
-        VkDeviceSize indirectBufferSize = sizeof(Zerith::DrawMeshTasksIndirectCommand) * 1000; // Max 1000 chunks
+        VkDeviceSize indirectBufferSize = sizeof(Zerith::DrawMeshTasksIndirectCommand) * 10000; // Max 10000 chunks
         
         createBuffer(
             indirectBufferSize,
@@ -2426,7 +2426,7 @@ private:
         );
         
         // Create chunk data buffer for GPU culling
-        VkDeviceSize chunkDataSize = sizeof(Zerith::ChunkDrawData) * 1000; // Max 1000 chunks
+        VkDeviceSize chunkDataSize = sizeof(Zerith::ChunkDrawData) * 10000; // Max 10000 chunks
         
         createBuffer(
             chunkDataSize,
@@ -2618,7 +2618,7 @@ private:
             VkDescriptorBufferInfo storageBufferInfo{};
             storageBufferInfo.buffer = aabbInstanceBuffer;
             storageBufferInfo.offset = 0;
-            storageBufferInfo.range = sizeof(Zerith::AABBDebugData) * 1000; // Max capacity
+            storageBufferInfo.range = sizeof(Zerith::AABBDebugData) * 10000; // Max capacity
 
             std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
             
@@ -2696,7 +2696,7 @@ private:
         if (drawCommands.empty()) return;
         
         // Update indirect draw buffer with all commands at once
-        size_t maxCommands = 1000; // Must match buffer allocation
+        size_t maxCommands = 10000; // Must match buffer allocation
         size_t commandCount = std::min(drawCommands.size(), maxCommands);
         
         void* data;
@@ -2805,7 +2805,7 @@ private:
         if (chunkData.empty()) return;
         
         // Update chunk data buffer
-        size_t maxChunks = 1000;
+        size_t maxChunks = 10000;
         size_t chunkCount = std::min(chunkData.size(), maxChunks);
         
         void* data;
@@ -2898,7 +2898,7 @@ private:
             // Copy AABB data to buffer
             const auto& debugData = aabbDebugRenderer->getDebugData();
             if (!debugData.empty() && aabbInstanceBufferMapped) {
-                size_t copySize = std::min(debugData.size(), size_t(1000)) * sizeof(Zerith::AABBDebugData);
+                size_t copySize = std::min(debugData.size(), size_t(10000)) * sizeof(Zerith::AABBDebugData);
                 memcpy(aabbInstanceBufferMapped, debugData.data(), copySize);
             }
             
