@@ -23,6 +23,13 @@ layout(binding = 4) uniform GrassTextureIndices {
     uint grassOverlayLayer;  // Layer index for grass_block_side_overlay
 } grassTextures;
 
+// Transparency texture layer indices (passed as uniforms)
+layout(binding = 5) uniform TransparencyTextureIndices {
+    uint waterLayer;         // Layer index for water texture
+    uint glassLayer;         // Layer index for glass texture
+    uint leavesLayer;        // Layer index for oak_leaves texture
+} transparencyTextures;
+
 // Output color
 layout(location = 0) out vec4 outColor;
 
@@ -82,13 +89,15 @@ void main() {
     bool shouldRender = false;
     
     if (pc.renderLayer == 0u) { // OPAQUE layer
-        // Only render non-transparent textures
-        if (v_in.textureLayer != 19u && v_in.textureLayer != 17u && v_in.textureLayer != 11u) {
+        // Only render non-transparent textures (exclude water, glass, and leaves)
+        if (v_in.textureLayer != transparencyTextures.waterLayer && 
+            v_in.textureLayer != transparencyTextures.glassLayer && 
+            v_in.textureLayer != transparencyTextures.leavesLayer) {
             shouldRender = true;
         }
     } else if (pc.renderLayer == 1u) { // CUTOUT layer  
-        // Only render leaves (texture layer 11)
-        if (v_in.textureLayer == 11u) {
+        // Only render leaves (texture layer from uniform)
+        if (v_in.textureLayer == transparencyTextures.leavesLayer) {
             shouldRender = true;
             // Apply alpha testing for cutout materials
             if (texColor.a < alphaTestThreshold) {
@@ -96,8 +105,9 @@ void main() {
             }
         }
     } else if (pc.renderLayer == 2u) { // TRANSLUCENT layer
-        // Only render water (19) and glass (17) 
-        if (v_in.textureLayer == 19u || v_in.textureLayer == 17u) {
+        // Only render water and glass (texture layers from uniforms)
+        if (v_in.textureLayer == transparencyTextures.waterLayer || 
+            v_in.textureLayer == transparencyTextures.glassLayer) {
             shouldRender = true;
             // Keep all alpha values for blending
         }

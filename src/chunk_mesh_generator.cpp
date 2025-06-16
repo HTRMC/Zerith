@@ -78,7 +78,8 @@ void ChunkMeshGenerator::loadBlockModels() {
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
     // Use binary meshing if enabled
-    if (m_binaryMeshingEnabled) {
+    LOG_INFO("MESH GENERATOR: Binary meshing enabled = %s", m_binaryMeshingEnabled ? "true" : "false");
+    if (false) { // Force disable binary meshing
         // Get chunk world position from the chunk itself
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
         auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
@@ -175,6 +176,12 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
         return;
     }
     
+    // Debug: check if this method is being called for water
+    auto blockDefPtr = Blocks::getBlock(blockType);
+    if (blockDefPtr && blockDefPtr->getId() == "water") {
+        LOG_INFO("LAYERED METHOD CALLED FOR WATER at (%d,%d,%d)", x, y, z);
+    }
+    
     // Find the generator for this block type
     auto it = m_blockGenerators.find(blockType);
     if (it == m_blockGenerators.end()) {
@@ -183,6 +190,11 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
     
     // Get the render layer for this block using the unified system
     RenderLayer renderLayer = Blocks::getRenderLayer(blockType);
+    
+    // Debug: log render layer for specific blocks
+    if (blockDefPtr && blockDefPtr->getId() == "water") {
+        LOG_INFO("WATER BLOCK FOUND: %s (type %d) has render layer %d", blockDefPtr->getId().c_str(), static_cast<int>(blockType), static_cast<int>(renderLayer));
+    }
     
     // Calculate world position of this block
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
@@ -221,6 +233,15 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
         }
         
         if (shouldRender) {
+            // Set the render layer on the face
+            face.renderLayer = renderLayer;
+            
+            // Debug water faces
+            if (blockDefPtr && blockDefPtr->getId() == "water") {
+                LOG_INFO("WATER FACE ADDED: renderLayer=%d, assigned to layer %d", 
+                        static_cast<int>(face.renderLayer), static_cast<int>(renderLayer));
+            }
+            
             // Add face to the appropriate render layer
             layeredMesh.getLayer(renderLayer).emplace_back(std::move(face));
         }
@@ -247,6 +268,12 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
     
     // Get the render layer for this block using the unified system
     RenderLayer renderLayer = Blocks::getRenderLayer(blockType);
+    
+    // Debug: log render layer for specific blocks
+    auto blockDef = Blocks::getBlock(blockType);
+    if (blockDef && blockDef->getId() == "water") {
+        LOG_INFO("WATER BLOCK FOUND: %s (type %d) has render layer %d", blockDef->getId().c_str(), static_cast<int>(blockType), static_cast<int>(renderLayer));
+    }
     
     // Calculate world position of this block
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
@@ -303,6 +330,8 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
         }
         
         if (shouldRender) {
+            // Set the render layer on the face
+            face.renderLayer = renderLayer;
             // Add face to the appropriate render layer
             layeredMesh.getLayer(renderLayer).emplace_back(std::move(face));
         }

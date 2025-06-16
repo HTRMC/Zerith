@@ -216,6 +216,14 @@ struct GrassTextureIndices {
     alignas(4) uint32_t padding;            // Padding for alignment
 };
 
+// Transparency texture indices uniform buffer
+struct TransparencyTextureIndices {
+    alignas(4) uint32_t waterLayer;         // Layer index for water texture
+    alignas(4) uint32_t glassLayer;         // Layer index for glass texture
+    alignas(4) uint32_t leavesLayer;        // Layer index for oak_leaves texture
+    alignas(4) uint32_t padding;            // Padding for alignment
+};
+
 // Face instance data for storage buffer
 struct FaceInstanceData {
     alignas(16) glm::vec4 position; // vec3 + padding
@@ -344,6 +352,10 @@ private:
     std::vector<VkBuffer> grassTextureBuffers;
     std::vector<VkDeviceMemory> grassTextureBuffersMemory;
     std::vector<void*> grassTextureBuffersMapped;
+    
+    std::vector<VkBuffer> transparencyTextureBuffers;
+    std::vector<VkDeviceMemory> transparencyTextureBuffersMemory;
+    std::vector<void*> transparencyTextureBuffersMapped;
 
     // Storage buffer for face instances
     VkBuffer faceInstanceBuffer;
@@ -509,7 +521,7 @@ private:
         chunkManager = std::make_unique<Zerith::ChunkManager>();
         
         // Set initial render distance
-        chunkManager->setRenderDistance(8); // Start with 2 chunks render distance
+        chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
         
         // Don't update chunks yet - wait until after Vulkan is initialized
         LOG_INFO("Chunk manager initialized");
@@ -560,30 +572,42 @@ private:
         auto meshGenerator = chunkManager->getMeshGenerator();
         auto textureArray = meshGenerator->getTextureArray();
         
+        // Use the render layer information directly from the face instances
         for (const auto& face : allFaces) {
-            // Check if this is a water texture (layer 19 based on your logs)
-            if (face.textureLayer == 19) { // water_still.png
-                layeredInstances.translucent.push_back(face);
-            }
-            // Check if this is leaves texture (layer 11 based on your logs)  
-            else if (face.textureLayer == 11) { // oak_leaves.png
-                layeredInstances.cutout.push_back(face);
-            }
-            // Check if this is glass texture (layer 17 based on your logs)
-            else if (face.textureLayer == 17) { // glass.png
-                layeredInstances.translucent.push_back(face);
-            }
-            else {
-                // All other blocks go to opaque layer
-                layeredInstances.opaque.push_back(face);
+            switch (face.renderLayer) {
+                case Zerith::RenderLayer::OPAQUE:
+                    layeredInstances.opaque.push_back(face);
+                    break;
+                case Zerith::RenderLayer::CUTOUT:
+                    layeredInstances.cutout.push_back(face);
+                    break;
+                case Zerith::RenderLayer::TRANSLUCENT:
+                    layeredInstances.translucent.push_back(face);
+                    break;
+                default:
+                    // Default to opaque for unknown layers
+                    layeredInstances.opaque.push_back(face);
+                    break;
             }
         }
         
-        LOG_DEBUG("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent",
+        LOG_INFO("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent",
                  allFaces.size(),
                  layeredInstances.opaque.size(),
-                 layeredInstances.cutout.size(), 
+                 layeredInstances.cutout.size(),
                  layeredInstances.translucent.size());
+        
+        // Debug: count faces by render layer from face instances
+        int opaqueCount = 0, cutoutCount = 0, translucentCount = 0;
+        for (const auto& face : allFaces) {
+            switch (face.renderLayer) {
+                case Zerith::RenderLayer::OPAQUE: opaqueCount++; break;
+                case Zerith::RenderLayer::CUTOUT: cutoutCount++; break;
+                case Zerith::RenderLayer::TRANSLUCENT: translucentCount++; break;
+            }
+        }
+        LOG_INFO("Face instances by render layer: %d opaque, %d cutout, %d translucent",
+                 opaqueCount, cutoutCount, translucentCount);
     }
     
     void recreateFaceInstanceBuffer() {
@@ -1741,7 +1765,15 @@ private:
         grassTexturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         grassTexturesLayoutBinding.pImmutableSamplers = nullptr;
 
-        std::array<VkDescriptorSetLayoutBinding, 5> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding, chunkDataLayoutBinding, grassTexturesLayoutBinding};
+        // Transparency texture indices binding for fragment shader  
+        VkDescriptorSetLayoutBinding transparencyTexturesLayoutBinding{};
+        transparencyTexturesLayoutBinding.binding = 5;
+        transparencyTexturesLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        transparencyTexturesLayoutBinding.descriptorCount = 1;
+        transparencyTexturesLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        transparencyTexturesLayoutBinding.pImmutableSamplers = nullptr;
+
+        std::array<VkDescriptorSetLayoutBinding, 6> bindings = {uboLayoutBinding, samplerLayoutBinding, storageLayoutBinding, chunkDataLayoutBinding, grassTexturesLayoutBinding, transparencyTexturesLayoutBinding};
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -2305,6 +2337,21 @@ private:
 
             vkMapMemory(device, grassTextureBuffersMemory[i], 0, grassBufferSize, 0, &grassTextureBuffersMapped[i]);
         }
+        
+        // Create transparency texture indices uniform buffers
+        VkDeviceSize transparencyBufferSize = sizeof(TransparencyTextureIndices);
+        
+        transparencyTextureBuffers.resize(swapChainImages.size());
+        transparencyTextureBuffersMemory.resize(swapChainImages.size());
+        transparencyTextureBuffersMapped.resize(swapChainImages.size());
+        
+        for (size_t i = 0; i < swapChainImages.size(); i++) {
+            createBuffer(transparencyBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                        transparencyTextureBuffers[i], transparencyTextureBuffersMemory[i]);
+
+            vkMapMemory(device, transparencyTextureBuffersMemory[i], 0, transparencyBufferSize, 0, &transparencyTextureBuffersMapped[i]);
+        }
     }
     
     void createFaceInstanceBuffer() {
@@ -2563,7 +2610,13 @@ private:
             grassTextureBufferInfo.offset = 0;
             grassTextureBufferInfo.range = sizeof(GrassTextureIndices);
 
-            std::array<VkWriteDescriptorSet, 5> descriptorWrites{};
+            // Transparency texture indices buffer info
+            VkDescriptorBufferInfo transparencyTextureBufferInfo{};
+            transparencyTextureBufferInfo.buffer = transparencyTextureBuffers[i];
+            transparencyTextureBufferInfo.offset = 0;
+            transparencyTextureBufferInfo.range = sizeof(TransparencyTextureIndices);
+
+            std::array<VkWriteDescriptorSet, 6> descriptorWrites{};
             
             // Uniform buffer descriptor
             descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2614,6 +2667,15 @@ private:
             descriptorWrites[4].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             descriptorWrites[4].descriptorCount = 1;
             descriptorWrites[4].pBufferInfo = &grassTextureBufferInfo;
+            
+            // Transparency texture indices descriptor
+            descriptorWrites[5].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[5].dstSet = descriptorSets[i];
+            descriptorWrites[5].dstBinding = 5;
+            descriptorWrites[5].dstArrayElement = 0;
+            descriptorWrites[5].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[5].descriptorCount = 1;
+            descriptorWrites[5].pBufferInfo = &transparencyTextureBufferInfo;
 
             vkUpdateDescriptorSets(device, static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
@@ -2946,6 +3008,10 @@ private:
         GrassTextureIndices grassIndices = getGrassTextureIndices();
         memcpy(grassTextureBuffersMapped[currentImage], &grassIndices, sizeof(grassIndices));
         
+        // Update transparency texture indices
+        TransparencyTextureIndices transparencyIndices = getTransparencyTextureIndices();
+        memcpy(transparencyTextureBuffersMapped[currentImage], &transparencyIndices, sizeof(transparencyIndices));
+        
         // Store for debug statistics
         lastUBO = ubo;
     }
@@ -2973,6 +3039,34 @@ private:
         indices.grassTopLayer = 0xFFFFFFFF; // MISSING_TEXTURE_LAYER
         indices.grassSideLayer = 0xFFFFFFFF;
         indices.grassOverlayLayer = 0xFFFFFFFF;
+        indices.padding = 0;
+        
+        return indices;
+    }
+    
+    TransparencyTextureIndices getTransparencyTextureIndices() {
+        TransparencyTextureIndices indices;
+        
+        // Get the texture array from the chunk mesh generator
+        if (chunkManager) {
+            auto meshGenerator = chunkManager->getMeshGenerator();
+            if (meshGenerator) {
+                auto textureArray = meshGenerator->getTextureArray();
+                
+                // Query texture layer indices for transparency textures
+                indices.waterLayer = textureArray->getTextureLayerByPath("assets/zerith/textures/block/water_still.png");
+                indices.glassLayer = textureArray->getTextureLayerByPath("assets/zerith/textures/block/glass.png");
+                indices.leavesLayer = textureArray->getTextureLayerByPath("assets/zerith/textures/block/oak_leaves.png");
+                indices.padding = 0;
+                
+                return indices;
+            }
+        }
+        
+        // Fallback if chunk manager or mesh generator is not available
+        indices.waterLayer = 0xFFFFFFFF; // MISSING_TEXTURE_LAYER
+        indices.glassLayer = 0xFFFFFFFF;
+        indices.leavesLayer = 0xFFFFFFFF;
         indices.padding = 0;
         
         return indices;
@@ -3162,6 +3256,9 @@ private:
             
             vkDestroyBuffer(device, grassTextureBuffers[i], nullptr);
             vkFreeMemory(device, grassTextureBuffersMemory[i], nullptr);
+            
+            vkDestroyBuffer(device, transparencyTextureBuffers[i], nullptr);
+            vkFreeMemory(device, transparencyTextureBuffersMemory[i], nullptr);
         }
 
         vkDestroyDescriptorPool(device, descriptorPool, nullptr);

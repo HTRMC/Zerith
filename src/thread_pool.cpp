@@ -192,7 +192,7 @@ void ThreadPool::workerThread(size_t threadIndex) {
         }
     }
     
-    LOG_DEBUG("Worker thread %zu exiting", threadIndex);
+LOG_DEBUG("Worker thread %zu exiting", threadIndex);
 }
 
 bool ThreadPool::tryGetTask(Task& task, size_t threadIndex) {
@@ -250,11 +250,11 @@ void ThreadPool::updateStats(const Task& task, uint64_t waitTime, uint64_t execu
     m_stats.totalWaitTime.fetch_add(waitTime, std::memory_order_relaxed);
     m_stats.totalExecutionTime.fetch_add(executionTime, std::memory_order_relaxed);
     
-    if (!task.getName().empty()) {
-        LOG_DEBUG("Task '%s' (priority=%d) completed: wait=%lluus, exec=%lluus",
-                  task.getName().c_str(), static_cast<int>(task.getPriority()),
-                  waitTime, executionTime);
-    }
+    // if (!task.getName().empty()) {
+    //     LOG_DEBUG("Task '%s' (priority=%d) completed: wait=%lluus, exec=%lluus",
+    //               task.getName().c_str(), static_cast<int>(task.getPriority()),
+    //               waitTime, executionTime);
+    // }
 }
 
 void initializeThreadPool(size_t numThreads) {

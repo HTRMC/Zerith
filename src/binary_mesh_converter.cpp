@@ -46,14 +46,18 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
         textureArray.getOrRegisterTexture(overlayPath);
     }
     
-    // Create the face instance
+    // Get the render layer for this block type
+    Zerith::RenderLayer renderLayer = Zerith::Blocks::getRenderLayer(quad.blockType);
+    
+    // Create the face instance with the correct render layer
     faces.emplace_back(
         worldPos,           // position
         rotation,           // rotation quaternion
         scale,              // scale
         quad.faceDirection, // face direction
         uv,                 // UV coordinates
-        textureLayer        // texture layer
+        textureLayer,       // texture layer
+        renderLayer         // render layer
     );
     
     return faces;

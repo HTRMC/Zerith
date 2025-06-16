@@ -8,6 +8,9 @@
 #include <vector>
 #include <iostream>
 
+// Include blocks.h for RenderLayer definition
+#include "blocks.h"
+
 namespace BlockbenchInstanceGenerator {
 
 // Structure that matches the FaceInstance used in the mesh shader
@@ -18,11 +21,12 @@ struct FaceInstance {
     int faceDirection;   // 0=down, 1=up, 2=north, 3=south, 4=west, 5=east
     glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
     uint32_t textureLayer; // Texture array layer index
+    Zerith::RenderLayer renderLayer; // Render layer from block definition
     
     FaceInstance(const glm::vec3& pos = glm::vec3(0.0f), const glm::vec4& rot = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 
                  const glm::vec3& scl = glm::vec3(1.0f), int dir = -1, const glm::vec4& uvCoords = glm::vec4(0.0f, 0.0f, 16.0f, 16.0f),
-                 uint32_t layer = 0)
-        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureLayer(layer) {}
+                 uint32_t layer = 0, Zerith::RenderLayer renderLyr = Zerith::RenderLayer::OPAQUE)
+        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureLayer(layer), renderLayer(renderLyr) {}
 };
 
 // Structure to hold all face instances for a complete model

@@ -296,7 +296,7 @@ glm::ivec3 ChunkManager::worldToChunkPos(const glm::vec3& worldPos) const {
 }
 
 void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
-    LOG_TRACE("Loading chunk at (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
+    LOG_INFO("CHUNK MANAGER: loadChunk called for (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
     // Create new chunk
     auto chunk = std::make_unique<Chunk>(chunkPos);
     
@@ -329,11 +329,29 @@ void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
     neighborIt = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
     if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
     
-    // Generate mesh with neighbor awareness
-    auto faces = m_meshGenerator->generateChunkMeshWithNeighbors(*chunk,
-                                                                  neighborXMinus, neighborXPlus,
-                                                                  neighborYMinus, neighborYPlus,
-                                                                  neighborZMinus, neighborZPlus);
+    // Generate layered mesh with neighbor awareness
+    LOG_INFO("CHUNK MANAGER: Using generateLayeredChunkMeshWithNeighbors for chunk at (%d,%d,%d)", 
+             chunkPos.x, chunkPos.y, chunkPos.z);
+    auto layeredMesh = m_meshGenerator->generateLayeredChunkMeshWithNeighbors(*chunk,
+                                                                               neighborXMinus, neighborXPlus,
+                                                                               neighborYMinus, neighborYPlus,
+                                                                               neighborZMinus, neighborZPlus);
+    
+    // Flatten the layered mesh into a single vector for compatibility
+    // Order: opaque first, then cutout, then translucent (for proper rendering order)
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> faces;
+    const auto& opaque = layeredMesh.getOpaqueFaces();
+    const auto& cutout = layeredMesh.getCutoutFaces();
+    const auto& translucent = layeredMesh.getTranslucentFaces();
+    
+    LOG_INFO("CHUNK (%d,%d,%d): Generated %zu opaque, %zu cutout, %zu translucent faces", 
+             chunkPos.x, chunkPos.y, chunkPos.z, opaque.size(), cutout.size(), translucent.size());
+    
+    faces.reserve(opaque.size() + cutout.size() + translucent.size());
+    faces.insert(faces.end(), opaque.begin(), opaque.end());
+    faces.insert(faces.end(), cutout.begin(), cutout.end());
+    faces.insert(faces.end(), translucent.begin(), translucent.end());
+    
     m_chunkMeshes[chunkPos] = std::move(faces);
     
     // Store chunk
