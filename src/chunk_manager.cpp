@@ -1,4 +1,4 @@
-#include "block_types.h"
+#include "blocks.h"
 #include "chunk_manager.h"
 #include "logger.h"
 #include "world_constants.h"
@@ -212,7 +212,7 @@ BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
     std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(chunkPos);
     if (it == m_chunks.end()) {
-        return BlockTypes::AIR;
+        return Blocks::AIR;
     }
     
     return it->second->getBlockWorld(worldPos);
@@ -256,7 +256,7 @@ void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
         localPos = chunk->worldToLocal(worldPos);
         chunk->setBlock(localPos.x, localPos.y, localPos.z, type);
         LOG_DEBUG("Block %s at world pos (%.1f, %.1f, %.1f) chunk pos (%d, %d, %d) local pos (%d, %d, %d)", 
-                 type == BlockTypes::AIR ? "destroyed" : "placed",
+                 type == Blocks::AIR ? "destroyed" : "placed",
                  worldPos.x, worldPos.y, worldPos.z,
                  chunkPos.x, chunkPos.y, chunkPos.z,
                  localPos.x, localPos.y, localPos.z);

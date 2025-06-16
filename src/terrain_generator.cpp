@@ -1,6 +1,6 @@
 #include "terrain_generator.h"
 #include "logger.h"
-#include "block_types.h"
+#include "blocks.h"
 #include "world_constants.h"
 #include <cmath>
 
@@ -71,15 +71,15 @@ int TerrainGenerator::getTerrainHeight(int worldX, int worldZ) {
 BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int worldZ, int terrainHeight) {
     // Check world bounds
     if (worldY < WORLD_MIN_Y || worldY > WORLD_MAX_Y) {
-        return BlockTypes::AIR;
+        return Blocks::AIR;
     }
     
     // Above terrain surface - air or water
     if (worldY > terrainHeight) {
         if (worldY <= m_seaLevel) {
-            return BlockTypes::WATER;  // Water fills areas below sea level
+            return Blocks::WATER;  // Water fills areas below sea level
         }
-        return BlockTypes::AIR;
+        return Blocks::AIR;
     }
     
     // Below terrain surface - check for caves first
@@ -89,17 +89,17 @@ BlockType TerrainGenerator::getBlockTypeForPosition(int worldX, int worldY, int 
         
         // Create caves where noise is above threshold (adjust 0.6f to control cave density)
         if (caveNoise > 0.6f) {
-            return BlockTypes::AIR;
+            return Blocks::AIR;
         }
     }
     
     // Solid terrain - Minecraft-style layering
     if (worldY == terrainHeight && terrainHeight > m_seaLevel) {
-        return BlockTypes::GRASS_BLOCK;  // Grass on surface above water
+        return Blocks::GRASS_BLOCK;  // Grass on surface above water
     } else if (worldY > terrainHeight - 4) {
-        return BlockTypes::DIRT;  // Dirt layer (3-4 blocks deep)
+        return Blocks::DIRT;  // Dirt layer (3-4 blocks deep)
     } else {
-        return BlockTypes::STONE;  // Stone everywhere else
+        return Blocks::STONE;  // Stone everywhere else
     }
 }
 

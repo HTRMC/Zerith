@@ -7,6 +7,9 @@
 
 namespace Zerith {
 
+// Forward declaration
+struct AABB;
+
 // Abstract base class for block behaviors
 class BlockBehavior {
 public:
@@ -14,6 +17,11 @@ public:
     
     // Returns true if this block should provide collision (default: true)
     virtual bool hasCollision() const { return true; }
+    
+    // Context-aware collision check (for advanced collision like fluid surfaces)
+    virtual bool hasCollisionAt(const glm::vec3& position, const AABB& entityAABB) const {
+        return hasCollision();
+    }
     
     // Returns true if this block can be walked through (default: false)
     virtual bool isWalkThrough() const { return false; }

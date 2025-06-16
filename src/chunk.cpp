@@ -1,7 +1,7 @@
 #include "chunk.h"
 #include "logger.h"
 #include "block_properties.h"
-#include "block_types.h"
+#include "blocks.h"
 #include <algorithm>
 
 namespace Zerith {
@@ -9,13 +9,13 @@ namespace Zerith {
 Chunk::Chunk(glm::ivec3 chunkPosition) 
     : m_chunkPosition(std::move(chunkPosition)) {
     // Initialize all blocks to air
-    std::fill(m_blocks.begin(), m_blocks.end(), BlockTypes::AIR);
+    std::fill(m_blocks.begin(), m_blocks.end(), Blocks::AIR);
     LOG_TRACE("Created chunk at position (%d, %d, %d)", m_chunkPosition.x, m_chunkPosition.y, m_chunkPosition.z);
 }
 
 BlockType Chunk::getBlock(int x, int y, int z) const {
     if (!isInBounds(x, y, z)) {
-        return BlockTypes::AIR;
+        return Blocks::AIR;
     }
     return m_blocks[getIndex(x, y, z)];
 }
@@ -44,7 +44,7 @@ glm::ivec3 Chunk::worldToLocal(const glm::vec3& worldPos) const {
 bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     // Check if current block is not air
     BlockType currentBlock = getBlock(x, y, z);
-    if (currentBlock == BlockTypes::AIR) {
+    if (currentBlock == Blocks::AIR) {
         return false;
     }
     
@@ -61,7 +61,7 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     BlockType adjacentBlock = getBlock(nx, ny, nz);
     
     // If adjacent block is air, face is always visible
-    if (adjacentBlock == BlockTypes::AIR) {
+    if (adjacentBlock == Blocks::AIR) {
         return true;
     }
     
@@ -70,7 +70,7 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
     // HACK: Never let stairs cull anything
-    if (adjacentBlock == BlockTypes::OAK_STAIRS) {
+    if (adjacentBlock == Blocks::OAK_STAIRS) {
         return true;
     }
     
@@ -109,7 +109,7 @@ bool Chunk::isFaceVisible(int x, int y, int z, int dx, int dy, int dz) const {
     // But only if the current block allows itself to be culled
     if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL && currentProps.canBeCulled) {
         // Additional check: don't cull stairs faces even if they can normally be culled
-        if (currentBlock == BlockTypes::OAK_STAIRS) {
+        if (currentBlock == Blocks::OAK_STAIRS) {
             return true; // Stairs faces are always visible
         }
         return false; // Face is culled

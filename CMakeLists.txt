@@ -89,14 +89,14 @@ add_executable(Zerith
     src/block_face_bounds.cpp
     src/sparse_octree.cpp
     src/chunk_octree.cpp
-    src/block_registry.cpp
-    src/block_types.cpp
     src/translation_manager.cpp
     src/binary_chunk_data.cpp
     src/binary_mesh_converter.cpp
     src/thread_pool.cpp
+    src/blocks.cpp
     src/blocks/block_behavior.cpp
     src/blocks/water_block.cpp
+    src/blocks/fluid_block.cpp
 )
 
 # Add shader dependencies

@@ -3,7 +3,7 @@
 #include "binary_chunk_data.h"
 #include "blockbench_instance_generator.h"
 #include "blockbench_model.h"
-#include "block_registry.h"
+#include "blocks.h"
 #include "texture_array.h"
 #include <vector>
 #include <optional>
@@ -28,7 +28,6 @@ public:
     static std::vector<FaceInstance> convertQuadToFaces(
         const MeshQuad& quad,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry,
         TextureArray& textureArray
     );
     
@@ -38,7 +37,6 @@ public:
     static std::vector<FaceInstance> convertAllQuads(
         const std::vector<MeshQuad>& quads,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry,
         TextureArray& textureArray
     );
     
@@ -57,8 +55,7 @@ public:
      */
     static std::string getBlockTexture(
         BlockType blockType,
-        int faceDirection,
-        const BlockRegistry& blockRegistry
+        int faceDirection
     );
     
     /**
@@ -110,7 +107,6 @@ public:
     static std::optional<std::vector<FaceInstance>> generateOptimizedMesh(
         const Chunk& chunk,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry,
         TextureArray& textureArray
     );
     
@@ -121,8 +117,7 @@ private:
      * while complex blocks (stairs, slabs) need traditional meshing.
      */
     static bool canUseBinaryMeshing(
-        BlockType blockType,
-        const BlockRegistry& blockRegistry
+        BlockType blockType
     );
     
     /**
@@ -131,7 +126,7 @@ private:
     static std::vector<FaceInstance> generateComplexBlockMesh(
         const Chunk& chunk,
         const glm::ivec3& chunkWorldPos,
-        const BlockRegistry& blockRegistry,
+        const Blocks& blocks,
         const std::vector<BlockType>& complexBlockTypes
     );
     

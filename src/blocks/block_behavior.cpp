@@ -1,8 +1,9 @@
 #include "blocks/block_behavior.h"
-#include "blocks/water_block.h"
-#include "block_types.h"
+#include "blocks/fluid_block.h"
 #include <unordered_map>
 #include <memory>
+
+#include "blocks.h"
 
 namespace Zerith {
 
@@ -22,8 +23,14 @@ const BlockBehavior* BlockBehaviorRegistry::getBehavior(BlockType blockType) {
 }
 
 void BlockBehaviorRegistry::initialize() {
-    // Register water block behavior
-    registerBehavior(BlockTypes::WATER, std::make_unique<WaterBlock>());
+    // Register water block behavior using FluidBlock with appropriate settings
+    auto waterSettings = BlockSettings::create()
+        .liquid()
+        .noCollision() 
+        .transparent()
+        .walkThrough();
+    
+    registerBehavior(Blocks::WATER, std::make_unique<FluidBlock>(waterSettings));
 }
 
 } // namespace Zerith

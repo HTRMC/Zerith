@@ -10,13 +10,12 @@ namespace Zerith {
 std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadToFaces(
     const MeshQuad& quad,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry,
     TextureArray& textureArray
 ) {
     std::vector<FaceInstance> faces;
     
     // Get block information
-    auto blockDef = blockRegistry.getBlock(quad.blockType);
+    auto blockDef = Blocks::getBlock(quad.blockType);
     if (!blockDef) {
         return faces; // Unknown block type
     }
@@ -31,7 +30,7 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
     glm::vec4 rotation = getFaceRotation(quad.faceDirection);
     
     // Get texture information
-    std::string textureName = getBlockTexture(quad.blockType, quad.faceDirection, blockRegistry);
+    std::string textureName = getBlockTexture(quad.blockType, quad.faceDirection);
     
     // Calculate UV coordinates with proper tiling
     glm::vec4 uv = calculateQuadUV(quad, *blockDef, quad.faceDirection);
@@ -63,14 +62,13 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
 std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQuads(
     const std::vector<MeshQuad>& quads,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry,
     TextureArray& textureArray
 ) {
     std::vector<FaceInstance> allFaces;
     allFaces.reserve(quads.size()); // At least one face per quad
     
     for (const auto& quad : quads) {
-        auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, blockRegistry, textureArray);
+        auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, textureArray);
         allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
     }
     
@@ -91,10 +89,9 @@ glm::vec4 BinaryMeshConverter::calculateQuadUV(
 
 std::string BinaryMeshConverter::getBlockTexture(
     BlockType blockType,
-    int faceDirection,
-    const BlockRegistry& blockRegistry
+    int faceDirection
 ) {
-    auto blockDef = blockRegistry.getBlock(blockType);
+    auto blockDef = Blocks::getBlock(blockType);
     if (!blockDef) {
         return "missing_texture";
     }
@@ -238,7 +235,6 @@ glm::vec4 BinaryMeshConverter::getDefaultFaceUV() {
 std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMeshGenerator::generateOptimizedMesh(
     const Chunk& chunk,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry,
     TextureArray& textureArray
 ) {
     // Create binary chunk data
@@ -247,7 +243,7 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     // Check if all blocks can use binary meshing
     bool canUseFullBinaryMeshing = true;
     for (BlockType blockType : binaryData.getActiveBlockTypes()) {
-        if (!canUseBinaryMeshing(blockType, blockRegistry)) {
+        if (!canUseBinaryMeshing(blockType)) {
             canUseFullBinaryMeshing = false;
             break;
         }
@@ -261,17 +257,16 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     // All blocks are simple - use binary greedy meshing for optimal performance
     std::vector<FaceInstance> allFaces;
     auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
-    auto faces = BinaryMeshConverter::convertAllQuads(allQuads, chunkWorldPos, blockRegistry, textureArray);
+    auto faces = BinaryMeshConverter::convertAllQuads(allQuads, chunkWorldPos, textureArray);
     allFaces.insert(allFaces.end(), faces.begin(), faces.end());
     
     return allFaces;
 }
 
 bool HybridChunkMeshGenerator::canUseBinaryMeshing(
-    BlockType blockType,
-    const BlockRegistry& blockRegistry
+    BlockType blockType
 ) {
-    auto blockDef = blockRegistry.getBlock(blockType);
+    auto blockDef = Blocks::getBlock(blockType);
     if (!blockDef) {
         return false;
     }
@@ -299,7 +294,7 @@ bool HybridChunkMeshGenerator::canUseBinaryMeshing(
 std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::generateComplexBlockMesh(
     const Chunk& chunk,
     const glm::ivec3& chunkWorldPos,
-    const BlockRegistry& blockRegistry,
+    const Blocks& blocks,
     const std::vector<BlockType>& complexBlockTypes
 ) {
     std::vector<FaceInstance> faces;
@@ -320,7 +315,7 @@ std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::ge
                 }
                 
                 // Skip air blocks
-                auto blockDef = blockRegistry.getBlock(blockType);
+                auto blockDef = Blocks::getBlock(blockType);
                 if (!blockDef || blockDef->getId() == "air") {
                     continue;
                 }

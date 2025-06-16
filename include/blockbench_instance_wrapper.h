@@ -6,13 +6,11 @@
 #include "chunk.h"
 #include "logger.h"
 #include "face_instance_pool.h"
-#include "block_registry.h"
+#include "blocks.h"
 #include <vector>
 #include <glm/glm.hpp>
 #include <memory>
 #include <algorithm>
-
-#include "block_types.h"
 
 // Wrapper class to generate instances at specific positions
 class BlockbenchInstanceWrapper
@@ -26,7 +24,7 @@ public:
         m_baseInstances = BlockbenchInstanceGenerator::Generator::generateModelInstances(m_model);
         
         // Remove overlay faces for grass blocks - they'll be handled in the shader
-        if (m_blockType == Zerith::BlockTypes::GRASS_BLOCK) {
+        if (m_blockType == Zerith::Blocks::GRASS_BLOCK) {
             // Get the overlay texture layer from the texture array
             std::string overlayPath = "assets/zerith/textures/block/grass_block_side_overlay.png";
             uint32_t overlayLayer = m_textureArray->getTextureLayerByPath(overlayPath);

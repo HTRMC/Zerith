@@ -1,4 +1,4 @@
-#include "block_types.h"
+#include "blocks.h"
 #include "raycast.h"
 #include "chunk_manager.h"
 #include <cmath>
@@ -73,7 +73,7 @@ std::optional<RaycastHit> Raycast::cast(
     
     // Step through the grid
     while (distance < maxDistance) {
-        BlockType blockType = BlockTypes::AIR;
+        BlockType blockType = Blocks::AIR;
         
         if (useOctreeOptimization) {
             // Check if the current position is in one of the chunks returned by the octree
@@ -105,7 +105,7 @@ std::optional<RaycastHit> Raycast::cast(
         }
         
         // Check if we hit a solid block
-        if (blockType != BlockTypes::AIR) {
+        if (blockType != Blocks::AIR) {
             RaycastHit hit;
             hit.blockPos = current;
             hit.previousPos = current - normal;

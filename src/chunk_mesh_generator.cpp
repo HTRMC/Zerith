@@ -4,9 +4,7 @@
 #include "block_properties.h"
 #include "block_face_bounds.h"
 #include "blockbench_face_extractor.h"
-#include "block_registry.h"
-#include "block_types.h"
-#include "blocks/block_behavior.h"
+#include "blocks.h"
 #include <filesystem>
 
 namespace Zerith {
@@ -19,20 +17,17 @@ ChunkMeshGenerator::ChunkMeshGenerator() {
 }
 
 void ChunkMeshGenerator::loadBlockModels() {
-    // Initialize the block registry and types
+    // Initialize the unified blocks system
     Blocks::initialize();
-    BlockTypes::initialize();
     BlockProperties::initialize();
-    BlockBehaviorRegistry::initialize();
     
     const std::string modelsPath = "assets/zerith/models/block/";
-    auto& registry = BlockRegistry::getInstance();
     
     // Initialize the face bounds registry
-    BlockFaceBoundsRegistry::getInstance().initialize(registry.getBlockCount());
+    BlockFaceBoundsRegistry::getInstance().initialize(Blocks::getBlockCount());
     
     // Iterate through all registered blocks
-    for (const auto& blockDef : registry.getAllBlocks()) {
+    for (const auto& blockDef : Blocks::getAllBlocks()) {
         BlockType blockType = blockDef->getBlockType();
         
         // Skip air blocks
@@ -89,7 +84,6 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
             chunk, 
             chunkWorldPos, 
-            BlockRegistry::getInstance(),
             *m_textureArray
         );
         
@@ -177,7 +171,7 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockTypes::AIR) {
+    if (blockType == Blocks::AIR) {
         return;
     }
     
@@ -187,22 +181,8 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
         return; // No model for this block type
     }
     
-    // Get the render layer for this block
-    // RenderLayer renderLayer = BlockRegistry::getInstance().getRenderLayer(blockType);
-    // Temporary implementation to avoid compilation issues
-    RenderLayer renderLayer = RenderLayer::OPAQUE;
-    
-    // Get block definition to determine render layer
-    auto blockDef = BlockRegistry::getInstance().getBlock(blockType);
-    if (blockDef) {
-        const std::string& blockId = blockDef->getId();
-        if (blockId == "glass" || blockId == "water") {
-            renderLayer = RenderLayer::TRANSLUCENT;
-        } else if (blockId == "oak_leaves") {
-            renderLayer = RenderLayer::CUTOUT;
-        }
-        // All other blocks default to OPAQUE
-    }
+    // Get the render layer for this block using the unified system
+    RenderLayer renderLayer = Blocks::getRenderLayer(blockType);
     
     // Calculate world position of this block
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
@@ -255,7 +235,7 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockTypes::AIR) {
+    if (blockType == Blocks::AIR) {
         return;
     }
     
@@ -265,22 +245,8 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
         return; // No model for this block type
     }
     
-    // Get the render layer for this block
-    // RenderLayer renderLayer = BlockRegistry::getInstance().getRenderLayer(blockType);
-    // Temporary implementation to avoid compilation issues
-    RenderLayer renderLayer = RenderLayer::OPAQUE;
-    
-    // Get block definition to determine render layer
-    auto blockDef = BlockRegistry::getInstance().getBlock(blockType);
-    if (blockDef) {
-        const std::string& blockId = blockDef->getId();
-        if (blockId == "glass" || blockId == "water") {
-            renderLayer = RenderLayer::TRANSLUCENT;
-        } else if (blockId == "oak_leaves") {
-            renderLayer = RenderLayer::CUTOUT;
-        }
-        // All other blocks default to OPAQUE
-    }
+    // Get the render layer for this block using the unified system
+    RenderLayer renderLayer = Blocks::getRenderLayer(blockType);
     
     // Calculate world position of this block
     glm::vec3 blockWorldPos = glm::vec3(chunk.getChunkPosition()) * static_cast<float>(Chunk::CHUNK_SIZE);
@@ -348,7 +314,7 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockTypes::AIR) {
+    if (blockType == Blocks::AIR) {
         return;
     }
     
@@ -405,7 +371,7 @@ void ChunkMeshGenerator::generateBlockFacesPooled(const Chunk& chunk, int x, int
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockTypes::AIR) {
+    if (blockType == Blocks::AIR) {
         return;
     }
     
@@ -466,7 +432,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
                                                    const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
     // Check if current block is not air
     BlockType currentBlock = chunk.getBlock(x, y, z);
-    if (currentBlock == BlockTypes::AIR) {
+    if (currentBlock == Blocks::AIR) {
         return false;
     }
     
@@ -475,7 +441,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     int ny = y + dy;
     int nz = z + dz;
     
-    BlockType adjacentBlock = BlockTypes::AIR;
+    BlockType adjacentBlock = Blocks::AIR;
     
     // If adjacent block is within chunk bounds, use normal check
     if (nx >= 0 && nx < Chunk::CHUNK_SIZE &&
@@ -524,7 +490,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     }
     
     // If adjacent block is air, face is always visible
-    if (adjacentBlock == BlockTypes::AIR) {
+    if (adjacentBlock == Blocks::AIR) {
         return true;
     }
     
@@ -533,7 +499,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     const auto& adjacentProps = BlockProperties::getCullingProperties(adjacentBlock);
     
     // HACK: Never let stairs cull anything
-    if (adjacentBlock == BlockTypes::OAK_STAIRS) {
+    if (adjacentBlock == Blocks::OAK_STAIRS) {
         return true;
     }
     
@@ -582,7 +548,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
         
         // Check if the adjacent face covers the current face
         // But don't cull stairs faces
-        if (currentBlock != BlockTypes::OAK_STAIRS && 
+        if (currentBlock != Blocks::OAK_STAIRS && 
             faceBoundsRegistry.shouldCullFaces(currentBlock, currentFaceIndex, 
                                                adjacentBlock, adjacentFaceIndex)) {
             return false; // Face is culled
@@ -592,7 +558,7 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     // Legacy check for backwards compatibility
     if (adjacentFaceIndex >= 0 && adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL && currentProps.canBeCulled) {
         // Additional check: don't cull stairs faces even if they can normally be culled
-        if (currentBlock == BlockTypes::OAK_STAIRS) {
+        if (currentBlock == Blocks::OAK_STAIRS) {
             return true; // Stairs faces are always visible
         }
         
@@ -645,11 +611,8 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         // Convert chunk position to world position
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
         
-        // Get block registry
-        auto& blockRegistry = BlockRegistry::getInstance();
-        
         // Generate optimized mesh using binary greedy meshing
-        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, blockRegistry, *m_textureArray);
+        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, *m_textureArray);
         
         // If binary meshing succeeded, use those faces
         if (binaryResult.has_value()) {
@@ -717,7 +680,7 @@ void ChunkMeshGenerator::generateBlockFacesWithNeighbors(const Chunk& chunk, int
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockTypes::AIR) {
+    if (blockType == Blocks::AIR) {
         return;
     }
     
@@ -795,7 +758,7 @@ void ChunkMeshGenerator::generateBlockFacesPooledWithNeighbors(const Chunk& chun
     BlockType blockType = chunk.getBlock(x, y, z);
     
     // Skip air blocks
-    if (blockType == BlockTypes::AIR) {
+    if (blockType == Blocks::AIR) {
         return;
     }
     

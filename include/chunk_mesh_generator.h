@@ -6,7 +6,7 @@
 #include "texture_array.h"
 #include "face_instance_pool.h"
 #include "binary_mesh_converter.h"
-#include "block_registry.h"
+#include "blocks.h"
 #include <memory>
 #include <unordered_map>
 #include <string>

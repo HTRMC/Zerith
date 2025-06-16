@@ -1,5 +1,5 @@
 #include "block_properties.h"
-#include "block_registry.h"
+#include "blocks.h"
 #include "logger.h"
 
 namespace Zerith {
@@ -11,14 +11,13 @@ void BlockProperties::initialize() {
     // Initialize blocks first
     Blocks::initialize();
     
-    auto& registry = BlockRegistry::getInstance();
-    size_t blockCount = registry.getBlockCount();
+    size_t blockCount = Blocks::getBlockCount();
     
     // Resize to accommodate all blocks
     s_blockProperties.resize(blockCount);
     
-    // Set properties from registry
-    for (const auto& blockDef : registry.getAllBlocks()) {
+    // Set properties from unified blocks system
+    for (const auto& blockDef : Blocks::getAllBlocks()) {
         BlockType type = blockDef->getBlockType();
         s_blockProperties[type] = blockDef->getCullingProperties();
     }
