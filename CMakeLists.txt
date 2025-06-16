@@ -95,6 +95,8 @@ add_executable(Zerith
     src/binary_chunk_data.cpp
     src/binary_mesh_converter.cpp
     src/thread_pool.cpp
+    src/blocks/block_behavior.cpp
+    src/blocks/water_block.cpp
 )
 
 # Add shader dependencies

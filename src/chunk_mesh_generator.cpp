@@ -6,6 +6,7 @@
 #include "blockbench_face_extractor.h"
 #include "block_registry.h"
 #include "block_types.h"
+#include "blocks/block_behavior.h"
 #include <filesystem>
 
 namespace Zerith {
@@ -22,6 +23,7 @@ void ChunkMeshGenerator::loadBlockModels() {
     Blocks::initialize();
     BlockTypes::initialize();
     BlockProperties::initialize();
+    BlockBehaviorRegistry::initialize();
     
     const std::string modelsPath = "assets/zerith/models/block/";
     auto& registry = BlockRegistry::getInstance();

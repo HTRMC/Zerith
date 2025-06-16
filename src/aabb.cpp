@@ -2,6 +2,7 @@
 #include "aabb.h"
 #include "chunk_manager.h"
 #include "chunk.h"
+#include "blocks/block_behavior.h"
 #include <algorithm>
 #include <cmath>
 
@@ -72,7 +73,11 @@ std::vector<AABB> CollisionSystem::getBlockAABBsInRegion(const AABB& region, Chu
                 BlockType blockType = chunkManager->getBlock(blockPos);
                 
                 if (blockType != BlockTypes::AIR) {
-                    blockAABBs.emplace_back(AABB::fromBlock(glm::ivec3(x, y, z)));
+                    // Check if the block has collision behavior
+                    const BlockBehavior* behavior = BlockBehaviorRegistry::getBehavior(blockType);
+                    if (behavior->hasCollision()) {
+                        blockAABBs.emplace_back(AABB::fromBlock(glm::ivec3(x, y, z)));
+                    }
                 }
             }
         }
