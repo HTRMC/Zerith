@@ -2841,51 +2841,6 @@ private:
         }
     }
     
-    void printFrustumCullingStats() {
-        if (!chunkManager) return;
-        
-        const auto& indirectManager = chunkManager->getIndirectDrawManager();
-        const auto& chunkData = indirectManager.getChunkData();
-        
-        if (chunkData.empty()) return;
-        
-        // Count visible chunks by doing frustum culling on CPU
-        int visibleChunks = 0;
-        int totalChunks = static_cast<int>(chunkData.size());
-        
-        for (const auto& chunk : chunkData) {
-            glm::vec3 minBounds(chunk.minBounds[0], chunk.minBounds[1], chunk.minBounds[2]);
-            glm::vec3 maxBounds(chunk.maxBounds[0], chunk.maxBounds[1], chunk.maxBounds[2]);
-            
-            bool visible = true;
-            for (int i = 0; i < 6; i++) {
-                glm::vec4 plane = lastUBO.frustumPlanes[i];
-                
-                // Find the vertex most positive along the plane normal
-                glm::vec3 p;
-                p.x = (plane.x > 0.0f) ? maxBounds.x : minBounds.x;
-                p.y = (plane.y > 0.0f) ? maxBounds.y : minBounds.y;
-                p.z = (plane.z > 0.0f) ? maxBounds.z : minBounds.z;
-                
-                // If this vertex is outside the plane, the whole AABB is outside
-                if (glm::dot(glm::vec4(p, 1.0f), plane) < 0.0f) {
-                    visible = false;
-                    break;
-                }
-            }
-            
-            if (visible) {
-                visibleChunks++;
-            }
-        }
-        
-        float cullingRate = (totalChunks > 0) ? 
-            100.0f * (1.0f - static_cast<float>(visibleChunks) / static_cast<float>(totalChunks)) : 0.0f;
-        
-        LOG_DEBUG("Frustum Culling: %d/%d chunks visible (%.1f%% culled)",
-                 visibleChunks, totalChunks, cullingRate);
-    }
-    
     void updateChunkDataBuffer() {
         if (!chunkManager) return;
         
@@ -3328,13 +3283,6 @@ private:
             // Poll events and render
             glfwPollEvents();
             drawFrame();
-            
-            // Print frustum culling statistics every second
-            auto timeSinceStats = std::chrono::duration<float>(currentTime - lastStatsTime).count();
-            if (timeSinceStats >= 1.0f) {
-                printFrustumCullingStats();
-                lastStatsTime = currentTime;
-            }
         }
 
         vkDeviceWaitIdle(device);
