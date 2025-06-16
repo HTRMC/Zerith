@@ -420,6 +420,23 @@ private:
     std::unique_ptr<Zerith::AABBDebugRenderer> aabbDebugRenderer;
     bool showDebugAABBs = false;
 
+    // Calculate maximum chunks based on render distance
+    // Account for the fact that chunks are loaded in a cube around the player
+    size_t calculateMaxChunks(int renderDistance) {
+        // Calculate chunks in each dimension (2 * renderDistance + 1)
+        int chunksPerDimension = 2 * renderDistance + 1;
+        
+        // For now, assume cubic loading pattern
+        // In practice, Y dimension might be limited by world height
+        size_t maxChunks = chunksPerDimension * chunksPerDimension * chunksPerDimension;
+        
+        // Add some buffer for safety (20% extra)
+        maxChunks = static_cast<size_t>(maxChunks * 1.2);
+        
+        // Ensure minimum size
+        return std::max(maxChunks, size_t(1000));
+    }
+
     void initWindow() {
         glfwInit();
 
@@ -2396,8 +2413,12 @@ private:
     }
     
     void createAABBInstanceBuffer() {
-        // Create initial buffer for max 10000 AABBs
-        VkDeviceSize bufferSize = sizeof(Zerith::AABBDebugData) * 10000;
+        // Get current render distance to calculate buffer size
+        int renderDistance = chunkManager ? chunkManager->getRenderDistance() : 8;
+        size_t maxChunks = calculateMaxChunks(renderDistance);
+        
+        // Create buffer based on calculated max chunks
+        VkDeviceSize bufferSize = sizeof(Zerith::AABBDebugData) * maxChunks;
         
         createBuffer(
             bufferSize,
@@ -2410,12 +2431,16 @@ private:
         // Map the buffer
         vkMapMemory(device, aabbInstanceBufferMemory, 0, bufferSize, 0, &aabbInstanceBufferMapped);
         
-        LOG_DEBUG("AABB instance buffer created with capacity for 10000 AABBs");
+        LOG_DEBUG("AABB instance buffer created with capacity for %zu AABBs (render distance: %d)", maxChunks, renderDistance);
     }
     
     void createIndirectDrawBuffers() {
+        // Get current render distance to calculate buffer size
+        int renderDistance = chunkManager ? chunkManager->getRenderDistance() : 8;
+        size_t maxChunks = calculateMaxChunks(renderDistance);
+        
         // Create indirect draw command buffer
-        VkDeviceSize indirectBufferSize = sizeof(Zerith::DrawMeshTasksIndirectCommand) * 10000; // Max 10000 chunks
+        VkDeviceSize indirectBufferSize = sizeof(Zerith::DrawMeshTasksIndirectCommand) * maxChunks;
         
         createBuffer(
             indirectBufferSize,
@@ -2426,7 +2451,7 @@ private:
         );
         
         // Create chunk data buffer for GPU culling
-        VkDeviceSize chunkDataSize = sizeof(Zerith::ChunkDrawData) * 10000; // Max 10000 chunks
+        VkDeviceSize chunkDataSize = sizeof(Zerith::ChunkDrawData) * maxChunks;
         
         createBuffer(
             chunkDataSize,
@@ -2436,7 +2461,7 @@ private:
             chunkDataBufferMemory
         );
         
-        LOG_DEBUG("Indirect draw buffers created");
+        LOG_DEBUG("Indirect draw buffers created with capacity for %zu chunks", maxChunks);
     }
 
     void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties,
@@ -2618,7 +2643,9 @@ private:
             VkDescriptorBufferInfo storageBufferInfo{};
             storageBufferInfo.buffer = aabbInstanceBuffer;
             storageBufferInfo.offset = 0;
-            storageBufferInfo.range = sizeof(Zerith::AABBDebugData) * 10000; // Max capacity
+            int renderDistance = chunkManager ? chunkManager->getRenderDistance() : 8;
+            size_t maxChunks = calculateMaxChunks(renderDistance);
+            storageBufferInfo.range = sizeof(Zerith::AABBDebugData) * maxChunks;
 
             std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
             
@@ -2696,7 +2723,8 @@ private:
         if (drawCommands.empty()) return;
         
         // Update indirect draw buffer with all commands at once
-        size_t maxCommands = 10000; // Must match buffer allocation
+        int renderDistance = chunkManager->getRenderDistance();
+        size_t maxCommands = calculateMaxChunks(renderDistance);
         size_t commandCount = std::min(drawCommands.size(), maxCommands);
         
         void* data;
@@ -2805,7 +2833,8 @@ private:
         if (chunkData.empty()) return;
         
         // Update chunk data buffer
-        size_t maxChunks = 10000;
+        int renderDistance = chunkManager->getRenderDistance();
+        size_t maxChunks = calculateMaxChunks(renderDistance);
         size_t chunkCount = std::min(chunkData.size(), maxChunks);
         
         void* data;
@@ -2898,7 +2927,9 @@ private:
             // Copy AABB data to buffer
             const auto& debugData = aabbDebugRenderer->getDebugData();
             if (!debugData.empty() && aabbInstanceBufferMapped) {
-                size_t copySize = std::min(debugData.size(), size_t(10000)) * sizeof(Zerith::AABBDebugData);
+                int renderDistance = chunkManager ? chunkManager->getRenderDistance() : 8;
+                size_t maxChunks = calculateMaxChunks(renderDistance);
+                size_t copySize = std::min(debugData.size(), maxChunks) * sizeof(Zerith::AABBDebugData);
                 memcpy(aabbInstanceBufferMapped, debugData.data(), copySize);
             }
             
