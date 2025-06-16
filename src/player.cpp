@@ -113,7 +113,7 @@ namespace Zerith {
                 // Single press
                 if (m_isFlying) {
                     // In fly mode, space moves up
-                    m_velocity.y = MOVE_SPEED;
+                    m_velocity.y = m_flySpeed;
                 } else if (m_onGround) {
                     // Normal jump when on ground and not flying
                     jump();
@@ -128,10 +128,10 @@ namespace Zerith {
         if (m_isFlying) {
             if (spaceCurrentlyPressed) {
                 // Continuous upward movement while space is held
-                m_velocity.y = MOVE_SPEED;
+                m_velocity.y = m_flySpeed;
             } else if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
                 // Continuous downward movement while shift is held
-                m_velocity.y = -MOVE_SPEED;
+                m_velocity.y = -m_flySpeed;
             } else {
                 // Stop vertical movement when neither key is pressed
                 m_velocity.y = 0.0f;
@@ -169,7 +169,7 @@ namespace Zerith {
         // Apply movement with acceleration for smooth start/stop
         const float ACCELERATION = m_onGround ? 100.0f : 20.0f; // Much faster acceleration on ground
         const float DECELERATION = m_onGround ? 15.0f : 5.0f; // Deceleration when stopping
-        const float MAX_SPEED = MOVE_SPEED;
+        const float MAX_SPEED = m_isFlying ? m_flySpeed : MOVE_SPEED;
         
         if (m_isFlying) {
             // In fly mode, use horizontal direction vectors for horizontal movement
@@ -196,9 +196,12 @@ namespace Zerith {
             // Restore the vertical velocity
             m_velocity.y = preservedVerticalVelocity;
             
-            // Clamp to max speed
-            if (glm::length(m_velocity) > MAX_SPEED) {
-                m_velocity = glm::normalize(m_velocity) * MAX_SPEED;
+            // Clamp horizontal speed only to preserve vertical velocity
+            glm::vec2 horizontalVel(m_velocity.x, m_velocity.z);
+            if (glm::length(horizontalVel) > m_flySpeed) {
+                horizontalVel = glm::normalize(horizontalVel) * m_flySpeed;
+                m_velocity.x = horizontalVel.x;
+                m_velocity.z = horizontalVel.y;
             }
         } else {
             // Normal ground movement - only horizontal
@@ -573,5 +576,25 @@ namespace Zerith {
         // Update button states
         m_leftMousePressed = leftMouseCurrentlyPressed;
         m_rightMousePressed = rightMouseCurrentlyPressed;
+    }
+
+    void Player::handleScrollInput(double xoffset, double yoffset) {
+        if (m_isFlying) {
+            if (yoffset > 0) {
+                // Scroll up - increase fly speed
+                m_flySpeed *= FLY_SPEED_MULTIPLIER;
+                if (m_flySpeed > MAX_FLY_SPEED) {
+                    m_flySpeed = MAX_FLY_SPEED;
+                }
+                LOG_DEBUG("Fly speed increased to %.1f", m_flySpeed);
+            } else if (yoffset < 0) {
+                // Scroll down - decrease fly speed
+                m_flySpeed /= FLY_SPEED_MULTIPLIER;
+                if (m_flySpeed < MIN_FLY_SPEED) {
+                    m_flySpeed = MIN_FLY_SPEED;
+                }
+                LOG_DEBUG("Fly speed decreased to %.1f", m_flySpeed);
+            }
+        }
     }
 } // namespace Zerith

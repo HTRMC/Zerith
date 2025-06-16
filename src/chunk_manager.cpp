@@ -345,16 +345,41 @@ void ChunkManager::loadChunk(const glm::ivec3& chunkPos) {
 
 void ChunkManager::unloadChunk(const glm::ivec3& chunkPos) {
     LOG_TRACE("Unloading chunk at (%d, %d, %d)", chunkPos.x, chunkPos.y, chunkPos.z);
+    
+    // Cancel any pending async tasks for this chunk first
+    {
+        std::lock_guard<std::mutex> loadLock(m_loadingMutex);
+        auto loadIt = m_loadingChunks.find(chunkPos);
+        if (loadIt != m_loadingChunks.end()) {
+            g_threadPool->cancelTask(loadIt->second);
+            m_loadingChunks.erase(loadIt);
+        }
+    }
+    
+    {
+        std::lock_guard<std::mutex> meshLock(m_meshingMutex);
+        auto meshIt = m_meshingChunks.find(chunkPos);
+        if (meshIt != m_meshingChunks.end()) {
+            g_threadPool->cancelTask(meshIt->second);
+            m_meshingChunks.erase(meshIt);
+        }
+    }
+    
+    // Now safely remove the chunk data
     std::unique_lock<std::shared_mutex> lock(m_chunksMutex);
     
     // Remove from octree before erasing from the map
     auto it = m_chunks.find(chunkPos);
     if (it != m_chunks.end()) {
         m_chunkOctree->removeChunk(it->second.get());
+        m_chunks.erase(it);
     }
     
-    m_chunks.erase(chunkPos);
-    m_chunkMeshes.erase(chunkPos);
+    // Remove mesh data
+    auto meshIt = m_chunkMeshes.find(chunkPos);
+    if (meshIt != m_chunkMeshes.end()) {
+        m_chunkMeshes.erase(meshIt);
+    }
     
     // Clean up per-chunk mutex
     removeChunkMutex(chunkPos);
@@ -488,9 +513,32 @@ void ChunkManager::processCompletedChunks() {
             auto [chunkPos, chunkData] = std::move(m_completedChunks.front());
             m_completedChunks.pop();
             
+            // Check if this chunk position is still needed (not unloaded while loading)
+            bool shouldProcess = false;
+            {
+                std::shared_lock<std::shared_mutex> readLock(m_chunksMutex);
+                // Only process if chunk isn't already loaded and is still within render distance
+                if (m_chunks.find(chunkPos) == m_chunks.end()) {
+                    glm::ivec3 diff = chunkPos - m_lastPlayerChunkPos;
+                    int distSquared = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+                    shouldProcess = (distSquared <= m_renderDistance * m_renderDistance);
+                }
+            }
+            
+            if (!shouldProcess) {
+                LOG_TRACE("Discarding completed chunk at (%d, %d, %d) - no longer needed", 
+                         chunkPos.x, chunkPos.y, chunkPos.z);
+                continue;
+            }
+            
             // Move to main chunk storage
             {
                 std::unique_lock<std::shared_mutex> chunksLock(m_chunksMutex);
+                // Double-check under write lock
+                if (m_chunks.find(chunkPos) != m_chunks.end()) {
+                    continue; // Already loaded by another thread
+                }
+                
                 m_chunks[chunkPos] = std::move(chunkData->chunk);
                 
                 // Add the chunk to the octree for spatial queries
@@ -534,13 +582,19 @@ void ChunkManager::processCompletedChunks() {
             auto completedMesh = std::move(m_completedMeshes.front());
             m_completedMeshes.pop();
             
-            // Update the mesh storage (write lock for mesh update)
+            // Check if chunk still exists before updating mesh
             {
                 std::unique_lock<std::shared_mutex> chunksLock(m_chunksMutex);
-                m_chunkMeshes[completedMesh.chunkPos] = std::move(completedMesh.faces);
+                auto chunkIt = m_chunks.find(completedMesh.chunkPos);
+                if (chunkIt != m_chunks.end()) {
+                    // Chunk still exists, update its mesh
+                    m_chunkMeshes[completedMesh.chunkPos] = std::move(completedMesh.faces);
+                    meshesUpdated = true;
+                } else {
+                    LOG_TRACE("Discarding completed mesh for chunk at (%d, %d, %d) - chunk was unloaded", 
+                             completedMesh.chunkPos.x, completedMesh.chunkPos.y, completedMesh.chunkPos.z);
+                }
             }
-            
-            meshesUpdated = true;
         }
         
         // Rebuild if needed

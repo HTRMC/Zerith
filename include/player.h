@@ -18,6 +18,7 @@ public:
     
     void update(float deltaTime, ChunkManager* chunkManager);
     void handleInput(GLFWwindow* window, float deltaTime, ChunkManager* chunkManager);
+    void handleScrollInput(double xoffset, double yoffset);
     
     const glm::vec3& getPosition() const { return m_position; }
     const glm::vec3& getVelocity() const { return m_velocity; }
@@ -65,6 +66,9 @@ private:
     static constexpr float GRAVITY = 20.0f;
     static constexpr float JUMP_VELOCITY = 8.0f;
     static constexpr float MOVE_SPEED = 5.0f;
+    static constexpr float MIN_FLY_SPEED = 1.0f;
+    static constexpr float MAX_FLY_SPEED = 50.0f;
+    static constexpr float FLY_SPEED_MULTIPLIER = 1.2f;
     static constexpr float MOUSE_SENSITIVITY = 0.002f;
     
     float m_eyeHeight = 1.65f;
@@ -72,6 +76,7 @@ private:
     
     // Fly mode state
     bool m_isFlying = false;
+    float m_flySpeed = MOVE_SPEED;
     bool m_spacePressed = false;
     double m_lastSpacePress = 0.0;
     static constexpr double DOUBLE_PRESS_TIME = 0.3; // 300ms window for double press

@@ -433,6 +433,7 @@ private:
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
         glfwSetKeyCallback(window, keyCallback);
         glfwSetCursorPosCallback(window, cursorPositionCallback);
+        glfwSetScrollCallback(window, scrollCallback);
         
         // Capture mouse cursor
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -475,6 +476,13 @@ private:
     
     static void cursorPositionCallback(GLFWwindow* window, double xpos, double ypos) {
         // Mouse input is now handled directly by the Player class in handleInput()
+    }
+    
+    static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+        auto app = reinterpret_cast<ZerithApplication*>(glfwGetWindowUserPointer(window));
+        if (app->player) {
+            app->player->handleScrollInput(xoffset, yoffset);
+        }
     }
     
     void loadBlockbenchModel() {
@@ -554,7 +562,7 @@ private:
             }
         }
         
-        LOG_INFO("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent", 
+        LOG_DEBUG("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent",
                  allFaces.size(),
                  layeredInstances.opaque.size(),
                  layeredInstances.cutout.size(), 
