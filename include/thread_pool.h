@@ -161,6 +161,26 @@ public:
         return result;
     }
     
+    // Submit a task and get both a future and the task ID
+    template<typename F>
+    auto submitTaskWithId(F&& f, TaskPriority priority = TaskPriority::Normal, 
+                         const std::string& name = "") 
+        -> std::pair<std::future<decltype(f())>, Task::TaskId> {
+        using ReturnType = decltype(f());
+        
+        auto task = std::make_shared<std::packaged_task<ReturnType()>>(
+            std::forward<F>(f)
+        );
+        
+        std::future<ReturnType> result = task->get_future();
+        
+        Task wrappedTask([task]() { (*task)(); }, priority, name);
+        Task::TaskId taskId = wrappedTask.getId();
+        submitTask(std::move(wrappedTask));
+        
+        return std::make_pair(std::move(result), taskId);
+    }
+    
     // Submit a task without a future
     void submitTask(Task task);
     

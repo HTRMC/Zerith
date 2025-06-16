@@ -386,8 +386,8 @@ void ChunkManager::loadChunkAsync(const glm::ivec3& chunkPos, int priority) {
     else if (priority > 300) taskPriority = TaskPriority::Low;
     else taskPriority = TaskPriority::Idle;
     
-    // Submit chunk loading task
-    auto future = g_threadPool->submitTask(
+    // Submit chunk loading task and get the real task ID
+    auto [future, taskId] = g_threadPool->submitTaskWithId(
         [this, chunkPos]() -> int {
             auto chunkData = loadChunkBackground(chunkPos);
             
@@ -408,11 +408,10 @@ void ChunkManager::loadChunkAsync(const glm::ivec3& chunkPos, int priority) {
         "LoadChunk_" + std::to_string(chunkPos.x) + "_" + std::to_string(chunkPos.y) + "_" + std::to_string(chunkPos.z)
     );
     
-    // Track the loading task - we'll use the chunk position hash as a simple ID
+    // Track the loading task with the real task ID
     {
         std::lock_guard<std::mutex> lock(m_loadingMutex);
-        std::hash<glm::ivec3> hasher;
-        m_loadingChunks[chunkPos] = static_cast<Task::TaskId>(hasher(chunkPos));
+        m_loadingChunks[chunkPos] = taskId;
     }
 }
 
@@ -580,8 +579,8 @@ void ChunkManager::queueMeshGeneration(const glm::ivec3& chunkPos, int priority)
     else if (priority > 500) taskPriority = TaskPriority::Low;
     else taskPriority = TaskPriority::Idle;
     
-    // Submit mesh generation task
-    auto future = g_threadPool->submitTask(
+    // Submit mesh generation task and get the real task ID
+    auto [future, taskId] = g_threadPool->submitTaskWithId(
         [this, chunkPos]() -> int {
             // Get the chunk to generate mesh for
             Chunk* chunk = nullptr;
@@ -620,11 +619,10 @@ void ChunkManager::queueMeshGeneration(const glm::ivec3& chunkPos, int priority)
         "MeshGen_" + std::to_string(chunkPos.x) + "_" + std::to_string(chunkPos.y) + "_" + std::to_string(chunkPos.z)
     );
     
-    // Track the meshing task - we'll use the chunk position hash as a simple ID
+    // Track the meshing task with the real task ID
     {
         std::lock_guard<std::mutex> lock(m_meshingMutex);
-        std::hash<glm::ivec3> hasher;
-        m_meshingChunks[chunkPos] = static_cast<Task::TaskId>(hasher(chunkPos));
+        m_meshingChunks[chunkPos] = taskId;
     }
 }
 
