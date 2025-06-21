@@ -223,17 +223,37 @@ void ImGuiIntegration::renderDebugWindow(const Zerith::Player* player, const Zer
         if (!m_metrics.chunkGenTimeHistory.empty() && !m_metrics.meshGenTimeHistory.empty()) {
             ImGui::Text("Generation Times History:");
             
+            // Custom function to format values with units
+            auto PlotHistogramWithUnits = [](const char* label, const float* values, int values_count, const char* overlay_text = nullptr) {
+                ImGui::PushID(label);
+                ImGui::PlotHistogram("", values, values_count, 0, overlay_text, 0.0f, FLT_MAX, ImVec2(0, 80));
+                
+                // Check if hovering over the plot
+                if (ImGui::IsItemHovered()) {
+                    ImVec2 mouse_pos = ImGui::GetMousePos();
+                    ImVec2 plot_pos = ImGui::GetItemRectMin();
+                    ImVec2 plot_size = ImGui::GetItemRectSize();
+                    
+                    // Calculate which bar we're hovering over
+                    float rel_x = (mouse_pos.x - plot_pos.x) / plot_size.x;
+                    int bar_idx = (int)(rel_x * values_count);
+                    
+                    if (bar_idx >= 0 && bar_idx < values_count) {
+                        ImGui::SetTooltip("%.2f ms", values[bar_idx]);
+                    }
+                }
+                ImGui::PopID();
+            };
+            
             // Plot chunk generation times
-            ImGui::Text("Chunk Generation Time:");
-            ImGui::PlotHistogram("##ChunkGenHist", m_metrics.chunkGenTimeHistory.data(), 
-                               m_metrics.chunkGenTimeHistory.size(), 0, nullptr, 0.0f, FLT_MAX, 
-                               ImVec2(0, 80));
+            ImGui::Text("Chunk Generation Time (ms):");
+            PlotHistogramWithUnits("##ChunkGenHist", m_metrics.chunkGenTimeHistory.data(), 
+                                 m_metrics.chunkGenTimeHistory.size(), nullptr);
             
             // Plot mesh generation times
-            ImGui::Text("Mesh Generation Time:");
-            ImGui::PlotHistogram("##MeshGenHist", m_metrics.meshGenTimeHistory.data(), 
-                               m_metrics.meshGenTimeHistory.size(), 0, nullptr, 0.0f, FLT_MAX, 
-                               ImVec2(0, 80));
+            ImGui::Text("Mesh Generation Time (ms):");
+            PlotHistogramWithUnits("##MeshGenHist", m_metrics.meshGenTimeHistory.data(), 
+                                 m_metrics.meshGenTimeHistory.size(), nullptr);
         }
     }
     
