@@ -477,7 +477,7 @@ private:
         glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
         
         // Initialize player
-        player = std::make_unique<Zerith::Player>(glm::vec3(0.5f, 10.0f, 3.0f));
+        player = std::make_unique<Zerith::Player>(glm::vec3(0.0f, 70.0f, 0.0f));
         
         // Initialize AABB debug renderer
         aabbDebugRenderer = std::make_unique<Zerith::AABBDebugRenderer>();
