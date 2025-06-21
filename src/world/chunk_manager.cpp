@@ -4,6 +4,7 @@
 #include "world_constants.h"
 #include "profiler.h"
 #include <algorithm>
+#include <chrono>
 
 namespace Zerith {
 
@@ -464,6 +465,8 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkManager::generateMes
     const glm::ivec3& chunkPos, Chunk* chunk) {
     PROFILE_FUNCTION();
     
+    auto start = std::chrono::high_resolution_clock::now();
+    
     if (!chunk) {
         return {};
     }
@@ -499,15 +502,27 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkManager::generateMes
     }
     
     // Generate mesh with neighbor awareness
-    return m_meshGenerator->generateChunkMeshWithNeighbors(
+    auto result = m_meshGenerator->generateChunkMeshWithNeighbors(
         *chunk,
         neighborXMinus, neighborXPlus,
         neighborYMinus, neighborYPlus,
         neighborZMinus, neighborZPlus);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    float duration = std::chrono::duration<float, std::milli>(end - start).count();
+    
+    // Call timing callback if set
+    if (m_meshGenCallback) {
+        m_meshGenCallback(duration);
+    }
+    
+    return result;
 }
 
 std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& chunkPos) {
     LOG_TRACE("Loading chunk at (%d, %d, %d) in background", chunkPos.x, chunkPos.y, chunkPos.z);
+    
+    auto start = std::chrono::high_resolution_clock::now();
     
     auto chunkData = std::make_unique<ChunkData>();
     
@@ -518,6 +533,15 @@ std::unique_ptr<ChunkData> ChunkManager::loadChunkBackground(const glm::ivec3& c
     generateTerrain(*chunkData->chunk);
     
     chunkData->ready = true;
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    float duration = std::chrono::duration<float, std::milli>(end - start).count();
+    
+    // Call timing callback if set
+    if (m_chunkGenCallback) {
+        m_chunkGenCallback(duration);
+    }
+    
     return chunkData;
 }
 

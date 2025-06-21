@@ -436,6 +436,7 @@ private:
     void* aabbInstanceBufferMapped;
     std::unique_ptr<Zerith::AABBDebugRenderer> aabbDebugRenderer;
     bool showDebugAABBs = false;
+    bool mouseCaptured = true;
     
     // ImGui integration
     ImGuiIntegration imguiIntegration;
@@ -499,9 +500,16 @@ private:
             }
         }
         
-        // Allow escape key to exit
+        // Toggle mouse capture with escape key
         if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, true);
+            app->mouseCaptured = !app->mouseCaptured;
+            if (app->mouseCaptured) {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+                LOG_INFO("Mouse capture: ON");
+            } else {
+                glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+                LOG_INFO("Mouse capture: OFF");
+            }
         }
         
         // Toggle AABB debug rendering with F3
@@ -527,6 +535,12 @@ private:
         
         // Initialize chunk manager
         chunkManager = std::make_unique<Zerith::ChunkManager>();
+        
+        // Set timing callbacks for ImGui performance tracking
+        chunkManager->setTimingCallbacks(
+            [this](float time) { imguiIntegration.updateChunkGenTime(time); },
+            [this](float time) { imguiIntegration.updateMeshGenTime(time); }
+        );
         
         // Set initial render distance
         chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
@@ -3330,8 +3344,10 @@ private:
         
         glm::vec3 oldPosition = player->getPosition();
         
-        // Handle player input and physics
-        player->handleInput(window, deltaTime, chunkManager.get());
+        // Handle player input and physics (only when mouse is captured)
+        if (mouseCaptured) {
+            player->handleInput(window, deltaTime, chunkManager.get());
+        }
         player->update(deltaTime, chunkManager.get());
         
         // Update chunks if player moved
@@ -3403,6 +3419,9 @@ private:
 
         vkDestroyCommandPool(device, commandPool, nullptr);
 
+        // Clean up ImGui before destroying device
+        imguiIntegration.cleanup();
+
         vkDestroyDevice(device, nullptr);
 
         if (enableValidationLayers) {
@@ -3411,9 +3430,6 @@ private:
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
-
-        // Clean up ImGui
-        imguiIntegration.cleanup();
 
         glfwDestroyWindow(window);
 

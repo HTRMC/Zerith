@@ -17,6 +17,7 @@
 #include <queue>
 #include <atomic>
 #include <future>
+#include <functional>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -77,6 +78,12 @@ class ChunkManager {
 public:
     ChunkManager();
     ~ChunkManager();
+    
+    // Set timing callback functions
+    void setTimingCallbacks(std::function<void(float)> chunkGenCallback, std::function<void(float)> meshGenCallback) {
+        m_chunkGenCallback = chunkGenCallback;
+        m_meshGenCallback = meshGenCallback;
+    }
     
     // Update which chunks are loaded based on player position
     void updateLoadedChunks(const glm::vec3& playerPosition);
@@ -220,6 +227,10 @@ private:
     
     // Chunk octree for spatial queries
     std::unique_ptr<ChunkOctree> m_chunkOctree;
+    
+    // Timing callbacks
+    std::function<void(float)> m_chunkGenCallback;
+    std::function<void(float)> m_meshGenCallback;
 };
 
 } // namespace Zerith
