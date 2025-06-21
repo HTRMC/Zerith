@@ -168,8 +168,8 @@ void saveDebugImage(const TextureData& texture, const std::string& filename) {
 }
 
 // Constants
-const uint32_t WIDTH = 800;
-const uint32_t HEIGHT = 600;
+const uint32_t WIDTH = 1400;
+const uint32_t HEIGHT = 900;
 const int MAX_FRAMES_IN_FLIGHT = 2;
 
 // Validation layers for debugging

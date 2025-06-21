@@ -26,6 +26,10 @@ public:
         std::vector<float> frameTimeHistory;
         size_t frameTimeHistorySize = 60;
         int frameTimeIndex = 0;
+        
+        std::vector<float> chunkGenTimeHistory;
+        std::vector<float> meshGenTimeHistory;
+        size_t generationTimeHistorySize = 100;
     };
 
     bool initialize(GLFWwindow* window, VkInstance instance, VkPhysicalDevice physicalDevice, 
@@ -37,8 +41,24 @@ public:
     void render(VkCommandBuffer commandBuffer);
     
     void updatePerformanceMetrics(float deltaTime);
-    void updateChunkGenTime(float time) { m_metrics.chunkGenTime = time; }
-    void updateMeshGenTime(float time) { m_metrics.meshGenTime = time; }
+    void updateChunkGenTime(float time) { 
+        if (!m_pauseMetricsUpdate) {
+            m_metrics.chunkGenTime = time;
+            m_metrics.chunkGenTimeHistory.push_back(time);
+            if (m_metrics.chunkGenTimeHistory.size() > m_metrics.generationTimeHistorySize) {
+                m_metrics.chunkGenTimeHistory.erase(m_metrics.chunkGenTimeHistory.begin());
+            }
+        }
+    }
+    void updateMeshGenTime(float time) { 
+        if (!m_pauseMetricsUpdate) {
+            m_metrics.meshGenTime = time;
+            m_metrics.meshGenTimeHistory.push_back(time);
+            if (m_metrics.meshGenTimeHistory.size() > m_metrics.generationTimeHistorySize) {
+                m_metrics.meshGenTimeHistory.erase(m_metrics.meshGenTimeHistory.begin());
+            }
+        }
+    }
     void incrementChunksLoaded() { m_metrics.chunksLoaded++; }
     void incrementMeshesGenerated() { m_metrics.meshesGenerated++; }
     
@@ -60,6 +80,7 @@ private:
     bool m_showPerformance = true;
     bool m_showCamera = true;
     bool m_showChunks = true;
+    bool m_pauseMetricsUpdate = false;
     
     PerformanceMetrics m_metrics;
     

@@ -84,6 +84,8 @@ bool ImGuiIntegration::initialize(GLFWwindow* window, VkInstance instance, VkPhy
     
     m_metrics.lastUpdateTime = std::chrono::high_resolution_clock::now();
     m_metrics.frameTimeHistory.resize(100, 0.0f); // Initialize with 100 elements
+    m_metrics.chunkGenTimeHistory.reserve(m_metrics.generationTimeHistorySize);
+    m_metrics.meshGenTimeHistory.reserve(m_metrics.generationTimeHistorySize);
     
     m_initialized = true;
     LOG_INFO("ImGui initialized successfully");
@@ -213,8 +215,26 @@ void ImGuiIntegration::renderDebugWindow(const Zerith::Player* player, const Zer
         }
         
         ImGui::Separator();
+        ImGui::Checkbox("Pause Updates", &m_pauseMetricsUpdate);
+        
         ImGui::Text("Chunk Generation Time: %.3f ms", m_metrics.chunkGenTime);
         ImGui::Text("Mesh Generation Time: %.3f ms", m_metrics.meshGenTime);
+        
+        if (!m_metrics.chunkGenTimeHistory.empty() && !m_metrics.meshGenTimeHistory.empty()) {
+            ImGui::Text("Generation Times History:");
+            
+            // Plot chunk generation times
+            ImGui::Text("Chunk Generation Time:");
+            ImGui::PlotHistogram("##ChunkGenHist", m_metrics.chunkGenTimeHistory.data(), 
+                               m_metrics.chunkGenTimeHistory.size(), 0, nullptr, 0.0f, FLT_MAX, 
+                               ImVec2(0, 80));
+            
+            // Plot mesh generation times
+            ImGui::Text("Mesh Generation Time:");
+            ImGui::PlotHistogram("##MeshGenHist", m_metrics.meshGenTimeHistory.data(), 
+                               m_metrics.meshGenTimeHistory.size(), 0, nullptr, 0.0f, FLT_MAX, 
+                               ImVec2(0, 80));
+        }
     }
     
     // Camera section
