@@ -591,11 +591,11 @@ private:
             }
         }
         
-        LOG_INFO("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent",
-                 allFaces.size(),
-                 layeredInstances.opaque.size(),
-                 layeredInstances.cutout.size(),
-                 layeredInstances.translucent.size());
+        // LOG_INFO("Separated %zu faces: %zu opaque, %zu cutout, %zu translucent",
+        //          allFaces.size(),
+        //          layeredInstances.opaque.size(),
+        //          layeredInstances.cutout.size(),
+        //          layeredInstances.translucent.size());
         
         // Debug: count faces by render layer from face instances
         int opaqueCount = 0, cutoutCount = 0, translucentCount = 0;
@@ -606,8 +606,8 @@ private:
                 case Zerith::RenderLayer::TRANSLUCENT: translucentCount++; break;
             }
         }
-        LOG_INFO("Face instances by render layer: %d opaque, %d cutout, %d translucent",
-                 opaqueCount, cutoutCount, translucentCount);
+        // LOG_INFO("Face instances by render layer: %d opaque, %d cutout, %d translucent",
+        //          opaqueCount, cutoutCount, translucentCount);
     }
     
     void recreateFaceInstanceBuffer() {
