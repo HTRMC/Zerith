@@ -1,5 +1,7 @@
 #include "imgui_integration.h"
 #include "logger.h"
+#include "player.h"
+#include "chunk_manager.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -81,7 +83,7 @@ bool ImGuiIntegration::initialize(GLFWwindow* window, VkInstance instance, VkPhy
     }
     
     m_metrics.lastUpdateTime = std::chrono::high_resolution_clock::now();
-    m_metrics.frameTimeHistory.reserve(m_metrics.frameTimeHistorySize);
+    m_metrics.frameTimeHistory.resize(100, 0.0f); // Initialize with 100 elements
     
     m_initialized = true;
     LOG_INFO("ImGui initialized successfully");
@@ -181,6 +183,66 @@ void ImGuiIntegration::renderChunkWindow(const Zerith::ChunkManager& chunkManage
     ImGui::Text("Chunk Information");
     ImGui::Text("ChunkManager data available");
     ImGui::Text("(Implementation requires ChunkManager header)");
+    
+    ImGui::End();
+}
+
+void ImGuiIntegration::renderDebugWindow(const Zerith::Player* player, const Zerith::ChunkManager* chunkManager) {
+    if (!m_initialized) return;
+    
+    ImGui::Begin("Debug Info");
+    
+    // Performance section
+    if (ImGui::CollapsingHeader("Performance", ImGuiTreeNodeFlags_DefaultOpen)) {
+        ImGui::Text("FPS: %.1f", ImGui::GetIO().Framerate);
+        ImGui::Text("Frame Time: %.3f ms", 1000.0f / ImGui::GetIO().Framerate);
+        
+        // Add frame time to history for graph
+        static int frame_count = 0;
+        frame_count++;
+        if (frame_count % 10 == 0) { // Update every 10 frames to reduce noise
+            float currentFrameTime = 1000.0f / ImGui::GetIO().Framerate;
+            m_metrics.frameTimeHistory[m_metrics.frameTimeIndex] = currentFrameTime;
+            m_metrics.frameTimeIndex = (m_metrics.frameTimeIndex + 1) % 100;
+        }
+        
+        if (m_metrics.frameTimeHistory.size() > 0) {
+            ImGui::PlotLines("Frame Time (ms)", m_metrics.frameTimeHistory.data(), 
+                            m_metrics.frameTimeHistory.size(), 0, nullptr, 0.0f, 50.0f, 
+                            ImVec2(0, 80));
+        }
+        
+        ImGui::Separator();
+        ImGui::Text("Chunk Generation Time: %.3f ms", m_metrics.chunkGenTime);
+        ImGui::Text("Mesh Generation Time: %.3f ms", m_metrics.meshGenTime);
+        ImGui::Text("Chunks Loaded: %d", m_metrics.chunksLoaded);
+        ImGui::Text("Meshes Generated: %d", m_metrics.meshesGenerated);
+    }
+    
+    // Camera section
+    if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (player) {
+            const auto& pos = player->getPosition();
+            const auto& rot = player->getRotation();
+            ImGui::Text("Position: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
+            ImGui::Text("Rotation: %.2f, %.2f, %.2f", rot.x, rot.y, rot.z);
+            ImGui::Text("Flying: %s", player->getIsFlying() ? "Yes" : "No");
+            ImGui::Text("On Ground: %s", player->isOnGround() ? "Yes" : "No");
+        } else {
+            ImGui::Text("Player data not available");
+        }
+    }
+    
+    // Chunk section
+    if (ImGui::CollapsingHeader("Chunks", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (chunkManager) {
+            ImGui::Text("Render Distance: %d", chunkManager->getRenderDistance());
+            ImGui::Text("Loaded Chunks: %zu", chunkManager->getLoadedChunkCount());
+            ImGui::Text("Face Instances: %zu", chunkManager->getAllFaceInstances().size());
+        } else {
+            ImGui::Text("ChunkManager data not available");
+        }
+    }
     
     ImGui::End();
 }

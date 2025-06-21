@@ -25,6 +25,7 @@ public:
         std::chrono::high_resolution_clock::time_point lastUpdateTime;
         std::vector<float> frameTimeHistory;
         size_t frameTimeHistorySize = 60;
+        int frameTimeIndex = 0;
     };
 
     bool initialize(GLFWwindow* window, VkInstance instance, VkPhysicalDevice physicalDevice, 
@@ -44,6 +45,7 @@ public:
     void renderPerformanceWindow();
     void renderCameraWindow(const Zerith::Player& player);
     void renderChunkWindow(const Zerith::ChunkManager& chunkManager);
+    void renderDebugWindow(const Zerith::Player* player, const Zerith::ChunkManager* chunkManager);
     
     void setShowPerformance(bool show) { m_showPerformance = show; }
     void setShowCamera(bool show) { m_showCamera = show; }

@@ -3172,14 +3172,8 @@ private:
         // Start new ImGui frame
         imguiIntegration.newFrame();
         
-        // Render ImGui windows within frame scope
-        if (player) {
-            imguiIntegration.renderPerformanceWindow();
-            imguiIntegration.renderCameraWindow(*player);
-        }
-        if (chunkManager) {
-            imguiIntegration.renderChunkWindow(*chunkManager);
-        }
+        // Render consolidated debug window
+        imguiIntegration.renderDebugWindow(player.get(), chunkManager.get());
         
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
