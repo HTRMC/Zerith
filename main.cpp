@@ -38,6 +38,9 @@
 #include "aabb.h"
 #include "raycast.h"
 
+// ImGui integration
+#include "imgui_integration.h"
+
 // Texture data structure
 struct TextureData {
     uint32_t width;
@@ -433,6 +436,9 @@ private:
     void* aabbInstanceBufferMapped;
     std::unique_ptr<Zerith::AABBDebugRenderer> aabbDebugRenderer;
     bool showDebugAABBs = false;
+    
+    // ImGui integration
+    ImGuiIntegration imguiIntegration;
 
     // Calculate maximum chunks based on render distance
     // Account for the fact that chunks are loaded in a cube around the player
@@ -677,6 +683,7 @@ private:
         createImageViews();
         createDepthResources();
         createRenderPass();
+        initImGui();
         createDescriptorSetLayout();
         createCommandPool();  // Create command pool earlier
         createTextureImage();
@@ -1723,6 +1730,16 @@ private:
 
         if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
             throw std::runtime_error("failed to create render pass!");
+        }
+    }
+
+    void initImGui() {
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+        
+        if (!imguiIntegration.initialize(window, instance, physicalDevice, device, 
+                                       indices.graphicsFamily.value(), graphicsQueue, 
+                                       renderPass, swapChainImages.size(), swapChainImages.size())) {
+            throw std::runtime_error("failed to initialize ImGui!");
         }
     }
 
@@ -3127,6 +3144,9 @@ private:
             vkCmdDrawMeshTasksEXT(commandBuffer, aabbCount, 1, 1);
         }
 
+        // Render ImGui
+        imguiIntegration.render(commandBuffer);
+
         vkCmdEndRenderPass(commandBuffer);
 
         if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
@@ -3135,6 +3155,18 @@ private:
     }
 
     void drawFrame() {
+        // Start new ImGui frame
+        imguiIntegration.newFrame();
+        
+        // Render ImGui windows within frame scope
+        if (player) {
+            imguiIntegration.renderPerformanceWindow();
+            imguiIntegration.renderCameraWindow(*player);
+        }
+        if (chunkManager) {
+            imguiIntegration.renderChunkWindow(*chunkManager);
+        }
+        
         vkWaitForFences(device, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         uint32_t imageIndex;
@@ -3279,6 +3311,9 @@ private:
             float deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastFrameTime).count();
             lastFrameTime = currentTime;
             
+            // Update ImGui performance metrics
+            imguiIntegration.updatePerformanceMetrics(deltaTime);
+            
             // Process input
             processInput(deltaTime);
             
@@ -3376,6 +3411,9 @@ private:
 
         vkDestroySurfaceKHR(instance, surface, nullptr);
         vkDestroyInstance(instance, nullptr);
+
+        // Clean up ImGui
+        imguiIntegration.cleanup();
 
         glfwDestroyWindow(window);
 

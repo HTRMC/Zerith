@@ -19,6 +19,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Add FastNoise2 as subdirectory
 add_subdirectory(third_party/FastNoise2)
 
+# Add ImGui as subdirectory
+add_subdirectory(third_party/imgui)
+
 # Find glslangValidator for shader compilation
 find_program(GLSLANG_VALIDATOR glslangValidator HINTS $ENV{VULKAN_SDK}/bin)
 
@@ -72,6 +75,8 @@ compile_shader(
 # Include directories
 include_directories(${Vulkan_INCLUDE_DIRS})
 include_directories(include)
+include_directories(third_party/imgui)
+include_directories(third_party/imgui/backends)
 
 # Add executable
 add_executable(Zerith
@@ -99,6 +104,9 @@ add_executable(Zerith
         src/blocks/block_behavior.cpp
         src/blocks/water_block.cpp
         src/blocks/fluid_block.cpp
+        src/ui/imgui_integration.cpp
+        third_party/imgui/backends/imgui_impl_glfw.cpp
+        third_party/imgui/backends/imgui_impl_vulkan.cpp
 )
 
 # Add shader dependencies
@@ -138,7 +146,7 @@ else()
 endif()
 
 # Link libraries
-target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> FastNoise2 spdlog::spdlog Tracy::TracyClient)
+target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> FastNoise2 spdlog::spdlog Tracy::TracyClient imgui)
 
 # Create directories for shader output and assets
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)

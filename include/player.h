@@ -31,6 +31,7 @@ public:
     glm::mat4 getViewMatrix() const;
     
     bool isOnGround() const { return m_onGround; }
+    bool getIsFlying() const { return m_isFlying; }
     void jump();
     
     float getEyeHeight() const { return m_eyeHeight; }
