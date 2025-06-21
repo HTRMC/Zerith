@@ -159,7 +159,7 @@ void ImGuiIntegration::renderPerformanceWindow() {
     ImGui::Text("Mesh Generation Time: %.3f ms", m_metrics.meshGenTime);
     ImGui::Text("Chunks Loaded: %d", m_metrics.chunksLoaded);
     ImGui::Text("Meshes Generated: %d", m_metrics.meshesGenerated);
-    
+
     ImGui::End();
 }
 
@@ -215,8 +215,6 @@ void ImGuiIntegration::renderDebugWindow(const Zerith::Player* player, const Zer
         ImGui::Separator();
         ImGui::Text("Chunk Generation Time: %.3f ms", m_metrics.chunkGenTime);
         ImGui::Text("Mesh Generation Time: %.3f ms", m_metrics.meshGenTime);
-        ImGui::Text("Chunks Loaded: %d", m_metrics.chunksLoaded);
-        ImGui::Text("Meshes Generated: %d", m_metrics.meshesGenerated);
     }
     
     // Camera section
