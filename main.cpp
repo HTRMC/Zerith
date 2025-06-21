@@ -20,6 +20,7 @@
 // Logger and thread pool
 #include "logger.h"
 #include "thread_pool.h"
+#include "profiler.h"
 
 // Blockbench model support
 #include "blockbench_model.h"
@@ -47,6 +48,7 @@ struct TextureData {
 
 // Function to load PNG using libspng
 TextureData loadPNG(const std::string& filename) {
+    PROFILE_FUNCTION();
     LOG_DEBUG("Loading PNG texture: %s", filename.c_str());
     TextureData texture;
 

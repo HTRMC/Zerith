@@ -2,6 +2,7 @@
 #include "chunk_manager.h"
 #include "logger.h"
 #include "world_constants.h"
+#include "profiler.h"
 #include <algorithm>
 
 namespace Zerith {
@@ -461,6 +462,7 @@ void ChunkManager::loadChunkAsync(const glm::ivec3& chunkPos, int priority) {
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkManager::generateMeshForChunk(
     const glm::ivec3& chunkPos, Chunk* chunk) {
+    PROFILE_FUNCTION();
     
     if (!chunk) {
         return {};

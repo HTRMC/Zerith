@@ -8,6 +8,8 @@ find_package(Vulkan REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(glm REQUIRED)
 find_package(SPNG CONFIG REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
+find_package(Tracy CONFIG REQUIRED)
 
 # Set C++ standard globally before adding subdirectories
 set(CMAKE_CXX_STANDARD 23)          
@@ -74,29 +76,29 @@ include_directories(include)
 # Add executable
 add_executable(Zerith
     main.cpp
-    src/chunk.cpp
-    src/chunk_mesh_generator.cpp
-    src/chunk_manager.cpp
-    src/texture_array.cpp
-    src/texture_atlas.cpp
-    src/logger.cpp
-    src/aabb.cpp
-    src/player.cpp
-    src/terrain_generator.cpp
-    src/raycast.cpp
-    src/indirect_draw.cpp
-    src/block_properties.cpp
-    src/block_face_bounds.cpp
-    src/sparse_octree.cpp
-    src/chunk_octree.cpp
-    src/translation_manager.cpp
-    src/binary_chunk_data.cpp
-    src/binary_mesh_converter.cpp
-    src/thread_pool.cpp
-    src/blocks.cpp
-    src/blocks/block_behavior.cpp
-    src/blocks/water_block.cpp
-    src/blocks/fluid_block.cpp
+        src/world/chunk.cpp
+        src/rendering/chunk_mesh_generator.cpp
+        src/world/chunk_manager.cpp
+        src/rendering/texture_array.cpp
+        src/rendering/texture_atlas.cpp
+        src/utils/logger.cpp
+        src/core/aabb.cpp
+        src/core/player.cpp
+        src/world/terrain_generator.cpp
+        src/core/raycast.cpp
+        src/rendering/indirect_draw.cpp
+        src/blocks/block_properties.cpp
+        src/blocks/block_face_bounds.cpp
+        src/world/sparse_octree.cpp
+        src/world/chunk_octree.cpp
+        src/utils/translation_manager.cpp
+        src/serialization/binary_chunk_data.cpp
+        src/serialization/binary_mesh_converter.cpp
+        src/utils/thread_pool.cpp
+        src/blocks/blocks.cpp
+        src/blocks/block_behavior.cpp
+        src/blocks/water_block.cpp
+        src/blocks/fluid_block.cpp
 )
 
 # Add shader dependencies
@@ -107,6 +109,12 @@ add_dependencies(Zerith
     aabb_mesh_shader 
     aabb_fragment_shader
 )
+
+# Tracy profiler configuration
+option(ENABLE_TRACY "Enable Tracy profiler" OFF)
+if(ENABLE_TRACY)
+    target_compile_definitions(Zerith PRIVATE TRACY_ENABLE)
+endif()
 
 if(MSVC)
     target_compile_options(Zerith PRIVATE
@@ -130,7 +138,7 @@ else()
 endif()
 
 # Link libraries
-target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> FastNoise2)
+target_link_libraries(Zerith PRIVATE ${Vulkan_LIBRARIES} glfw $<IF:$<TARGET_EXISTS:spng::spng>,spng::spng,spng::spng_static> FastNoise2 spdlog::spdlog Tracy::TracyClient)
 
 # Create directories for shader output and assets
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/shaders)

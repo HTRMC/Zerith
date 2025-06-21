@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "blocks.h"
 #include "world_constants.h"
+#include "profiler.h"
 #include <cmath>
 
 namespace Zerith {
@@ -27,6 +28,7 @@ void TerrainGenerator::setSeed(int seed) {
 }
 
 void TerrainGenerator::generateTerrain(Chunk& chunk) {
+    PROFILE_FUNCTION();
     glm::ivec3 chunkPos = chunk.getChunkPosition();
     glm::ivec3 worldChunkStart = chunkPos * Chunk::CHUNK_SIZE;
     

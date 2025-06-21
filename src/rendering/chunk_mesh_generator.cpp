@@ -5,6 +5,7 @@
 #include "block_face_bounds.h"
 #include "blockbench_face_extractor.h"
 #include "blocks.h"
+#include "profiler.h"
 #include <filesystem>
 
 namespace Zerith {
@@ -17,6 +18,7 @@ ChunkMeshGenerator::ChunkMeshGenerator() {
 }
 
 void ChunkMeshGenerator::loadBlockModels() {
+    PROFILE_FUNCTION();
     // Initialize the unified blocks system
     Blocks::initialize();
     BlockProperties::initialize();
