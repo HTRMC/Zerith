@@ -79,6 +79,24 @@ void ChunkMeshGenerator::loadBlockModels() {
 }
 
 std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMesh(const Chunk& chunk) {
+    PROFILE_FUNCTION();
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return {}; // Return empty vector for empty chunks
+    }
+    
     // Use binary meshing if enabled
     LOG_INFO("MESH GENERATOR: Binary meshing enabled = %s", m_binaryMeshingEnabled ? "true" : "false");
     if (false) { // Force disable binary meshing
@@ -114,7 +132,25 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
 }
 
 FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooled(const Chunk& chunk) {
+    PROFILE_FUNCTION();
+    
     auto batch = m_faceInstancePool->acquireBatch();
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return batch; // Return empty batch for empty chunks
+    }
     
     // Estimate capacity based on chunk size (assume average 2 faces per block visible)
     batch.reserve(Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * 2);
@@ -132,7 +168,25 @@ FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooled(
 }
 
 LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMesh(const Chunk& chunk) {
+    PROFILE_FUNCTION();
+    
     LayeredChunkMesh layeredMesh;
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return layeredMesh; // Return empty layered mesh for empty chunks
+    }
     
     // Iterate through all blocks in the chunk (xyz order)
     for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
@@ -151,8 +205,25 @@ LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMeshWithNeighbors(
     const Chunk* neighborXMinus, const Chunk* neighborXPlus,
     const Chunk* neighborYMinus, const Chunk* neighborYPlus,
     const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
+    PROFILE_FUNCTION();
     
     LayeredChunkMesh layeredMesh;
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return layeredMesh; // Return empty layered mesh for empty chunks
+    }
     
     // Iterate through all blocks in the chunk (xyz order)
     for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
@@ -631,6 +702,23 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     const Chunk* neighborXMinus, const Chunk* neighborXPlus,
     const Chunk* neighborYMinus, const Chunk* neighborYPlus,
     const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
+    PROFILE_FUNCTION();
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return {}; // Return empty vector for empty chunks
+    }
     
     std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
     
@@ -682,8 +770,25 @@ FaceInstancePool::FaceInstanceBatch ChunkMeshGenerator::generateChunkMeshPooledW
     const Chunk* neighborXMinus, const Chunk* neighborXPlus,
     const Chunk* neighborYMinus, const Chunk* neighborYPlus,
     const Chunk* neighborZMinus, const Chunk* neighborZPlus) {
+    PROFILE_FUNCTION();
     
     auto batch = m_faceInstancePool->acquireBatch();
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return batch; // Return empty batch for empty chunks
+    }
     
     // Estimate capacity based on chunk size (assume average 2 faces per block visible)
     batch.reserve(Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * Chunk::CHUNK_SIZE * 2);
