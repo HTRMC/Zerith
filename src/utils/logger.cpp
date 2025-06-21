@@ -11,7 +11,7 @@ Logger& Logger::getInstance() {
 Logger::Logger() {
     console_sink_ = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     console_sink_->set_level(spdlog::level::trace);
-    console_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] [%s:%#] %v");
+    console_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
 
     logger_ = std::make_shared<spdlog::logger>("Zerith", console_sink_);
     logger_->set_level(spdlog::level::info);
@@ -42,7 +42,7 @@ void Logger::addLogFile(const std::string& filename, size_t max_size, size_t max
 
     file_sink_ = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(filename, max_size, max_files);
     file_sink_->set_level(spdlog::level::trace);
-    file_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:%#] %v");
+    file_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
 
     spdlog::sinks_init_list sinks = {console_sink_, file_sink_};
     logger_ = std::make_shared<spdlog::logger>("Zerith", sinks);
