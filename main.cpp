@@ -543,7 +543,7 @@ private:
         );
         
         // Set initial render distance
-        chunkManager->setRenderDistance(2); // Start with 2 chunks render distance
+        chunkManager->setRenderDistance(8);
         
         // Don't update chunks yet - wait until after Vulkan is initialized
         LOG_INFO("Chunk manager initialized");
