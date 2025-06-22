@@ -341,11 +341,14 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMask(
             
             // If adjacent position is within chunk bounds
             if (adjPos.x >= 0 && adjPos.x < SIZE && adjPos.y >= 0 && adjPos.y < SIZE && adjPos.z >= 0 && adjPos.z < SIZE) {
-                // Face is visible if adjacent position has no block of the same type
-                if (chunkData.hasBlockAt(adjPos.x, adjPos.y, adjPos.z, blockType)) {
-                    faceVisible = false; // Same block type adjacent, face is hidden
+                // Face is visible if adjacent position has no solid block
+                // Check all active block types to see if any occupy the adjacent position
+                for (BlockType adjacentBlockType : chunkData.getActiveBlockTypes()) {
+                    if (chunkData.hasBlockAt(adjPos.x, adjPos.y, adjPos.z, adjacentBlockType)) {
+                        faceVisible = false; // Any solid block adjacent, face is hidden
+                        break;
+                    }
                 }
-                // TODO: Add logic for transparent blocks and other block types
             }
             // If adjacent position is outside chunk bounds, face is visible (chunk boundary)
             
