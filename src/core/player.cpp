@@ -78,6 +78,39 @@ namespace Zerith {
     }
 
     void Player::handleInput(GLFWwindow *window, float deltaTime, ChunkManager* chunkManager) {
+        // Handle game mode switching with F3+F4
+        bool f3CurrentlyPressed = glfwGetKey(window, GLFW_KEY_F3) == GLFW_PRESS;
+        bool f4CurrentlyPressed = glfwGetKey(window, GLFW_KEY_F4) == GLFW_PRESS;
+        
+        if (f3CurrentlyPressed && f4CurrentlyPressed && !m_f4Pressed) {
+            // Cycle through game modes: Creative -> Adventure -> Spectator -> Survival -> Creative
+            GameMode previousMode = m_gameMode;
+            switch (m_gameMode) {
+                case GameMode::CREATIVE:
+                    m_gameMode = GameMode::ADVENTURE;
+                    m_isFlying = false; // Disable flying when switching to adventure
+                    LOG_INFO("Switched to Adventure mode");
+                    break;
+                case GameMode::ADVENTURE:
+                    m_gameMode = GameMode::SPECTATOR;
+                    // Spectator is always flying
+                    LOG_INFO("Switched to Spectator mode");
+                    break;
+                case GameMode::SPECTATOR:
+                    m_gameMode = GameMode::SURVIVAL;
+                    m_isFlying = false; // Disable flying when switching from spectator
+                    LOG_INFO("Switched to Survival mode");
+                    break;
+                case GameMode::SURVIVAL:
+                    m_gameMode = GameMode::CREATIVE;
+                    LOG_INFO("Switched to Creative mode");
+                    break;
+            }
+        }
+        
+        m_f3Pressed = f3CurrentlyPressed;
+        m_f4Pressed = f4CurrentlyPressed;
+        
         glm::vec3 movement(0.0f);
 
         // Input mapping (same as before)
@@ -101,18 +134,20 @@ namespace Zerith {
         if (spaceCurrentlyPressed && !m_spacePressed) {
             // Space key just pressed
             if (currentTime - m_lastSpacePress < DOUBLE_PRESS_TIME) {
-                // Double press detected - toggle fly mode
-                m_isFlying = !m_isFlying;
-                if (m_isFlying) {
-                    m_velocity.y = 0.0f; // Stop falling when entering fly mode
-                    LOG_INFO("Fly mode enabled");
-                } else {
-                    LOG_INFO("Fly mode disabled");
+                // Double press detected - toggle fly mode (only in Creative mode, Spectator is always flying)
+                if (m_gameMode == GameMode::CREATIVE) {
+                    m_isFlying = !m_isFlying;
+                    if (m_isFlying) {
+                        m_velocity.y = 0.0f; // Stop falling when entering fly mode
+                        LOG_INFO("Fly mode enabled");
+                    } else {
+                        LOG_INFO("Fly mode disabled");
+                    }
                 }
             } else {
                 // Single press
-                if (m_isFlying) {
-                    // In fly mode, space moves up
+                if (m_isFlying || m_gameMode == GameMode::SPECTATOR) {
+                    // In fly mode or spectator mode, space moves up
                     m_velocity.y = m_flySpeed;
                 } else if (m_onGround) {
                     // Normal jump when on ground and not flying
@@ -124,8 +159,8 @@ namespace Zerith {
         
         m_spacePressed = spaceCurrentlyPressed;
         
-        // Handle continuous vertical movement in fly mode
-        if (m_isFlying) {
+        // Handle continuous vertical movement in fly mode or spectator mode
+        if (m_isFlying || m_gameMode == GameMode::SPECTATOR) {
             if (spaceCurrentlyPressed) {
                 // Continuous upward movement while space is held
                 m_velocity.y = m_flySpeed;
@@ -169,10 +204,10 @@ namespace Zerith {
         // Apply movement with acceleration for smooth start/stop
         const float ACCELERATION = m_onGround ? 100.0f : 20.0f; // Much faster acceleration on ground
         const float DECELERATION = m_onGround ? 15.0f : 5.0f; // Deceleration when stopping
-        const float MAX_SPEED = m_isFlying ? m_flySpeed : MOVE_SPEED;
+        const float MAX_SPEED = (m_isFlying || m_gameMode == GameMode::SPECTATOR) ? m_flySpeed : MOVE_SPEED;
         
-        if (m_isFlying) {
-            // In fly mode, use horizontal direction vectors for horizontal movement
+        if (m_isFlying || m_gameMode == GameMode::SPECTATOR) {
+            // In fly mode or spectator mode, use horizontal direction vectors for horizontal movement
             glm::vec3 targetVelocity(0.0f);
             
             if (movement.z != 0.0f) {
@@ -343,13 +378,18 @@ namespace Zerith {
     }
 
     void Player::applyGravity(float deltaTime) {
-        if (!m_isFlying) {
+        if (!m_isFlying && m_gameMode != GameMode::SPECTATOR) {
             m_velocity.y -= GRAVITY * deltaTime;
         }
     }
 
     void Player::resolveCollisions(ChunkManager *chunkManager) {
         if (!chunkManager) return;
+        
+        // Skip collision detection in spectator mode
+        if (m_gameMode == GameMode::SPECTATOR) {
+            return;
+        }
 
         m_onGround = false;
 
@@ -411,6 +451,11 @@ namespace Zerith {
     
     void Player::resolveCollisionsAxis(ChunkManager *chunkManager, int axis) {
         if (!chunkManager) return;
+        
+        // Skip collision detection in spectator mode
+        if (m_gameMode == GameMode::SPECTATOR) {
+            return;
+        }
         
         // Get nearby blocks - use tighter bounds for better performance
         AABB searchAABB = m_aabb;
@@ -492,6 +537,11 @@ namespace Zerith {
 
     void Player::handleBlockInteraction(GLFWwindow* window, ChunkManager* chunkManager) {
         if (!chunkManager) return;
+        
+        // Block interaction is disabled in Adventure and Spectator modes
+        if (m_gameMode == GameMode::ADVENTURE || m_gameMode == GameMode::SPECTATOR) {
+            return;
+        }
         
         // Check mouse button states
         bool leftMouseCurrentlyPressed = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;

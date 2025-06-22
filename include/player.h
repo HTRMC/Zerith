@@ -10,6 +10,13 @@ struct GLFWwindow;
 
 namespace Zerith {
 
+enum class GameMode {
+    SURVIVAL = 0,
+    CREATIVE = 1,
+    ADVENTURE = 2,
+    SPECTATOR = 3
+};
+
 class ChunkManager;
 
 class Player {
@@ -38,6 +45,9 @@ public:
     
     void setSelectedBlockType(BlockType type) { m_selectedBlockType = type; }
     BlockType getSelectedBlockType() const { return m_selectedBlockType; }
+    
+    void setGameMode(GameMode mode) { m_gameMode = mode; }
+    GameMode getGameMode() const { return m_gameMode; }
     
     // Get the block position the player is looking at (if any)
     bool getLookedAtBlock(glm::ivec3& blockPos) const { 
@@ -99,6 +109,13 @@ private:
     // Block the player is currently looking at
     bool m_hasLookedAtBlock = false;
     glm::ivec3 m_lookedAtBlockPos{0, 0, 0};
+    
+    // Game mode
+    GameMode m_gameMode = GameMode::CREATIVE;
+    
+    // Key states for game mode switching
+    bool m_f3Pressed = false;
+    bool m_f4Pressed = false;
 };
 
 } // namespace Zerith
