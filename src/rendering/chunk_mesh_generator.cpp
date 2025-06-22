@@ -607,11 +607,30 @@ bool ChunkMeshGenerator::isFaceVisibleWithNeighbors(const Chunk& chunk, int x, i
     
     // Special handling for transparent blocks
     if (currentProps.isTransparent) {
-        // If both blocks are the same type (e.g., glass-to-glass), cull the face
+        // If both blocks are the same type (e.g., glass-to-glass, water-to-water), cull the face
         if (currentBlock == adjacentBlock) {
             return false;
         }
-        // Glass should always show its faces except when adjacent to same type
+        
+        // Special handling for liquids (water)
+        if (currentBlock == Blocks::WATER) {
+            // Determine which face of the adjacent block we're against
+            int adjacentFaceIndex = -1;
+            if (dy == -1) adjacentFaceIndex = 1; // Adjacent block's up face
+            else if (dy == 1) adjacentFaceIndex = 0; // Adjacent block's down face
+            else if (dz == -1) adjacentFaceIndex = 3; // Adjacent block's south face
+            else if (dz == 1) adjacentFaceIndex = 2; // Adjacent block's north face
+            else if (dx == -1) adjacentFaceIndex = 5; // Adjacent block's east face
+            else if (dx == 1) adjacentFaceIndex = 4; // Adjacent block's west face
+            
+            // If adjacent block is opaque and has full face culling, don't render water face
+            if (!adjacentProps.isTransparent && adjacentFaceIndex >= 0 && 
+                adjacentProps.faceCulling[adjacentFaceIndex] == CullFace::FULL) {
+                return false;
+            }
+        }
+        
+        // Other transparent blocks (glass, leaves) should always show their faces
         return true;
     }
     
