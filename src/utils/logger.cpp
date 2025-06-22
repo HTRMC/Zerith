@@ -1,6 +1,7 @@
 #include "logger.h"
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/async.h>
 #include <filesystem>
 
 Logger& Logger::getInstance() {
@@ -9,14 +10,15 @@ Logger& Logger::getInstance() {
 }
 
 Logger::Logger() {
+    spdlog::init_thread_pool(8192, 1);
+    
     console_sink_ = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
     console_sink_->set_level(spdlog::level::trace);
     console_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
 
-    logger_ = std::make_shared<spdlog::logger>("Zerith", console_sink_);
+    logger_ = std::make_shared<spdlog::async_logger>("Zerith", console_sink_, spdlog::thread_pool(), spdlog::async_overflow_policy::block);
     logger_->set_level(spdlog::level::info);
     logger_->flush_on(spdlog::level::warn);
-    
     spdlog::register_logger(logger_);
 }
 
@@ -44,32 +46,33 @@ void Logger::addLogFile(const std::string& filename, size_t max_size, size_t max
     file_sink_->set_level(spdlog::level::trace);
     file_sink_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
 
+    spdlog::drop("Zerith");
+    
     spdlog::sinks_init_list sinks = {console_sink_, file_sink_};
-    logger_ = std::make_shared<spdlog::logger>("Zerith", sinks);
+    logger_ = std::make_shared<spdlog::async_logger>("Zerith", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
     logger_->set_level(spdlog::level::info);
     logger_->flush_on(spdlog::level::warn);
-    
-    spdlog::drop("Zerith");
     spdlog::register_logger(logger_);
 }
 
 void Logger::setConsoleOutput(bool enabled) {
+    auto current_level = getLogLevel();
+    spdlog::drop("Zerith");
+    
     if (enabled) {
         if (file_sink_) {
             spdlog::sinks_init_list sinks = {console_sink_, file_sink_};
-            logger_ = std::make_shared<spdlog::logger>("Zerith", sinks);
+            logger_ = std::make_shared<spdlog::async_logger>("Zerith", sinks.begin(), sinks.end(), spdlog::thread_pool(), spdlog::async_overflow_policy::block);
         } else {
-            logger_ = std::make_shared<spdlog::logger>("Zerith", console_sink_);
+            logger_ = std::make_shared<spdlog::async_logger>("Zerith", console_sink_, spdlog::thread_pool(), spdlog::async_overflow_policy::block);
         }
     } else {
         if (file_sink_) {
-            logger_ = std::make_shared<spdlog::logger>("Zerith", file_sink_);
+            logger_ = std::make_shared<spdlog::async_logger>("Zerith", file_sink_, spdlog::thread_pool(), spdlog::async_overflow_policy::block);
         }
     }
-    logger_->set_level(getLogLevel());
+    logger_->set_level(current_level);
     logger_->flush_on(spdlog::level::warn);
-    
-    spdlog::drop("Zerith");
     spdlog::register_logger(logger_);
 }
 
