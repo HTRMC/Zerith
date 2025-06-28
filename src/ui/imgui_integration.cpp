@@ -263,8 +263,23 @@ void ImGuiIntegration::renderDebugWindow(const Zerith::Player* player, const Zer
         if (player) {
             const auto& pos = player->getPosition();
             const auto& rot = player->getRotation();
+            
+            // Convert Y rotation to compass direction
+            auto getCompassDirection = [](float yRotationRad) -> const char* {
+                // Convert radians to degrees
+                float degrees = glm::degrees(yRotationRad);
+                // Normalize rotation to 0-360 degrees
+                float normalizedY = fmod(degrees + 360.0f, 360.0f);
+                
+                if (normalizedY >= 315.0f || normalizedY < 45.0f) return "North";
+                else if (normalizedY >= 45.0f && normalizedY < 135.0f) return "East";
+                else if (normalizedY >= 135.0f && normalizedY < 225.0f) return "South";
+                else return "West";
+            };
+            
             ImGui::Text("Position: %.2f, %.2f, %.2f", pos.x, pos.y, pos.z);
-            ImGui::Text("Rotation: %.2f, %.2f, %.2f", rot.x, rot.y, rot.z);
+            ImGui::Text("Rotation: %.1f, %.1f, %.1f rad", rot.x, rot.y, rot.z);
+            ImGui::Text("Facing: %s (%.1f°)", getCompassDirection(rot.y), glm::degrees(rot.y));
             ImGui::Text("Flying: %s", player->getIsFlying() ? "Yes" : "No");
             ImGui::Text("On Ground: %s", player->isOnGround() ? "Yes" : "No");
         } else {

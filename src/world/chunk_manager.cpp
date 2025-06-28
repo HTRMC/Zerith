@@ -10,6 +10,7 @@ namespace Zerith {
 
 ChunkManager::ChunkManager() {
     m_meshGenerator = std::make_unique<ChunkMeshGenerator>();
+    m_meshGenerator->setChunkManager(this); // Enable cross-chunk AO
     m_terrainGenerator = std::make_unique<TerrainGenerator>();
     
     // Initialize octree with generous world bounds

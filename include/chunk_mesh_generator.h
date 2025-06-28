@@ -35,9 +35,15 @@ struct LayeredChunkMesh {
     }
 };
 
+// Forward declaration
+class ChunkManager;
+
 class ChunkMeshGenerator {
 public:
     ChunkMeshGenerator();
+    
+    // Set ChunkManager for cross-chunk AO calculations
+    void setChunkManager(const ChunkManager* chunkManager) { m_chunkManager = chunkManager; }
 
     // Generate face instances for an entire chunk (legacy method)
     std::vector<BlockbenchInstanceGenerator::FaceInstance> generateChunkMesh(const Chunk& chunk);
@@ -141,6 +147,9 @@ private:
     
     // Binary meshing flag
     bool m_binaryMeshingEnabled = true;
+    
+    // ChunkManager for cross-chunk AO calculations
+    const ChunkManager* m_chunkManager = nullptr;
 };
 
 } // namespace Zerith
