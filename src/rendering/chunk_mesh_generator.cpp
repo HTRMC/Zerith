@@ -307,12 +307,13 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
         }
         
         if (shouldRender) {
-            // Calculate ambient occlusion for this face (use cross-chunk if available)
+            // Calculate ambient occlusion for this face (requires ChunkManager for cross-chunk support)
             if (m_chunkManager) {
                 glm::ivec3 chunkWorldPos = chunk.getChunkPosition() * Chunk::CHUNK_SIZE;
                 face.ao = VoxelAO::calculateFaceAO(m_chunkManager, chunkWorldPos, x, y, z, face.faceDirection);
             } else {
-                face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+                // No ChunkManager available - set default AO (no occlusion)
+                face.ao = glm::vec4(1.0f);
             }
             
             // Set the render layer on the face
@@ -412,12 +413,13 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
         }
         
         if (shouldRender) {
-            // Calculate ambient occlusion for this face (use cross-chunk if available)
+            // Calculate ambient occlusion for this face (requires ChunkManager for cross-chunk support)
             if (m_chunkManager) {
                 glm::ivec3 chunkWorldPos = chunk.getChunkPosition() * Chunk::CHUNK_SIZE;
                 face.ao = VoxelAO::calculateFaceAO(m_chunkManager, chunkWorldPos, x, y, z, face.faceDirection);
             } else {
-                face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+                // No ChunkManager available - set default AO (no occlusion)
+                face.ao = glm::vec4(1.0f);
             }
             
             // Set the render layer on the face
@@ -480,12 +482,13 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
         }
         
         if (shouldRender) {
-            // Calculate ambient occlusion for this face (use cross-chunk if available)
+            // Calculate ambient occlusion for this face (requires ChunkManager for cross-chunk support)
             if (m_chunkManager) {
                 glm::ivec3 chunkWorldPos = chunk.getChunkPosition() * Chunk::CHUNK_SIZE;
                 face.ao = VoxelAO::calculateFaceAO(m_chunkManager, chunkWorldPos, x, y, z, face.faceDirection);
             } else {
-                face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+                // No ChunkManager available - set default AO (no occlusion)
+                face.ao = glm::vec4(1.0f);
             }
             faces.emplace_back(std::move(face));
         }
@@ -924,12 +927,13 @@ void ChunkMeshGenerator::generateBlockFacesWithNeighbors(const Chunk& chunk, int
         }
         
         if (shouldRender) {
-            // Calculate ambient occlusion for this face (use cross-chunk if available)
+            // Calculate ambient occlusion for this face (requires ChunkManager for cross-chunk support)
             if (m_chunkManager) {
                 glm::ivec3 chunkWorldPos = chunk.getChunkPosition() * Chunk::CHUNK_SIZE;
                 face.ao = VoxelAO::calculateFaceAO(m_chunkManager, chunkWorldPos, x, y, z, face.faceDirection);
             } else {
-                face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+                // No ChunkManager available - set default AO (no occlusion)
+                face.ao = glm::vec4(1.0f);
             }
             faces.emplace_back(std::move(face));
         }

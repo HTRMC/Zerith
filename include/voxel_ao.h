@@ -23,15 +23,6 @@ public:
     // Face direction: 0=down, 1=up, 2=north, 3=south, 4=west, 5=east
     static glm::vec4 calculateFaceAO(const ChunkManager* chunkManager, const glm::ivec3& chunkWorldPos, int x, int y, int z, int faceDirection);
     
-    // Legacy methods for single-chunk AO (fallback when ChunkManager not available)
-    static float calculateVertexAO(const Chunk& chunk, 
-                                  int x, int y, int z,
-                                  int dx1, int dy1, int dz1,  // First neighbor offset
-                                  int dx2, int dy2, int dz2,  // Second neighbor offset
-                                  int dx3, int dy3, int dz3); // Corner neighbor offset
-    
-    static glm::vec4 calculateFaceAO(const Chunk& chunk, int x, int y, int z, int faceDirection);
-    
     // Check if a block contributes to occlusion
     static bool isBlockOccluding(BlockType blockType);
     
@@ -54,9 +45,6 @@ public:
 private:
     // Check if a position has an occluding block (cross-chunk version)
     static int checkOcclusionCrossChunk(const ChunkManager* chunkManager, const glm::ivec3& chunkWorldPos, int x, int y, int z);
-    
-    // Check if a position has an occluding block (single-chunk version)
-    static int checkOcclusion(const Chunk& chunk, int x, int y, int z);
     
     // Debug variables
     static bool s_debugMode;

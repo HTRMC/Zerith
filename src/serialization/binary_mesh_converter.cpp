@@ -100,9 +100,9 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQu
             int y = quad.position.y;
             int z = quad.position.z;
             
-            // For merged quads, we use the AO of the corner block
-            // In the future, this could be improved by sampling AO across the quad
-            face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+            // For merged quads, we use default AO (no occlusion)
+            // Cross-chunk AO not available in binary meshing without ChunkManager
+            face.ao = glm::vec4(1.0f);
         }
         
         allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
