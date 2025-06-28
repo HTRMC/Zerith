@@ -22,11 +22,12 @@ struct FaceInstance {
     glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
     uint32_t textureLayer; // Texture array layer index
     Zerith::RenderLayer renderLayer; // Render layer from block definition
+    glm::vec4 ao;       // Ambient occlusion values for 4 vertices (0-1, where 0 is dark)
     
     FaceInstance(const glm::vec3& pos = glm::vec3(0.0f), const glm::vec4& rot = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f), 
                  const glm::vec3& scl = glm::vec3(1.0f), int dir = -1, const glm::vec4& uvCoords = glm::vec4(0.0f, 0.0f, 16.0f, 16.0f),
-                 uint32_t layer = 0, Zerith::RenderLayer renderLyr = Zerith::RenderLayer::OPAQUE)
-        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureLayer(layer), renderLayer(renderLyr) {}
+                 uint32_t layer = 0, Zerith::RenderLayer renderLyr = Zerith::RenderLayer::OPAQUE, const glm::vec4& aoValues = glm::vec4(1.0f))
+        : position(pos), rotation(rot), scale(scl), faceDirection(dir), uv(uvCoords), textureLayer(layer), renderLayer(renderLyr), ao(aoValues) {}
 };
 
 // Structure to hold all face instances for a complete model

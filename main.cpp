@@ -40,6 +40,7 @@
 
 // ImGui integration
 #include "imgui_integration.h"
+#include "voxel_ao.h"
 
 // Texture data structure
 struct TextureData {
@@ -235,6 +236,7 @@ struct FaceInstanceData {
     alignas(16) glm::vec4 rotation; // quaternion
     alignas(16) glm::vec4 scale;    // face scale (width, height, 1.0, faceDirection)
     alignas(16) glm::vec4 uv;       // UV coordinates [minU, minV, maxU, maxV]
+    alignas(16) glm::vec4 ao;       // Ambient occlusion values for 4 vertices
     uint32_t textureLayer;          // Texture array layer index
     uint32_t padding[3];            // Padding to maintain 16-byte alignment
 };
@@ -380,6 +382,11 @@ private:
     VkBuffer chunkDataBuffer;
     VkDeviceMemory chunkDataBufferMemory;
     void* faceInstanceBufferMapped;
+    
+    // Chunk block data buffer for GPU AO calculation
+    VkBuffer chunkBlockBuffer;
+    VkDeviceMemory chunkBlockBufferMemory;
+    void* chunkBlockBufferMapped;
 
     VkDescriptorPool descriptorPool;
     std::vector<VkDescriptorSet> descriptorSets;
@@ -2416,6 +2423,7 @@ private:
             mappedData[i].rotation = face.rotation;
             mappedData[i].scale = glm::vec4(face.scale, static_cast<float>(face.faceDirection)); // Pack direction in w
             mappedData[i].uv = face.uv; // Copy UV coordinates
+            mappedData[i].ao = face.ao; // Copy ambient occlusion values
             mappedData[i].textureLayer = face.textureLayer; // Copy texture layer index
             
             // Print face position for debugging
@@ -2464,6 +2472,7 @@ private:
             mappedData[i].rotation = face.rotation;
             mappedData[i].scale = glm::vec4(face.scale, static_cast<float>(face.faceDirection));
             mappedData[i].uv = face.uv;
+            mappedData[i].ao = face.ao;
             mappedData[i].textureLayer = face.textureLayer;
             mappedData[i].padding[0] = 0;
             mappedData[i].padding[1] = 0;

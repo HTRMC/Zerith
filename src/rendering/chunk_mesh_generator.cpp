@@ -6,6 +6,7 @@
 #include "blockbench_face_extractor.h"
 #include "blocks.h"
 #include "profiler.h"
+#include "voxel_ao.h"
 #include <filesystem>
 
 namespace Zerith {
@@ -306,6 +307,9 @@ void ChunkMeshGenerator::generateBlockFacesLayered(const Chunk& chunk, int x, in
         }
         
         if (shouldRender) {
+            // Calculate ambient occlusion for this face
+            face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+            
             // Set the render layer on the face
             face.renderLayer = renderLayer;
             
@@ -403,6 +407,9 @@ void ChunkMeshGenerator::generateBlockFacesLayeredWithNeighbors(const Chunk& chu
         }
         
         if (shouldRender) {
+            // Calculate ambient occlusion for this face
+            face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+            
             // Set the render layer on the face
             face.renderLayer = renderLayer;
             // Add face to the appropriate render layer
@@ -463,6 +470,8 @@ void ChunkMeshGenerator::generateBlockFaces(const Chunk& chunk, int x, int y, in
         }
         
         if (shouldRender) {
+            // Calculate ambient occlusion for this face
+            face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
             faces.emplace_back(std::move(face));
         }
     }
@@ -900,6 +909,8 @@ void ChunkMeshGenerator::generateBlockFacesWithNeighbors(const Chunk& chunk, int
         }
         
         if (shouldRender) {
+            // Calculate ambient occlusion for this face
+            face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
             faces.emplace_back(std::move(face));
         }
     }

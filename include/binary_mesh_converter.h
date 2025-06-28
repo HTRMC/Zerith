@@ -5,6 +5,7 @@
 #include "blockbench_model.h"
 #include "blocks.h"
 #include "texture_array.h"
+#include "chunk.h"
 #include <vector>
 #include <optional>
 #include <glm/glm.hpp>
@@ -37,6 +38,16 @@ public:
     static std::vector<FaceInstance> convertAllQuads(
         const std::vector<MeshQuad>& quads,
         const glm::ivec3& chunkWorldPos,
+        TextureArray& textureArray
+    );
+    
+    /**
+     * Convert all mesh quads to face instances with AO calculation.
+     */
+    static std::vector<FaceInstance> convertAllQuadsWithAO(
+        const std::vector<MeshQuad>& quads,
+        const glm::ivec3& chunkWorldPos,
+        const Chunk& chunk,
         TextureArray& textureArray
     );
     

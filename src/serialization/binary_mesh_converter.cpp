@@ -4,6 +4,7 @@
 #include <set>
 
 #include "blockbench_parser.h"
+#include "voxel_ao.h"
 
 namespace Zerith {
 
@@ -73,6 +74,37 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQu
     
     for (const auto& quad : quads) {
         auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, textureArray);
+        allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
+    }
+    
+    return allFaces;
+}
+
+std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQuadsWithAO(
+    const std::vector<MeshQuad>& quads,
+    const glm::ivec3& chunkWorldPos,
+    const Chunk& chunk,
+    TextureArray& textureArray
+) {
+    std::vector<FaceInstance> allFaces;
+    allFaces.reserve(quads.size());
+    
+    for (const auto& quad : quads) {
+        auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, textureArray);
+        
+        // Calculate AO for each face generated from this quad
+        for (auto& face : quadFaces) {
+            // For greedy meshed quads, use the original quad position for AO calculation
+            // This represents the bottom-left corner of the merged area
+            int x = quad.position.x;
+            int y = quad.position.y;
+            int z = quad.position.z;
+            
+            // For merged quads, we use the AO of the corner block
+            // In the future, this could be improved by sampling AO across the quad
+            face.ao = VoxelAO::calculateFaceAO(chunk, x, y, z, face.faceDirection);
+        }
+        
         allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
     }
     
@@ -261,7 +293,7 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     // All blocks are simple - use binary greedy meshing for optimal performance
     std::vector<FaceInstance> allFaces;
     auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
-    auto faces = BinaryMeshConverter::convertAllQuads(allQuads, chunkWorldPos, textureArray);
+    auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunk, textureArray);
     allFaces.insert(allFaces.end(), faces.begin(), faces.end());
     
     return allFaces;

@@ -61,6 +61,7 @@ layout(location = 0) out PerVertexData {
     vec2 texCoord;
     flat uint faceIndex;
     flat uint textureLayer;
+    float ao; // Per-vertex ambient occlusion
 } v_out[];
 
 // Updated uniform buffer with packed data
@@ -81,6 +82,7 @@ struct FaceInstanceData {
     vec4 rotation;  // quaternion
     vec4 scale;     // face scale (width, height, 1.0, faceDirection)
     vec4 uv;        // UV coordinates [minU, minV, maxU, maxV]
+    vec4 ao;        // Ambient occlusion values for 4 vertices
     uint textureLayer;  // Texture array layer index
     uint padding[3];    // Padding to maintain 16-byte alignment
 };
@@ -89,6 +91,117 @@ struct FaceInstanceData {
 layout(binding = 2, std430) restrict readonly buffer FaceInstanceBuffer {
     FaceInstanceData instances[];
 } faceInstanceBuffer;
+
+// Storage buffer for chunk block data (for GPU AO calculation)
+layout(binding = 6, std430) restrict readonly buffer ChunkBlockBuffer {
+    uint blockData[];  // Flattened 3D array: blockData[x + y*32 + z*32*32]
+} chunkBlockBuffer;
+
+// GPU AO calculation functions
+bool isBlockOccluding(uint blockType) {
+    // Air block (0) doesn't occlude
+    if (blockType == 0u) return false;
+    
+    // Water and other transparent liquids don't occlude (assuming water is block type 290)
+    // Note: This should match the block types from Blocks.h
+    if (blockType == 290u) return false; // WATER
+    if (blockType == 291u) return false; // LAVA
+    
+    // Glass and other transparent blocks don't occlude (simplified check)
+    if (blockType == 356u) return false; // GLASS
+    
+    // All other blocks occlude for AO
+    return true;
+}
+
+uint getBlockAt(int x, int y, int z) {
+    // Check bounds
+    if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) {
+        return 1u; // Treat out-of-bounds as solid (conservative AO)
+    }
+    
+    uint index = uint(x + y * 32 + z * 32 * 32);
+    return chunkBlockBuffer.blockData[index];
+}
+
+float calculateVertexAO(int blockX, int blockY, int blockZ, 
+                       int dx1, int dy1, int dz1,  // First edge neighbor
+                       int dx2, int dy2, int dz2,  // Second edge neighbor  
+                       int dx3, int dy3, int dz3)  // Corner neighbor
+{
+    // Check the two edge neighbors
+    bool side1 = isBlockOccluding(getBlockAt(blockX + dx1, blockY + dy1, blockZ + dz1));
+    bool side2 = isBlockOccluding(getBlockAt(blockX + dx2, blockY + dy2, blockZ + dz2));
+    
+    // Check the corner neighbor
+    bool corner = isBlockOccluding(getBlockAt(blockX + dx3, blockY + dy3, blockZ + dz3));
+    
+    // Classic AO algorithm - more visible values for testing
+    if (side1 && side2) {
+        return 0.3; // Heavily occluded but still visible
+    }
+    
+    int occluders = (side1 ? 1 : 0) + (side2 ? 1 : 0) + (corner ? 1 : 0);
+    
+    switch (occluders) {
+        case 0: return 1.0;    // No occlusion - full brightness
+        case 1: return 0.9;    // One neighbor - very slight shadow
+        case 2: return 0.7;    // Two neighbors - noticeable shadow
+        case 3: return 0.4;    // All three neighbors - dark shadow
+        default: return 0.3;   // Fallback - very dark
+    }
+}
+
+vec4 calculateFaceAOGPU(int blockX, int blockY, int blockZ, int faceDirection) {
+    vec4 ao = vec4(1.0);
+    
+    // Calculate AO for each vertex based on face direction
+    switch (faceDirection) {
+        case 0: // Down face (Y-)
+            ao.x = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0, 0, 1,  1, 0, 1); // TR
+            ao.y = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0, 0,-1, -1, 0,-1); // BL
+            ao.z = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0, 0, 1, -1, 0, 1); // TL
+            ao.w = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0, 0,-1,  1, 0,-1); // BR
+            break;
+            
+        case 1: // Up face (Y+)
+            ao.x = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0, 0, 1,  1, 0, 1); // TR
+            ao.y = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0, 0,-1, -1, 0,-1); // BL
+            ao.z = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0, 0, 1, -1, 0, 1); // TL
+            ao.w = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0, 0,-1,  1, 0,-1); // BR
+            break;
+            
+        case 2: // North face (Z-)
+            ao.x = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0, 1, 0,  1, 1, 0); // TR
+            ao.y = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0,-1, 0, -1,-1, 0); // BL
+            ao.z = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0, 1, 0, -1, 1, 0); // TL
+            ao.w = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0,-1, 0,  1,-1, 0); // BR
+            break;
+            
+        case 3: // South face (Z+)
+            ao.x = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0, 1, 0,  1, 1, 0); // TR
+            ao.y = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0,-1, 0, -1,-1, 0); // BL
+            ao.z = calculateVertexAO(blockX, blockY, blockZ, -1, 0, 0,  0, 1, 0, -1, 1, 0); // TL
+            ao.w = calculateVertexAO(blockX, blockY, blockZ,  1, 0, 0,  0,-1, 0,  1,-1, 0); // BR
+            break;
+            
+        case 4: // West face (X-)
+            ao.x = calculateVertexAO(blockX, blockY, blockZ,  0, 0, 1,  0, 1, 0,  0, 1, 1); // TR
+            ao.y = calculateVertexAO(blockX, blockY, blockZ,  0, 0,-1,  0,-1, 0,  0,-1,-1); // BL
+            ao.z = calculateVertexAO(blockX, blockY, blockZ,  0, 0,-1,  0, 1, 0,  0, 1,-1); // TL
+            ao.w = calculateVertexAO(blockX, blockY, blockZ,  0, 0, 1,  0,-1, 0,  0,-1, 1); // BR
+            break;
+            
+        case 5: // East face (X+)
+            ao.x = calculateVertexAO(blockX, blockY, blockZ,  0, 0,-1,  0, 1, 0,  0, 1,-1); // TR
+            ao.y = calculateVertexAO(blockX, blockY, blockZ,  0, 0, 1,  0,-1, 0,  0,-1, 1); // BL
+            ao.z = calculateVertexAO(blockX, blockY, blockZ,  0, 0, 1,  0, 1, 0,  0, 1, 1); // TL
+            ao.w = calculateVertexAO(blockX, blockY, blockZ,  0, 0,-1,  0,-1, 0,  0,-1,-1); // BR
+            break;
+    }
+    
+    return ao;
+}
 
 // Function to convert a quaternion to a 4x4 rotation matrix
 mat4 quatToMat4(vec4 q) {
@@ -207,6 +320,9 @@ void main() {
     vec4 faceUV = faceInstanceBuffer.instances[faceIndex].uv;
     uint textureLayer = faceInstanceBuffer.instances[faceIndex].textureLayer;
     
+    // Use pre-calculated AO values from CPU for now (GPU AO is experimental)
+    vec4 faceAO = faceInstanceBuffer.instances[faceIndex].ao;
+    
     // Create model matrix for this face
     mat4 faceRotationMatrix = quatToMat4(faceRotation);
     mat4 faceTranslation = mat4(
@@ -253,6 +369,11 @@ void main() {
         v_out[vertexIndex].texCoord = texCoords[i];
         v_out[vertexIndex].faceIndex = faceIndex;
         v_out[vertexIndex].textureLayer = textureLayer;
+        
+        // Assign AO value based on vertex index
+        // AO components: x=top-left, y=bottom-left, z=top-right, w=bottom-right
+        float aoValues[4] = { faceAO.x, faceAO.y, faceAO.z, faceAO.w };
+        v_out[vertexIndex].ao = aoValues[i];
     }
     
     // Output triangles for this face using triangle strip ordering

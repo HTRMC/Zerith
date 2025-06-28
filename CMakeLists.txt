@@ -83,6 +83,7 @@ add_executable(Zerith
     main.cpp
         src/world/chunk.cpp
         src/rendering/chunk_mesh_generator.cpp
+        src/rendering/voxel_ao.cpp
         src/world/chunk_manager.cpp
         src/rendering/texture_array.cpp
         src/rendering/texture_atlas.cpp

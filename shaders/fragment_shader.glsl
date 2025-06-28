@@ -6,6 +6,7 @@ layout(location = 0) in PerVertexData {
     vec2 texCoord;
     flat uint faceIndex;
     flat uint textureLayer;
+    float ao; // Per-vertex ambient occlusion
 } v_in;
 
 // Push constant for render layer
@@ -117,6 +118,9 @@ void main() {
     if (!shouldRender) {
         discard;
     }
+    
+    // Apply ambient occlusion
+    texColor.rgb *= v_in.ao;
     
     // Output texture color
     outColor = texColor;

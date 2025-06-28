@@ -2,6 +2,7 @@
 #include "logger.h"
 #include "player.h"
 #include "chunk_manager.h"
+#include "voxel_ao.h"
 
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
@@ -280,6 +281,48 @@ void ImGuiIntegration::renderDebugWindow(const Zerith::Player* player, const Zer
         } else {
             ImGui::Text("ChunkManager data not available");
         }
+    }
+    
+    // Ambient Occlusion Debug section
+    if (ImGui::CollapsingHeader("Ambient Occlusion Debug")) {
+        static bool debugMode = false;
+        static float aoValues[4] = {1.0f, 0.8f, 0.6f, 0.4f}; // TL, BL, TR, BR
+        static float aoMultiplier = 1.0f;
+        
+        ImGui::Checkbox("Enable AO Debug Mode", &debugMode);
+        Zerith::VoxelAO::setDebugMode(debugMode);
+        
+        if (debugMode) {
+            ImGui::Text("Manual AO Values (TL, BL, TR, BR):");
+            ImGui::SliderFloat("Top-Left", &aoValues[0], 0.0f, 1.0f);
+            ImGui::SliderFloat("Bottom-Left", &aoValues[1], 0.0f, 1.0f);
+            ImGui::SliderFloat("Top-Right", &aoValues[2], 0.0f, 1.0f);
+            ImGui::SliderFloat("Bottom-Right", &aoValues[3], 0.0f, 1.0f);
+            
+            Zerith::VoxelAO::setDebugAOValues(aoValues[0], aoValues[1], aoValues[2], aoValues[3]);
+            
+            if (ImGui::Button("Reset to Test Pattern")) {
+                aoValues[0] = 1.0f; // TL - White
+                aoValues[1] = 0.7f; // BL - Light gray
+                aoValues[2] = 0.4f; // TR - Dark gray  
+                aoValues[3] = 0.1f; // BR - Almost black
+            }
+            
+            ImGui::Text("This creates a gradient pattern:");
+            ImGui::Text("  TL: %.2f (lightest)", aoValues[0]);
+            ImGui::Text("  BL: %.2f", aoValues[1]);
+            ImGui::Text("  TR: %.2f", aoValues[2]);
+            ImGui::Text("  BR: %.2f (darkest)", aoValues[3]);
+        }
+        
+        ImGui::Separator();
+        ImGui::SliderFloat("AO Strength Multiplier", &aoMultiplier, 0.0f, 2.0f);
+        Zerith::VoxelAO::setAOStrengthMultiplier(aoMultiplier);
+        
+        ImGui::Text("Use debug mode to:");
+        ImGui::BulletText("Test vertex mapping with fixed patterns");
+        ImGui::BulletText("Identify which corner is which");
+        ImGui::BulletText("Adjust AO strength globally");
     }
     
     ImGui::End();
