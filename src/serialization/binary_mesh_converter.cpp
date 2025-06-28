@@ -5,6 +5,8 @@
 
 #include "blockbench_parser.h"
 #include "voxel_ao.h"
+#include "chunk_manager.h"
+#include "logger.h"
 
 namespace Zerith {
 
@@ -58,7 +60,8 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
         quad.faceDirection, // face direction
         uv,                 // UV coordinates
         textureLayer,       // texture layer
-        renderLayer         // render layer
+        renderLayer,        // render layer
+        glm::vec4(1.0f)     // default AO (will be calculated later if needed)
     );
     
     return faces;
@@ -103,6 +106,90 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQu
             // For merged quads, we use default AO (no occlusion)
             // Cross-chunk AO not available in binary meshing without ChunkManager
             face.ao = glm::vec4(1.0f);
+        }
+        
+        allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
+    }
+    
+    return allFaces;
+}
+
+std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertAllQuadsWithAO(
+    const std::vector<MeshQuad>& quads,
+    const glm::ivec3& chunkWorldPos,
+    const ChunkManager* chunkManager,
+    TextureArray& textureArray
+) {
+    LOG_INFO("BINARY MESH CONVERTER: Converting %zu quads with AO enabled (ChunkManager: %s)", 
+             quads.size(), chunkManager ? "available" : "null");
+    
+    std::vector<FaceInstance> allFaces;
+    allFaces.reserve(quads.size());
+    
+    for (const auto& quad : quads) {
+        auto quadFaces = convertQuadToFaces(quad, chunkWorldPos, textureArray);
+        
+        // Calculate AO for each face generated from this quad
+        for (auto& face : quadFaces) {
+            // For binary meshed quads, we need to calculate AO that accounts for the larger face size
+            // Use the center of the quad for AO calculation
+            int centerX = quad.position.x + quad.size.x / 2;
+            int centerY = quad.position.y + quad.size.y / 2;
+            int centerZ = quad.position.z + quad.size.z / 2;
+            
+            if (chunkManager) {
+                // Convert chunk coordinates to world coordinates (multiply by CHUNK_SIZE)
+                glm::ivec3 chunkWorldPosInWorldCoords = chunkWorldPos * Chunk::CHUNK_SIZE;
+                
+                LOG_INFO("BINARY AO DEBUG: chunkPos=(%d,%d,%d), chunkWorldPos=(%d,%d,%d), localPos=(%d,%d,%d)", 
+                         chunkWorldPos.x, chunkWorldPos.y, chunkWorldPos.z,
+                         chunkWorldPosInWorldCoords.x, chunkWorldPosInWorldCoords.y, chunkWorldPosInWorldCoords.z,
+                         centerX, centerY, centerZ);
+                
+                // Calculate AO using cross-chunk support
+                face.ao = VoxelAO::calculateFaceAO(chunkManager, chunkWorldPosInWorldCoords, centerX, centerY, centerZ, quad.faceDirection);
+                
+                // Check if VoxelAO debug mode is enabled
+                if (face.ao.x == face.ao.y && face.ao.y == face.ao.z && face.ao.z == face.ao.w) {
+                    LOG_INFO("BINARY AO DEBUG: All AO values identical (%.2f) - might be debug mode or uniform occlusion", face.ao.x);
+                }
+                LOG_INFO("BINARY AO: Calculated AO for quad at (%d,%d,%d) face %d: (%.2f,%.2f,%.2f,%.2f)", 
+                         centerX, centerY, centerZ, quad.faceDirection, 
+                         face.ao.x, face.ao.y, face.ao.z, face.ao.w);
+                
+                // Debug: Check if AO values are all zero (completely black)
+                if (face.ao.x == 0.0f && face.ao.y == 0.0f && face.ao.z == 0.0f && face.ao.w == 0.0f) {
+                    LOG_WARN("BINARY AO: All AO values are 0.0 (completely black) - this indicates full occlusion");
+                    
+                    // Temporarily override with partial AO to test if this is the issue
+                    face.ao = glm::vec4(0.6f); // Medium gray instead of black
+                    LOG_INFO("BINARY AO: Overriding with test AO values (0.6,0.6,0.6,0.6) to check if this fixes the issue");
+                }
+                
+                // For larger faces, we might want to sample multiple points and average them
+                // This provides better AO for merged faces that span multiple blocks
+                if (quad.size.x > 1 || quad.size.y > 1 || quad.size.z > 1) {
+                    // Sample the four corners of the quad for more accurate AO on large faces
+                    glm::vec4 cornerAO[4];
+                    
+                    // Calculate sample positions based on face orientation
+                    glm::ivec3 samples[4];
+                    calculateQuadCornerSamples(quad, samples);
+                    
+                    // Sample AO at each corner
+                    for (int i = 0; i < 4; i++) {
+                        cornerAO[i] = VoxelAO::calculateFaceAO(chunkManager, chunkWorldPosInWorldCoords, 
+                                                             samples[i].x, samples[i].y, samples[i].z, 
+                                                             quad.faceDirection);
+                    }
+                    
+                    // Average the corner samples for final AO
+                    face.ao = (cornerAO[0] + cornerAO[1] + cornerAO[2] + cornerAO[3]) * 0.25f;
+                }
+            } else {
+                // Fallback: no occlusion if ChunkManager is not available
+                face.ao = glm::vec4(1.0f);
+            }
         }
         
         allFaces.insert(allFaces.end(), quadFaces.begin(), quadFaces.end());
@@ -266,6 +353,51 @@ glm::vec4 BinaryMeshConverter::getDefaultFaceUV() {
     return glm::vec4(0.0f, 0.0f, 16.0f, 16.0f);
 }
 
+void BinaryMeshConverter::calculateQuadCornerSamples(
+    const MeshQuad& quad,
+    glm::ivec3 samples[4]
+) {
+    // Calculate the four corner positions of the quad for AO sampling
+    // These represent the blocks that would be at the corners of the merged face
+    
+    glm::ivec3 basePos = quad.position;
+    glm::ivec3 size = quad.size;
+    
+    switch (quad.faceDirection) {
+        case 0: // Down face (XZ plane)
+        case 1: // Up face (XZ plane)
+            samples[0] = basePos; // Bottom-left
+            samples[1] = basePos + glm::ivec3(size.x - 1, 0, 0); // Bottom-right
+            samples[2] = basePos + glm::ivec3(0, 0, size.z - 1); // Top-left
+            samples[3] = basePos + glm::ivec3(size.x - 1, 0, size.z - 1); // Top-right
+            break;
+            
+        case 2: // North face (XY plane)
+        case 3: // South face (XY plane)
+            samples[0] = basePos; // Bottom-left
+            samples[1] = basePos + glm::ivec3(size.x - 1, 0, 0); // Bottom-right
+            samples[2] = basePos + glm::ivec3(0, size.y - 1, 0); // Top-left
+            samples[3] = basePos + glm::ivec3(size.x - 1, size.y - 1, 0); // Top-right
+            break;
+            
+        case 4: // West face (ZY plane)
+        case 5: // East face (ZY plane)
+            samples[0] = basePos; // Bottom-left
+            samples[1] = basePos + glm::ivec3(0, 0, size.z - 1); // Bottom-right
+            samples[2] = basePos + glm::ivec3(0, size.y - 1, 0); // Top-left
+            samples[3] = basePos + glm::ivec3(0, size.y - 1, size.z - 1); // Top-right
+            break;
+            
+        default:
+            // Fallback: use the center position for all samples
+            glm::ivec3 center = basePos + size / 2;
+            for (int i = 0; i < 4; i++) {
+                samples[i] = center;
+            }
+            break;
+    }
+}
+
 // Hybrid Chunk Mesh Generator Implementation
 
 std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMeshGenerator::generateOptimizedMesh(
@@ -294,6 +426,38 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     std::vector<FaceInstance> allFaces;
     auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
     auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunk, textureArray);
+    allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+    
+    return allFaces;
+}
+
+std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMeshGenerator::generateOptimizedMeshWithAO(
+    const Chunk& chunk,
+    const glm::ivec3& chunkWorldPos,
+    const ChunkManager* chunkManager,
+    TextureArray& textureArray
+) {
+    // Create binary chunk data
+    BinaryChunkData binaryData(chunk);
+    
+    // Check if all blocks can use binary meshing
+    bool canUseFullBinaryMeshing = true;
+    for (BlockType blockType : binaryData.getActiveBlockTypes()) {
+        if (!canUseBinaryMeshing(blockType)) {
+            canUseFullBinaryMeshing = false;
+            break;
+        }
+    }
+    
+    // If any complex blocks are present, signal that traditional meshing should be used
+    if (!canUseFullBinaryMeshing) {
+        return std::nullopt;
+    }
+    
+    // All blocks are simple - use binary greedy meshing with cross-chunk AO
+    std::vector<FaceInstance> allFaces;
+    auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
+    auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunkManager, textureArray);
     allFaces.insert(allFaces.end(), faces.begin(), faces.end());
     
     return allFaces;

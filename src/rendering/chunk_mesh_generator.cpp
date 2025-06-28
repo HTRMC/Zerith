@@ -100,20 +100,37 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     
     // Use binary meshing if enabled
     LOG_INFO("MESH GENERATOR: Binary meshing enabled = %s", m_binaryMeshingEnabled ? "true" : "false");
-    if (false) { // Force disable binary meshing
+    if (m_binaryMeshingEnabled) {
         // Get chunk world position from the chunk itself
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
-        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
-            chunk, 
-            chunkWorldPos, 
-            *m_textureArray
-        );
+        
+        // Use AO-enabled binary meshing if ChunkManager is available
+        std::optional<std::vector<BlockbenchInstanceGenerator::FaceInstance>> binaryResult;
+        if (m_chunkManager) {
+            LOG_INFO("MESH GENERATOR: Using binary meshing WITH AO (ChunkManager available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMeshWithAO(
+                chunk, 
+                chunkWorldPos, 
+                m_chunkManager,
+                *m_textureArray
+            );
+        } else {
+            LOG_INFO("MESH GENERATOR: Using binary meshing WITHOUT AO (ChunkManager not available)");
+            // Fallback to non-AO binary meshing
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
+                chunk, 
+                chunkWorldPos, 
+                *m_textureArray
+            );
+        }
         
         // If binary meshing succeeded (returned a value), use those faces
         if (binaryResult.has_value()) {
+            LOG_INFO("MESH GENERATOR: Binary meshing SUCCESS - using binary mesh with %zu faces", binaryResult.value().size());
             return binaryResult.value();
         }
         
+        LOG_INFO("MESH GENERATOR: Binary meshing FAILED - falling back to traditional meshing");
         // If binary meshing returned nullopt, fall through to traditional meshing
     }
     
@@ -189,6 +206,49 @@ LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMesh(const Chunk& chunk
         return layeredMesh; // Return empty layered mesh for empty chunks
     }
     
+    // Use binary meshing if enabled
+    if (m_binaryMeshingEnabled) {
+        LOG_INFO("LAYERED MESH GENERATOR (no neighbors): Binary meshing enabled = true");
+        
+        // Get chunk world position from the chunk itself
+        glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
+        
+        // Use AO-enabled binary meshing if ChunkManager is available
+        std::optional<std::vector<BlockbenchInstanceGenerator::FaceInstance>> binaryResult;
+        if (m_chunkManager) {
+            LOG_INFO("LAYERED MESH GENERATOR (no neighbors): Using binary meshing WITH AO (ChunkManager available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMeshWithAO(
+                chunk, 
+                chunkWorldPos, 
+                m_chunkManager,
+                *m_textureArray
+            );
+        } else {
+            LOG_INFO("LAYERED MESH GENERATOR (no neighbors): Using binary meshing WITHOUT AO (ChunkManager not available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
+                chunk, 
+                chunkWorldPos, 
+                *m_textureArray
+            );
+        }
+        
+        // If binary meshing succeeded (returned a value), use those faces and separate by layer
+        if (binaryResult.has_value()) {
+            LOG_INFO("LAYERED MESH GENERATOR (no neighbors): Binary meshing SUCCESS - separating %zu faces by layer", binaryResult.value().size());
+            
+            // Separate the binary-generated faces into layers
+            for (const auto& face : binaryResult.value()) {
+                layeredMesh.getLayer(face.renderLayer).emplace_back(face);
+            }
+            
+            return layeredMesh;
+        }
+        
+        LOG_INFO("LAYERED MESH GENERATOR (no neighbors): Binary meshing FAILED - falling back to traditional meshing");
+        // If binary meshing returned nullopt, fall through to traditional meshing
+    }
+    
+    // Use traditional per-block meshing
     // Iterate through all blocks in the chunk (xyz order)
     for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
         for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
@@ -226,6 +286,49 @@ LayeredChunkMesh ChunkMeshGenerator::generateLayeredChunkMeshWithNeighbors(
         return layeredMesh; // Return empty layered mesh for empty chunks
     }
     
+    // Use binary meshing if enabled
+    if (m_binaryMeshingEnabled) {
+        LOG_INFO("LAYERED MESH GENERATOR: Binary meshing enabled = true");
+        
+        // Get chunk world position from the chunk itself
+        glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
+        
+        // Use AO-enabled binary meshing if ChunkManager is available
+        std::optional<std::vector<BlockbenchInstanceGenerator::FaceInstance>> binaryResult;
+        if (m_chunkManager) {
+            LOG_INFO("LAYERED MESH GENERATOR: Using binary meshing WITH AO (ChunkManager available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMeshWithAO(
+                chunk, 
+                chunkWorldPos, 
+                m_chunkManager,
+                *m_textureArray
+            );
+        } else {
+            LOG_INFO("LAYERED MESH GENERATOR: Using binary meshing WITHOUT AO (ChunkManager not available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
+                chunk, 
+                chunkWorldPos, 
+                *m_textureArray
+            );
+        }
+        
+        // If binary meshing succeeded (returned a value), use those faces and separate by layer
+        if (binaryResult.has_value()) {
+            LOG_INFO("LAYERED MESH GENERATOR: Binary meshing SUCCESS - separating %zu faces by layer", binaryResult.value().size());
+            
+            // Separate the binary-generated faces into layers
+            for (const auto& face : binaryResult.value()) {
+                layeredMesh.getLayer(face.renderLayer).emplace_back(face);
+            }
+            
+            return layeredMesh;
+        }
+        
+        LOG_INFO("LAYERED MESH GENERATOR: Binary meshing FAILED - falling back to traditional meshing");
+        // If binary meshing returned nullopt, fall through to traditional meshing
+    }
+    
+    // Use traditional per-block meshing
     // Iterate through all blocks in the chunk (xyz order)
     for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
         for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
@@ -776,8 +879,15 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         // Convert chunk position to world position
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
         
-        // Generate optimized mesh using binary greedy meshing
-        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, *m_textureArray);
+        // Generate optimized mesh using binary greedy meshing with AO
+        std::optional<std::vector<BlockbenchInstanceGenerator::FaceInstance>> binaryResult;
+        if (m_chunkManager) {
+            LOG_INFO("MESH GENERATOR (WithNeighbors): Using binary meshing WITH AO (ChunkManager available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMeshWithAO(chunk, chunkWorldPos, m_chunkManager, *m_textureArray);
+        } else {
+            LOG_INFO("MESH GENERATOR (WithNeighbors): Using binary meshing WITHOUT AO (ChunkManager not available)");
+            binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, *m_textureArray);
+        }
         
         // If binary meshing succeeded, use those faces
         if (binaryResult.has_value()) {
