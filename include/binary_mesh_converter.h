@@ -13,9 +13,6 @@
 
 namespace Zerith {
 
-// Forward declarations
-class ChunkManager;
-
 /**
  * Converts binary greedy mesh quads back to the existing FaceInstance format.
  * This allows the optimized binary meshing to integrate with the current rendering system.
@@ -51,16 +48,6 @@ public:
         const std::vector<MeshQuad>& quads,
         const glm::ivec3& chunkWorldPos,
         const Chunk& chunk,
-        TextureArray& textureArray
-    );
-    
-    /**
-     * Convert all mesh quads to face instances with cross-chunk AO calculation.
-     */
-    static std::vector<FaceInstance> convertAllQuadsWithAO(
-        const std::vector<MeshQuad>& quads,
-        const glm::ivec3& chunkWorldPos,
-        const ChunkManager* chunkManager,
         TextureArray& textureArray
     );
     
@@ -115,14 +102,6 @@ private:
         const glm::ivec3& quadSize,
         int faceDirection
     );
-    
-    /**
-     * Calculate the four corner sampling positions for AO calculation on larger faces.
-     */
-    static void calculateQuadCornerSamples(
-        const MeshQuad& quad,
-        glm::ivec3 samples[4]
-    );
 };
 
 /**
@@ -139,17 +118,6 @@ public:
     static std::optional<std::vector<FaceInstance>> generateOptimizedMesh(
         const Chunk& chunk,
         const glm::ivec3& chunkWorldPos,
-        TextureArray& textureArray
-    );
-    
-    /**
-     * Generate mesh using binary greedy meshing with cross-chunk AO calculation.
-     * Returns std::nullopt if complex blocks are detected and traditional meshing should be used.
-     */
-    static std::optional<std::vector<FaceInstance>> generateOptimizedMeshWithAO(
-        const Chunk& chunk,
-        const glm::ivec3& chunkWorldPos,
-        const ChunkManager* chunkManager,
         TextureArray& textureArray
     );
     
