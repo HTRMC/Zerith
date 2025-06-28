@@ -117,7 +117,7 @@ bool isBlockOccluding(uint blockType) {
 uint getBlockAt(int x, int y, int z) {
     // Check bounds
     if (x < 0 || x >= 32 || y < 0 || y >= 32 || z < 0 || z >= 32) {
-        return 1u; // Treat out-of-bounds as solid (conservative AO)
+        return 0u; // Treat out-of-bounds as air to prevent black chunk borders
     }
     
     uint index = uint(x + y * 32 + z * 32 * 32);

@@ -191,9 +191,9 @@ namespace Zerith
             y < 0 || y >= Chunk::CHUNK_SIZE ||
             z < 0 || z >= Chunk::CHUNK_SIZE)
         {
-            // Treat out-of-bounds as occluding (conservative approach)
-            // This ensures consistent AO at chunk boundaries
-            return 1;
+            // Treat out-of-bounds as non-occluding to prevent black chunk borders
+            // This is a temporary fix - proper solution would be cross-chunk sampling
+            return 0;
         }
 
         BlockType blockType = chunk.getBlock(x, y, z);
