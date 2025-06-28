@@ -89,11 +89,11 @@ namespace Zerith
             break;
 
         case 5: // East face (X+)
-            // Looking at right face, vertices are at X+1 - fixed forwards-to-backwards order
-            ao.x = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, 1, 0, 1, 0, 0, 1, 1); // +Z, +Y vertex (top-front)
-            ao.y = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, 1, 0, -1, 0, 0, -1, 1); // +Z, -Y vertex (bottom-front)
-            ao.z = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, -1, 0, 1, 0, 0, 1, -1); // -Z, +Y vertex (top-back)
-            ao.w = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, -1, 0, -1, 0, 0, -1, -1); // -Z, -Y vertex (bottom-back)
+            // Looking at right face, vertices are at X+1 - corrected left-right mapping
+            ao.x = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, -1, 0, 1, 0, 0, 1, -1); // -Z, +Y vertex (top-left)
+            ao.y = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, -1, 0, -1, 0, 0, -1, -1); // -Z, -Y vertex (bottom-left)
+            ao.z = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, 1, 0, 1, 0, 0, 1, 1); // +Z, +Y vertex (top-right)
+            ao.w = calculateVertexAO(chunkManager, chunkWorldPos, x + 1, y, z, 0, 0, 1, 0, -1, 0, 0, -1, 1); // +Z, -Y vertex (bottom-right)
             break;
         }
 
