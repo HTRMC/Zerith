@@ -148,6 +148,14 @@ private:
     );
     
     /**
+     * Determine if a neighbor chunk can use binary meshing.
+     * Checks all block types in the chunk to see if they're compatible.
+     */
+    static bool canNeighborUseBinaryMeshing(
+        const Chunk& chunk
+    );
+    
+    /**
      * Generate mesh for complex blocks using traditional method.
      */
     static std::vector<FaceInstance> generateComplexBlockMesh(

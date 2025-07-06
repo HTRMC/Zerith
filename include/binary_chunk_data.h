@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include "chunk.h"
+#include "blocks.h"
 
 namespace Zerith {
 
@@ -89,7 +90,13 @@ public:
         const BinaryChunkData* neighborYMinus,
         const BinaryChunkData* neighborYPlus,
         const BinaryChunkData* neighborZMinus,
-        const BinaryChunkData* neighborZPlus
+        const BinaryChunkData* neighborZPlus,
+        const Chunk* neighborChunkXMinus = nullptr,
+        const Chunk* neighborChunkXPlus = nullptr,
+        const Chunk* neighborChunkYMinus = nullptr,
+        const Chunk* neighborChunkYPlus = nullptr,
+        const Chunk* neighborChunkZMinus = nullptr,
+        const Chunk* neighborChunkZPlus = nullptr
     );
     
     // Generate all mesh quads for all block types in the chunk
@@ -103,7 +110,13 @@ public:
         const BinaryChunkData* neighborYMinus,
         const BinaryChunkData* neighborYPlus,
         const BinaryChunkData* neighborZMinus,
-        const BinaryChunkData* neighborZPlus
+        const BinaryChunkData* neighborZPlus,
+        const Chunk* neighborChunkXMinus = nullptr,
+        const Chunk* neighborChunkXPlus = nullptr,
+        const Chunk* neighborChunkYMinus = nullptr,
+        const Chunk* neighborChunkYPlus = nullptr,
+        const Chunk* neighborChunkZMinus = nullptr,
+        const Chunk* neighborChunkZPlus = nullptr
     );
     
     // Type alias for 2D slice bitset (needs to be public)
@@ -128,7 +141,13 @@ public:
         const BinaryChunkData* neighborYMinus,
         const BinaryChunkData* neighborYPlus,
         const BinaryChunkData* neighborZMinus,
-        const BinaryChunkData* neighborZPlus
+        const BinaryChunkData* neighborZPlus,
+        const Chunk* neighborChunkXMinus = nullptr,
+        const Chunk* neighborChunkXPlus = nullptr,
+        const Chunk* neighborChunkYMinus = nullptr,
+        const Chunk* neighborChunkYPlus = nullptr,
+        const Chunk* neighborChunkZMinus = nullptr,
+        const Chunk* neighborChunkZPlus = nullptr
     );
     
 private:
@@ -169,6 +188,13 @@ private:
     static constexpr int coords2D(int x, int y) {
         return x + y * BinaryChunkData::CHUNK_SIZE;
     }
+    
+    // Helper method to check face visibility with proper culling logic
+    static bool isFaceVisibleAgainstNeighbor(
+        BlockType currentBlockType,
+        int currentFaceDirection,
+        BlockType neighborBlockType
+    );
 };
 
 } // namespace Zerith

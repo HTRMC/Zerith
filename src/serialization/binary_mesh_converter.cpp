@@ -327,13 +327,33 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
         return std::nullopt;
     }
     
-    // Create binary chunk data for neighbors
-    std::unique_ptr<BinaryChunkData> neighborXMinusData = neighborXMinus ? std::make_unique<BinaryChunkData>(*neighborXMinus) : nullptr;
-    std::unique_ptr<BinaryChunkData> neighborXPlusData = neighborXPlus ? std::make_unique<BinaryChunkData>(*neighborXPlus) : nullptr;
-    std::unique_ptr<BinaryChunkData> neighborYMinusData = neighborYMinus ? std::make_unique<BinaryChunkData>(*neighborYMinus) : nullptr;
-    std::unique_ptr<BinaryChunkData> neighborYPlusData = neighborYPlus ? std::make_unique<BinaryChunkData>(*neighborYPlus) : nullptr;
-    std::unique_ptr<BinaryChunkData> neighborZMinusData = neighborZMinus ? std::make_unique<BinaryChunkData>(*neighborZMinus) : nullptr;
-    std::unique_ptr<BinaryChunkData> neighborZPlusData = neighborZPlus ? std::make_unique<BinaryChunkData>(*neighborZPlus) : nullptr;
+    // Create binary chunk data only for neighbors that can use binary meshing
+    std::unique_ptr<BinaryChunkData> neighborXMinusData = nullptr;
+    std::unique_ptr<BinaryChunkData> neighborXPlusData = nullptr;
+    std::unique_ptr<BinaryChunkData> neighborYMinusData = nullptr;
+    std::unique_ptr<BinaryChunkData> neighborYPlusData = nullptr;
+    std::unique_ptr<BinaryChunkData> neighborZMinusData = nullptr;
+    std::unique_ptr<BinaryChunkData> neighborZPlusData = nullptr;
+    
+    // Check if each neighbor can use binary meshing before creating binary data
+    if (neighborXMinus && canNeighborUseBinaryMeshing(*neighborXMinus)) {
+        neighborXMinusData = std::make_unique<BinaryChunkData>(*neighborXMinus);
+    }
+    if (neighborXPlus && canNeighborUseBinaryMeshing(*neighborXPlus)) {
+        neighborXPlusData = std::make_unique<BinaryChunkData>(*neighborXPlus);
+    }
+    if (neighborYMinus && canNeighborUseBinaryMeshing(*neighborYMinus)) {
+        neighborYMinusData = std::make_unique<BinaryChunkData>(*neighborYMinus);
+    }
+    if (neighborYPlus && canNeighborUseBinaryMeshing(*neighborYPlus)) {
+        neighborYPlusData = std::make_unique<BinaryChunkData>(*neighborYPlus);
+    }
+    if (neighborZMinus && canNeighborUseBinaryMeshing(*neighborZMinus)) {
+        neighborZMinusData = std::make_unique<BinaryChunkData>(*neighborZMinus);
+    }
+    if (neighborZPlus && canNeighborUseBinaryMeshing(*neighborZPlus)) {
+        neighborZPlusData = std::make_unique<BinaryChunkData>(*neighborZPlus);
+    }
     
     // All blocks are simple - use binary greedy meshing with neighbor data for optimal performance
     std::vector<FaceInstance> allFaces;
@@ -344,7 +364,13 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
         neighborYMinusData.get(),
         neighborYPlusData.get(),
         neighborZMinusData.get(),
-        neighborZPlusData.get()
+        neighborZPlusData.get(),
+        neighborXMinus,
+        neighborXPlus,
+        neighborYMinus,
+        neighborYPlus,
+        neighborZMinus,
+        neighborZPlus
     );
     auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunk, textureArray);
     allFaces.insert(allFaces.end(), faces.begin(), faces.end());
@@ -378,6 +404,22 @@ bool HybridChunkMeshGenerator::canUseBinaryMeshing(
         // If we can't load the model, assume it's complex and use traditional meshing
         return false;
     }
+}
+
+bool HybridChunkMeshGenerator::canNeighborUseBinaryMeshing(
+    const Chunk& chunk
+) {
+    // Create temporary binary chunk data to get active block types
+    BinaryChunkData binaryData(chunk);
+    
+    // Check if all blocks can use binary meshing
+    for (BlockType blockType : binaryData.getActiveBlockTypes()) {
+        if (!canUseBinaryMeshing(blockType)) {
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 std::vector<HybridChunkMeshGenerator::FaceInstance> HybridChunkMeshGenerator::generateComplexBlockMesh(

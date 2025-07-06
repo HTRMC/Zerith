@@ -13,8 +13,8 @@ BinaryChunkData::BinaryChunkData(const Chunk& chunk) {
             for (int z = 0; z < CHUNK_SIZE; ++z) {
                 BlockType blockType = chunk.getBlock(x, y, z);
                 
-                // Skip air blocks (assuming air is block type 0)
-                if (blockType == 0) continue;
+                // Skip air blocks
+                if (blockType == Blocks::AIR) continue;
                 
                 int index = coordsToIndex(x, y, z);
                 
@@ -372,7 +372,13 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMaskWithNei
     const BinaryChunkData* neighborYMinus,
     const BinaryChunkData* neighborYPlus,
     const BinaryChunkData* neighborZMinus,
-    const BinaryChunkData* neighborZPlus
+    const BinaryChunkData* neighborZPlus,
+    const Chunk* neighborChunkXMinus,
+    const Chunk* neighborChunkXPlus,
+    const Chunk* neighborChunkYMinus,
+    const Chunk* neighborChunkYPlus,
+    const Chunk* neighborChunkZMinus,
+    const Chunk* neighborChunkZPlus
 ) {
     constexpr int SIZE = BinaryChunkData::CHUNK_SIZE;
     BinaryGreedyMesher::SliceMask visibleMask;
@@ -429,41 +435,57 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMaskWithNei
                 }
             } else {
                 // Adjacent position is outside chunk bounds - check neighbor chunks
-                const BinaryChunkData* neighborChunk = nullptr;
+                const BinaryChunkData* neighborBinaryChunk = nullptr;
+                const Chunk* neighborChunk = nullptr;
                 glm::ivec3 neighborPos = adjPos;
                 
                 // Determine which neighbor chunk and adjust coordinates
-                if (adjPos.x < 0 && neighborXMinus) {
-                    neighborChunk = neighborXMinus;
+                if (adjPos.x < 0) {
+                    neighborBinaryChunk = neighborXMinus;
+                    neighborChunk = neighborChunkXMinus;
                     neighborPos.x = SIZE - 1;
-                } else if (adjPos.x >= SIZE && neighborXPlus) {
-                    neighborChunk = neighborXPlus;
+                } else if (adjPos.x >= SIZE) {
+                    neighborBinaryChunk = neighborXPlus;
+                    neighborChunk = neighborChunkXPlus;
                     neighborPos.x = 0;
-                } else if (adjPos.y < 0 && neighborYMinus) {
-                    neighborChunk = neighborYMinus;
+                } else if (adjPos.y < 0) {
+                    neighborBinaryChunk = neighborYMinus;
+                    neighborChunk = neighborChunkYMinus;
                     neighborPos.y = SIZE - 1;
-                } else if (adjPos.y >= SIZE && neighborYPlus) {
-                    neighborChunk = neighborYPlus;
+                } else if (adjPos.y >= SIZE) {
+                    neighborBinaryChunk = neighborYPlus;
+                    neighborChunk = neighborChunkYPlus;
                     neighborPos.y = 0;
-                } else if (adjPos.z < 0 && neighborZMinus) {
-                    neighborChunk = neighborZMinus;
+                } else if (adjPos.z < 0) {
+                    neighborBinaryChunk = neighborZMinus;
+                    neighborChunk = neighborChunkZMinus;
                     neighborPos.z = SIZE - 1;
-                } else if (adjPos.z >= SIZE && neighborZPlus) {
-                    neighborChunk = neighborZPlus;
+                } else if (adjPos.z >= SIZE) {
+                    neighborBinaryChunk = neighborZPlus;
+                    neighborChunk = neighborChunkZPlus;
                     neighborPos.z = 0;
                 }
                 
                 // If no neighbor chunk exists, face is visible (edge of world)
-                if (!neighborChunk) {
+                if (!neighborBinaryChunk && !neighborChunk) {
                     faceVisible = true;
                 } else {
-                    // Check if the neighbor chunk has any solid block at the adjacent position
                     faceVisible = true;
-                    for (BlockType adjacentBlockType : neighborChunk->getActiveBlockTypes()) {
-                        if (neighborChunk->hasBlockAt(neighborPos.x, neighborPos.y, neighborPos.z, adjacentBlockType)) {
-                            faceVisible = false; // Any solid block adjacent, face is hidden
-                            break;
+                    
+                    // First try to use binary chunk data for efficiency
+                    if (neighborBinaryChunk) {
+                        for (BlockType adjacentBlockType : neighborBinaryChunk->getActiveBlockTypes()) {
+                            if (neighborBinaryChunk->hasBlockAt(neighborPos.x, neighborPos.y, neighborPos.z, adjacentBlockType)) {
+                                faceVisible = false; // Any solid block adjacent, face is hidden
+                                break;
+                            }
                         }
+                    } 
+                    // Fallback to checking the actual chunk data (for mixed meshing scenarios)
+                    else if (neighborChunk) {
+                        BlockType adjacentBlock = neighborChunk->getBlock(neighborPos.x, neighborPos.y, neighborPos.z);
+                        // Use proper culling logic that handles water and other complex blocks
+                        faceVisible = isFaceVisibleAgainstNeighbor(blockType, faceDirection, adjacentBlock);
                     }
                 }
             }
@@ -486,7 +508,13 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateQuadsWithN
     const BinaryChunkData* neighborYMinus,
     const BinaryChunkData* neighborYPlus,
     const BinaryChunkData* neighborZMinus,
-    const BinaryChunkData* neighborZPlus
+    const BinaryChunkData* neighborZPlus,
+    const Chunk* neighborChunkXMinus,
+    const Chunk* neighborChunkXPlus,
+    const Chunk* neighborChunkYMinus,
+    const Chunk* neighborChunkYPlus,
+    const Chunk* neighborChunkZMinus,
+    const Chunk* neighborChunkZPlus
 ) {
     const auto& blockMask = chunkData.getBlockMask(blockType);
     if (blockMask.none()) {
@@ -500,7 +528,8 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateQuadsWithN
         // Generate visible face mask with neighbor data for this slice
         auto visibleMask = generateVisibleFaceMaskWithNeighbors(
             chunkData, blockType, faceDirection, sliceIndex,
-            neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus
+            neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus,
+            neighborChunkXMinus, neighborChunkXPlus, neighborChunkYMinus, neighborChunkYPlus, neighborChunkZMinus, neighborChunkZPlus
         );
         
         // Only mesh visible faces
@@ -518,7 +547,13 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateAllQuadsWi
     const BinaryChunkData* neighborYMinus,
     const BinaryChunkData* neighborYPlus,
     const BinaryChunkData* neighborZMinus,
-    const BinaryChunkData* neighborZPlus
+    const BinaryChunkData* neighborZPlus,
+    const Chunk* neighborChunkXMinus,
+    const Chunk* neighborChunkXPlus,
+    const Chunk* neighborChunkYMinus,
+    const Chunk* neighborChunkYPlus,
+    const Chunk* neighborChunkZMinus,
+    const Chunk* neighborChunkZPlus
 ) {
     std::vector<MeshQuad> allQuads;
     
@@ -528,13 +563,56 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateAllQuadsWi
         for (int faceDir = 0; faceDir < 6; ++faceDir) {
             auto quads = generateQuadsWithNeighbors(
                 chunkData, blockType, faceDir,
-                neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus
+                neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus,
+                neighborChunkXMinus, neighborChunkXPlus, neighborChunkYMinus, neighborChunkYPlus, neighborChunkZMinus, neighborChunkZPlus
             );
             allQuads.insert(allQuads.end(), quads.begin(), quads.end());
         }
     }
     
     return allQuads;
+}
+
+bool BinaryGreedyMesher::isFaceVisibleAgainstNeighbor(
+    BlockType currentBlockType,
+    int currentFaceDirection,
+    BlockType neighborBlockType
+) {
+    // If neighbor is air, face is always visible
+    if (neighborBlockType == Blocks::AIR) {
+        return true;
+    }
+    
+    // Get block definitions
+    auto currentBlockDef = Blocks::getBlock(currentBlockType);
+    auto neighborBlockDef = Blocks::getBlock(neighborBlockType);
+    
+    if (!currentBlockDef || !neighborBlockDef) {
+        return true; // Default to visible if we can't get block info
+    }
+    
+    // Check if neighbor is liquid (water) by checking render layer
+    RenderLayer neighborRenderLayer = neighborBlockDef->getRenderLayer();
+    RenderLayer currentRenderLayer = currentBlockDef->getRenderLayer();
+    
+    // Special handling for liquid blocks (like water)
+    if (neighborRenderLayer == RenderLayer::TRANSLUCENT) {
+        // Check if this is actually a liquid by checking if it's water
+        if (neighborBlockDef->getId() == "water") {
+            // Solid blocks next to water are always visible
+            if (currentRenderLayer != RenderLayer::TRANSLUCENT) {
+                return true;
+            }
+        }
+    }
+    
+    // Transparent/translucent blocks don't cull faces behind them
+    if (neighborRenderLayer == RenderLayer::TRANSLUCENT || neighborRenderLayer == RenderLayer::CUTOUT) {
+        return true;
+    }
+    
+    // If neighbor block is solid and opaque, face is hidden
+    return false;
 }
 
 } // namespace Zerith
