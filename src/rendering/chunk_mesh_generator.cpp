@@ -776,8 +776,11 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
         // Convert chunk position to world position
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
         
-        // Generate optimized mesh using binary greedy meshing
-        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(chunk, chunkWorldPos, *m_textureArray);
+        // Generate optimized mesh using binary greedy meshing with neighbors
+        auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMeshWithNeighbors(
+            chunk, chunkWorldPos, *m_textureArray,
+            neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus
+        );
         
         // If binary meshing succeeded, use those faces
         if (binaryResult.has_value()) {

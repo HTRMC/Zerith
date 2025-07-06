@@ -79,8 +79,32 @@ public:
         int faceDirection
     );
     
+    // Generate mesh quads with neighbor chunk data for border face culling
+    static std::vector<MeshQuad> generateQuadsWithNeighbors(
+        const BinaryChunkData& chunkData,
+        BlockType blockType,
+        int faceDirection,
+        const BinaryChunkData* neighborXMinus,
+        const BinaryChunkData* neighborXPlus,
+        const BinaryChunkData* neighborYMinus,
+        const BinaryChunkData* neighborYPlus,
+        const BinaryChunkData* neighborZMinus,
+        const BinaryChunkData* neighborZPlus
+    );
+    
     // Generate all mesh quads for all block types in the chunk
     static std::vector<MeshQuad> generateAllQuads(const BinaryChunkData& chunkData);
+    
+    // Generate all mesh quads with neighbor chunk data for border face culling
+    static std::vector<MeshQuad> generateAllQuadsWithNeighbors(
+        const BinaryChunkData& chunkData,
+        const BinaryChunkData* neighborXMinus,
+        const BinaryChunkData* neighborXPlus,
+        const BinaryChunkData* neighborYMinus,
+        const BinaryChunkData* neighborYPlus,
+        const BinaryChunkData* neighborZMinus,
+        const BinaryChunkData* neighborZPlus
+    );
     
     // Type alias for 2D slice bitset (needs to be public)
     using SliceMask = std::bitset<BinaryChunkData::CHUNK_SIZE * BinaryChunkData::CHUNK_SIZE>;
@@ -91,6 +115,20 @@ public:
         BlockType blockType,
         int faceDirection,
         int sliceIndex
+    );
+    
+    // Generate visible face mask with neighbor chunk data for border face culling
+    static SliceMask generateVisibleFaceMaskWithNeighbors(
+        const BinaryChunkData& chunkData,
+        BlockType blockType,
+        int faceDirection,
+        int sliceIndex,
+        const BinaryChunkData* neighborXMinus,
+        const BinaryChunkData* neighborXPlus,
+        const BinaryChunkData* neighborYMinus,
+        const BinaryChunkData* neighborYPlus,
+        const BinaryChunkData* neighborZMinus,
+        const BinaryChunkData* neighborZPlus
     );
     
 private:

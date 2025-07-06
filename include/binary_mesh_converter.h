@@ -121,6 +121,22 @@ public:
         TextureArray& textureArray
     );
     
+    /**
+     * Generate mesh using binary greedy meshing with neighbor chunks for border face culling.
+     * Returns std::nullopt if complex blocks are detected and traditional meshing should be used.
+     */
+    static std::optional<std::vector<FaceInstance>> generateOptimizedMeshWithNeighbors(
+        const Chunk& chunk,
+        const glm::ivec3& chunkWorldPos,
+        TextureArray& textureArray,
+        const Chunk* neighborXMinus,
+        const Chunk* neighborXPlus,
+        const Chunk* neighborYMinus,
+        const Chunk* neighborYPlus,
+        const Chunk* neighborZMinus,
+        const Chunk* neighborZPlus
+    );
+    
 private:
     /**
      * Determine if a block type can use binary meshing.

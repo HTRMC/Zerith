@@ -299,6 +299,59 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     return allFaces;
 }
 
+std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMeshGenerator::generateOptimizedMeshWithNeighbors(
+    const Chunk& chunk,
+    const glm::ivec3& chunkWorldPos,
+    TextureArray& textureArray,
+    const Chunk* neighborXMinus,
+    const Chunk* neighborXPlus,
+    const Chunk* neighborYMinus,
+    const Chunk* neighborYPlus,
+    const Chunk* neighborZMinus,
+    const Chunk* neighborZPlus
+) {
+    // Create binary chunk data
+    BinaryChunkData binaryData(chunk);
+    
+    // Check if all blocks can use binary meshing
+    bool canUseFullBinaryMeshing = true;
+    for (BlockType blockType : binaryData.getActiveBlockTypes()) {
+        if (!canUseBinaryMeshing(blockType)) {
+            canUseFullBinaryMeshing = false;
+            break;
+        }
+    }
+    
+    // If any complex blocks are present, signal that traditional meshing should be used
+    if (!canUseFullBinaryMeshing) {
+        return std::nullopt;
+    }
+    
+    // Create binary chunk data for neighbors
+    std::unique_ptr<BinaryChunkData> neighborXMinusData = neighborXMinus ? std::make_unique<BinaryChunkData>(*neighborXMinus) : nullptr;
+    std::unique_ptr<BinaryChunkData> neighborXPlusData = neighborXPlus ? std::make_unique<BinaryChunkData>(*neighborXPlus) : nullptr;
+    std::unique_ptr<BinaryChunkData> neighborYMinusData = neighborYMinus ? std::make_unique<BinaryChunkData>(*neighborYMinus) : nullptr;
+    std::unique_ptr<BinaryChunkData> neighborYPlusData = neighborYPlus ? std::make_unique<BinaryChunkData>(*neighborYPlus) : nullptr;
+    std::unique_ptr<BinaryChunkData> neighborZMinusData = neighborZMinus ? std::make_unique<BinaryChunkData>(*neighborZMinus) : nullptr;
+    std::unique_ptr<BinaryChunkData> neighborZPlusData = neighborZPlus ? std::make_unique<BinaryChunkData>(*neighborZPlus) : nullptr;
+    
+    // All blocks are simple - use binary greedy meshing with neighbor data for optimal performance
+    std::vector<FaceInstance> allFaces;
+    auto allQuads = BinaryGreedyMesher::generateAllQuadsWithNeighbors(
+        binaryData,
+        neighborXMinusData.get(),
+        neighborXPlusData.get(),
+        neighborYMinusData.get(),
+        neighborYPlusData.get(),
+        neighborZMinusData.get(),
+        neighborZPlusData.get()
+    );
+    auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunk, textureArray);
+    allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+    
+    return allFaces;
+}
+
 bool HybridChunkMeshGenerator::canUseBinaryMeshing(
     BlockType blockType
 ) {

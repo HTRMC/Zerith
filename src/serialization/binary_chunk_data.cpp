@@ -362,4 +362,179 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMask(
     return visibleMask;
 }
 
+BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMaskWithNeighbors(
+    const BinaryChunkData& chunkData,
+    BlockType blockType,
+    int faceDirection,
+    int sliceIndex,
+    const BinaryChunkData* neighborXMinus,
+    const BinaryChunkData* neighborXPlus,
+    const BinaryChunkData* neighborYMinus,
+    const BinaryChunkData* neighborYPlus,
+    const BinaryChunkData* neighborZMinus,
+    const BinaryChunkData* neighborZPlus
+) {
+    constexpr int SIZE = BinaryChunkData::CHUNK_SIZE;
+    BinaryGreedyMesher::SliceMask visibleMask;
+    
+    // Get face normal direction offset
+    glm::ivec3 faceOffset(0);
+    switch (faceDirection) {
+        case 0: faceOffset = glm::ivec3(0, -1, 0); break; // Down
+        case 1: faceOffset = glm::ivec3(0, 1, 0);  break; // Up
+        case 2: faceOffset = glm::ivec3(0, 0, -1); break; // North
+        case 3: faceOffset = glm::ivec3(0, 0, 1);  break; // South
+        case 4: faceOffset = glm::ivec3(-1, 0, 0); break; // West
+        case 5: faceOffset = glm::ivec3(1, 0, 0);  break; // East
+    }
+    
+    // Check each position in the slice
+    for (int u = 0; u < SIZE; ++u) {
+        for (int v = 0; v < SIZE; ++v) {
+            // Convert 2D slice coordinates to 3D chunk coordinates
+            glm::ivec3 blockPos;
+            switch (faceDirection) {
+                case 0: // Down (Y- faces, slice along XZ planes)
+                case 1: // Up (Y+ faces, slice along XZ planes)
+                    blockPos = glm::ivec3(u, sliceIndex, v);
+                    break;
+                case 2: // North (Z- faces, slice along XY planes)
+                case 3: // South (Z+ faces, slice along XY planes)
+                    blockPos = glm::ivec3(u, v, sliceIndex);
+                    break;
+                case 4: // West (X- faces, slice along YZ planes)
+                case 5: // East (X+ faces, slice along YZ planes)
+                    blockPos = glm::ivec3(sliceIndex, u, v);
+                    break;
+            }
+            
+            // Check if this position has our block type
+            if (!chunkData.hasBlockAt(blockPos.x, blockPos.y, blockPos.z, blockType)) {
+                continue; // No block here
+            }
+            
+            // Check if the adjacent position (in face direction) is empty or different block type
+            glm::ivec3 adjPos = blockPos + faceOffset;
+            bool faceVisible = true;
+            
+            // If adjacent position is within chunk bounds
+            if (adjPos.x >= 0 && adjPos.x < SIZE && adjPos.y >= 0 && adjPos.y < SIZE && adjPos.z >= 0 && adjPos.z < SIZE) {
+                // Face is visible if adjacent position has no solid block
+                // Check all active block types to see if any occupy the adjacent position
+                for (BlockType adjacentBlockType : chunkData.getActiveBlockTypes()) {
+                    if (chunkData.hasBlockAt(adjPos.x, adjPos.y, adjPos.z, adjacentBlockType)) {
+                        faceVisible = false; // Any solid block adjacent, face is hidden
+                        break;
+                    }
+                }
+            } else {
+                // Adjacent position is outside chunk bounds - check neighbor chunks
+                const BinaryChunkData* neighborChunk = nullptr;
+                glm::ivec3 neighborPos = adjPos;
+                
+                // Determine which neighbor chunk and adjust coordinates
+                if (adjPos.x < 0 && neighborXMinus) {
+                    neighborChunk = neighborXMinus;
+                    neighborPos.x = SIZE - 1;
+                } else if (adjPos.x >= SIZE && neighborXPlus) {
+                    neighborChunk = neighborXPlus;
+                    neighborPos.x = 0;
+                } else if (adjPos.y < 0 && neighborYMinus) {
+                    neighborChunk = neighborYMinus;
+                    neighborPos.y = SIZE - 1;
+                } else if (adjPos.y >= SIZE && neighborYPlus) {
+                    neighborChunk = neighborYPlus;
+                    neighborPos.y = 0;
+                } else if (adjPos.z < 0 && neighborZMinus) {
+                    neighborChunk = neighborZMinus;
+                    neighborPos.z = SIZE - 1;
+                } else if (adjPos.z >= SIZE && neighborZPlus) {
+                    neighborChunk = neighborZPlus;
+                    neighborPos.z = 0;
+                }
+                
+                // If no neighbor chunk exists, face is visible (edge of world)
+                if (!neighborChunk) {
+                    faceVisible = true;
+                } else {
+                    // Check if the neighbor chunk has any solid block at the adjacent position
+                    faceVisible = true;
+                    for (BlockType adjacentBlockType : neighborChunk->getActiveBlockTypes()) {
+                        if (neighborChunk->hasBlockAt(neighborPos.x, neighborPos.y, neighborPos.z, adjacentBlockType)) {
+                            faceVisible = false; // Any solid block adjacent, face is hidden
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            if (faceVisible) {
+                visibleMask.set(BinaryGreedyMesher::coords2D(u, v));
+            }
+        }
+    }
+    
+    return visibleMask;
+}
+
+std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateQuadsWithNeighbors(
+    const BinaryChunkData& chunkData,
+    BlockType blockType,
+    int faceDirection,
+    const BinaryChunkData* neighborXMinus,
+    const BinaryChunkData* neighborXPlus,
+    const BinaryChunkData* neighborYMinus,
+    const BinaryChunkData* neighborYPlus,
+    const BinaryChunkData* neighborZMinus,
+    const BinaryChunkData* neighborZPlus
+) {
+    const auto& blockMask = chunkData.getBlockMask(blockType);
+    if (blockMask.none()) {
+        return {};
+    }
+    
+    auto slices = extractSlices(blockMask, faceDirection);
+    std::vector<MeshQuad> quads;
+    
+    for (int sliceIndex = 0; sliceIndex < static_cast<int>(slices.size()); ++sliceIndex) {
+        // Generate visible face mask with neighbor data for this slice
+        auto visibleMask = generateVisibleFaceMaskWithNeighbors(
+            chunkData, blockType, faceDirection, sliceIndex,
+            neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus
+        );
+        
+        // Only mesh visible faces
+        auto sliceQuads = meshSlice(visibleMask, sliceIndex, faceDirection, blockType);
+        quads.insert(quads.end(), sliceQuads.begin(), sliceQuads.end());
+    }
+    
+    return quads;
+}
+
+std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateAllQuadsWithNeighbors(
+    const BinaryChunkData& chunkData,
+    const BinaryChunkData* neighborXMinus,
+    const BinaryChunkData* neighborXPlus,
+    const BinaryChunkData* neighborYMinus,
+    const BinaryChunkData* neighborYPlus,
+    const BinaryChunkData* neighborZMinus,
+    const BinaryChunkData* neighborZPlus
+) {
+    std::vector<MeshQuad> allQuads;
+    
+    // For each active block type
+    for (BlockType blockType : chunkData.getActiveBlockTypes()) {
+        // For each face direction (0=down, 1=up, 2=north, 3=south, 4=west, 5=east)
+        for (int faceDir = 0; faceDir < 6; ++faceDir) {
+            auto quads = generateQuadsWithNeighbors(
+                chunkData, blockType, faceDir,
+                neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus, neighborZMinus, neighborZPlus
+            );
+            allQuads.insert(allQuads.end(), quads.begin(), quads.end());
+        }
+    }
+    
+    return allQuads;
+}
+
 } // namespace Zerith
