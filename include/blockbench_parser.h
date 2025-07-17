@@ -7,8 +7,60 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <unordered_map>
+#include <mutex>
+#include <filesystem>
 
 namespace BlockbenchParser {
+
+// Model cache infrastructure
+namespace Cache {
+    // Cache storage
+    static std::unordered_map<std::string, BlockbenchModel::Model> g_modelCache;
+    static std::mutex g_cacheMutex;
+    
+    // Cache statistics
+    struct Stats {
+        size_t hits = 0;
+        size_t misses = 0;
+        size_t cacheSize = 0;
+    };
+    static Stats g_cacheStats;
+    
+    // Get cache statistics
+    inline Stats getCacheStats() {
+        std::lock_guard<std::mutex> lock(g_cacheMutex);
+        g_cacheStats.cacheSize = g_modelCache.size();
+        return g_cacheStats;
+    }
+    
+    // Clear the cache
+    inline void clearCache() {
+        std::lock_guard<std::mutex> lock(g_cacheMutex);
+        g_modelCache.clear();
+        g_cacheStats = Stats{};
+        LOG_INFO("BlockbenchParser cache cleared");
+    }
+    
+    // Get model from cache (returns nullptr if not found)
+    inline const BlockbenchModel::Model* getCachedModel(const std::string& absolutePath) {
+        std::lock_guard<std::mutex> lock(g_cacheMutex);
+        auto it = g_modelCache.find(absolutePath);
+        if (it != g_modelCache.end()) {
+            g_cacheStats.hits++;
+            return &it->second;
+        }
+        g_cacheStats.misses++;
+        return nullptr;
+    }
+    
+    // Store model in cache
+    inline void cacheModel(const std::string& absolutePath, const BlockbenchModel::Model& model) {
+        std::lock_guard<std::mutex> lock(g_cacheMutex);
+        g_modelCache[absolutePath] = model;
+        LOG_TRACE("Cached model: %s", absolutePath.c_str());
+    }
+}
 
 // Simple JSON parsing helper functions
 namespace JsonHelper {
@@ -383,7 +435,30 @@ inline void resolveTextureLayers(BlockbenchModel::Model& model, Zerith::TextureA
 
 // Parse a Blockbench model with recursive parent model resolution
 inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filename, Zerith::TextureArray* textureArray = nullptr) {
-    // Parse the main model
+    // Convert to absolute path for cache key consistency
+    std::string absolutePath;
+    try {
+        absolutePath = std::filesystem::absolute(filename).string();
+    } catch (const std::exception& e) {
+        LOG_WARN("Failed to get absolute path for %s: %s", filename.c_str(), e.what());
+        absolutePath = filename; // Fallback to original path
+    }
+    
+    // Check cache first
+    const BlockbenchModel::Model* cachedModel = Cache::getCachedModel(absolutePath);
+    if (cachedModel != nullptr) {
+        LOG_TRACE("Cache hit for model: %s", absolutePath.c_str());
+        BlockbenchModel::Model model = *cachedModel; // Copy the cached model
+        
+        // Still need to resolve texture layers if TextureArray is provided
+        if (textureArray != nullptr) {
+            resolveTextureLayers(model, textureArray);
+        }
+        
+        return model;
+    }
+    
+    // Cache miss - parse the main model
     BlockbenchModel::Model model = parseFromFile(filename);
     
     // Recursively resolve parent models until we find elements
@@ -405,7 +480,7 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
         std::string parentPath = "assets/zerith/models/block/" + parentName + ".json";
         
         LOG_TRACE("Loading parent model: %s", parentPath.c_str());
-        BlockbenchModel::Model parentModel = parseFromFileWithParents(parentPath, textureArray);
+        BlockbenchModel::Model parentModel = parseFromFileWithParents(parentPath, nullptr); // Don't pass textureArray for parents
         
         // If the current model has no elements, inherit from parent
         if (model.elements.empty() && !parentModel.elements.empty()) {
@@ -426,6 +501,10 @@ inline BlockbenchModel::Model parseFromFileWithParents(const std::string& filena
     
     // Resolve all texture references in the model
     resolveModelTextures(model);
+    
+    // Cache the model before texture layer resolution (so it can be reused with different TextureArrays)
+    BlockbenchModel::Model modelForCache = model; // Create a copy for caching
+    Cache::cacheModel(absolutePath, modelForCache);
     
     // Resolve texture layers if TextureArray is provided
     if (textureArray != nullptr) {
