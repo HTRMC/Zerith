@@ -609,8 +609,7 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMask(
                 // Check all active block types to see if any occupy the adjacent position
                 for (BlockType adjacentBlockType : chunkData.getActiveBlockTypes()) {
                     if (chunkData.hasBlockAt(adjPos.x, adjPos.y, adjPos.z, adjacentBlockType)) {
-                        // Use proper face culling logic that respects transparency
-                        faceVisible = isFaceVisibleAgainstNeighbor(blockType, faceDirection, adjacentBlockType);
+                        faceVisible = false; // Any solid block adjacent, face is hidden
                         break;
                     }
                 }
@@ -694,8 +693,7 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMaskWithNei
                 // Check all active block types to see if any occupy the adjacent position
                 for (BlockType adjacentBlockType : chunkData.getActiveBlockTypes()) {
                     if (chunkData.hasBlockAt(adjPos.x, adjPos.y, adjPos.z, adjacentBlockType)) {
-                        // Use proper face culling logic that respects transparency
-                        faceVisible = isFaceVisibleAgainstNeighbor(blockType, faceDirection, adjacentBlockType);
+                        faceVisible = false; // Any solid block adjacent, face is hidden
                         break;
                     }
                 }
@@ -742,8 +740,7 @@ BinaryGreedyMesher::SliceMask BinaryGreedyMesher::generateVisibleFaceMaskWithNei
                     if (neighborBinaryChunk) {
                         for (BlockType adjacentBlockType : neighborBinaryChunk->getActiveBlockTypes()) {
                             if (neighborBinaryChunk->hasBlockAt(neighborPos.x, neighborPos.y, neighborPos.z, adjacentBlockType)) {
-                                // Use proper face culling logic that respects transparency
-                        faceVisible = isFaceVisibleAgainstNeighbor(blockType, faceDirection, adjacentBlockType);
+                                faceVisible = false; // Any solid block adjacent, face is hidden
                                 break;
                             }
                         }
