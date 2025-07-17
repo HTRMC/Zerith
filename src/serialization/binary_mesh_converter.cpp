@@ -24,12 +24,6 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
     // Calculate world position
     glm::vec3 worldPos = calculateQuadWorldPosition(quad, chunkWorldPos);
     
-    // Debug: Log world position for stairs
-    if (blockDef->getId().find("stairs") != std::string::npos) {
-        LOG_INFO("Stairs world position: ElementIdx=%d, WorldPos=[%.2f,%.2f,%.2f], FaceDir=%d", 
-                 quad.elementIndex, worldPos.x, worldPos.y, worldPos.z, quad.faceDirection);
-    }
-    
     // Calculate scale based on quad dimensions
     glm::vec3 scale = calculateQuadScale(quad);
     
@@ -41,13 +35,10 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
     
     // Debug: Log texture and face bounds information for slabs and stairs
     if (blockDef->getId().find("slab") != std::string::npos || blockDef->getId().find("stairs") != std::string::npos) {
-        LOG_INFO("Enhanced meshing: Block ID='%s', BlockType=%d, Texture='%s', FaceDir=%d, Bounds=[%.2f,%.2f,%.2f,%.2f], Pos=[%d,%d,%d], Size=[%d,%d,%d], ElementIdx=%d, ElementOffset=[%.2f,%.2f,%.2f]", 
+        LOG_INFO("Enhanced meshing: Block ID='%s', BlockType=%d, Texture='%s', FaceDir=%d, Bounds=[%.2f,%.2f,%.2f,%.2f]", 
                  blockDef->getId().c_str(), quad.blockType, textureName.c_str(), 
                  quad.faceDirection, quad.faceBounds.min.x, quad.faceBounds.min.y, 
-                 quad.faceBounds.max.x, quad.faceBounds.max.y,
-                 quad.position.x, quad.position.y, quad.position.z,
-                 quad.size.x, quad.size.y, quad.size.z,
-                 quad.elementIndex, quad.elementOffset.x, quad.elementOffset.y, quad.elementOffset.z);
+                 quad.faceBounds.max.x, quad.faceBounds.max.y);
     }
     
     // Calculate UV coordinates with proper tiling
@@ -176,13 +167,6 @@ std::string BinaryMeshConverter::getBlockTexture(
         return "oak_planks";
     }
     
-    // Handle other stair types
-    if (blockId.find("stairs") != std::string::npos) {
-        // Extract the base material from the stairs name
-        std::string baseMaterial = blockId.substr(0, blockId.find("_stairs"));
-        return baseMaterial + "_planks";
-    }
-    
     // For most blocks, use the block ID as the texture name
     return blockId;
 }
@@ -195,93 +179,54 @@ glm::vec3 BinaryMeshConverter::calculateQuadWorldPosition(
     glm::vec3 chunkWorldOffset = glm::vec3(chunkWorldPos) * static_cast<float>(Chunk::CHUNK_SIZE);
     glm::vec3 basePos = chunkWorldOffset + glm::vec3(quad.position);
     
-    // For multi-element blocks, add the element offset
-    if (quad.elementIndex >= 0) {
-        basePos += quad.elementOffset;
-    }
-    
     // Apply face bounds offset for proper partial block positioning
     const FaceBounds& bounds = quad.faceBounds;
     
     // Apply face-specific corner offsets accounting for face bounds
-    // For multi-element blocks, we need to be careful about how we apply bounds
-    // The element offset positions the element, bounds position within the element
-    
     switch (quad.faceDirection) {
         case 0: // Down face - position at back corner (from.x, from.y, to.z)
-            if (quad.elementIndex >= 0) {
-                // Multi-element: element offset handles block-relative position
-                return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
-            } else {
-                // Single element: use bounds for positioning
-                return basePos + glm::vec3(bounds.min.x, 0.0f, bounds.min.y + static_cast<float>(quad.size.z));
-            }
+            return basePos + glm::vec3(
+                bounds.min.x,
+                0.0f,
+                bounds.min.y + static_cast<float>(quad.size.z)
+            );
         case 1: // Up face - position at front-top corner (from.x, to.y, from.z)
             // For Up face, get the actual block height from the block definition
             // The face bounds for Up face represent XZ plane, not Y height
             // We need to get the actual model height for proper slab positioning
             {
-                float blockHeight;
-                if (quad.elementIndex >= 0) {
-                    // For multi-element blocks, height is already included in the element offset
-                    // The face bounds Y represents the actual face height within the element
-                    blockHeight = 0.0f; // Height is handled by element offset
-                } else {
-                    const auto& registry = BlockFaceBoundsRegistry::getInstance();
-                    const auto& blockBounds = registry.getFaceBounds(quad.blockType);
-                    // For side faces, bounds.max.y represents the actual height
-                    blockHeight = blockBounds.faces[2].max.y; // Use North face bounds for height
-                }
-                if (quad.elementIndex >= 0) {
-                    // Multi-element: Y position comes from element offset + element height
-                    // For Up face, we need to position at the top of the element
-                    // The element offset positions the bottom, so add the element's Y size
-                    return basePos + glm::vec3(0.0f, quad.elementSize.y, 0.0f);
-                } else {
-                    // Single element: use calculated height
-                    return basePos + glm::vec3(bounds.min.x, blockHeight, bounds.min.y);
-                }
-            }
-        case 2: // North face - no offset needed (from.x, from.y, from.z)
-            if (quad.elementIndex >= 0) {
-                return basePos;
-            } else {
-                return basePos + glm::vec3(bounds.min.x, bounds.min.y, 0.0f);
-            }
-        case 3: // South face - position at back-bottom corner (to.x, from.y, to.z)
-            if (quad.elementIndex >= 0) {
-                // For South face, we're at the +Z side of the element
-                // Position at element end X, element end Z
-                return basePos + glm::vec3(quad.elementSize.x, 0.0f, quad.elementSize.z);
-            } else {
+                const auto& registry = BlockFaceBoundsRegistry::getInstance();
+                const auto& blockBounds = registry.getFaceBounds(quad.blockType);
+                // For side faces, bounds.max.y represents the actual height
+                float blockHeight = blockBounds.faces[2].max.y; // Use North face bounds for height
                 return basePos + glm::vec3(
-                    bounds.min.x + static_cast<float>(quad.size.x),
-                    bounds.min.y,
-                    static_cast<float>(quad.size.z)
+                    bounds.min.x,
+                    blockHeight,  // Use actual block height from side face bounds
+                    bounds.min.y
                 );
             }
+        case 2: // North face - no offset needed (from.x, from.y, from.z)
+            return basePos + glm::vec3(bounds.min.x, bounds.min.y, 0.0f);
+        case 3: // South face - position at back-bottom corner (to.x, from.y, to.z)
+            return basePos + glm::vec3(
+                bounds.min.x + static_cast<float>(quad.size.x),
+                bounds.min.y,
+                static_cast<float>(quad.size.z)
+            );
         case 4: // West face - position at back corner (from.x, from.y, to.z)
-            // For West/East faces, bounds are in ZY plane
-            if (quad.elementIndex >= 0) {
-                return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
-            } else {
-                return basePos + glm::vec3(0.0f, bounds.min.y, bounds.min.x + static_cast<float>(quad.size.z));
-            }
+            return basePos + glm::vec3(
+                0.0f,
+                bounds.min.x,
+                bounds.min.y + static_cast<float>(quad.size.z)
+            );
         case 5: // East face - position at front corner (to.x, from.y, from.z)
-            // For West/East faces, bounds are in ZY plane
-            if (quad.elementIndex >= 0) {
-                // For East face, we're at the +X side of the element
-                // X position is elementSize.x, not quad.size.x (which is merged size)
-                return basePos + glm::vec3(quad.elementSize.x, 0.0f, 0.0f);
-            } else {
-                return basePos + glm::vec3(static_cast<float>(quad.size.x), bounds.min.y, bounds.min.x);
-            }
+            return basePos + glm::vec3(
+                static_cast<float>(quad.size.x),
+                bounds.min.x,
+                bounds.min.y
+            );
         default:
-            if (quad.elementIndex >= 0) {
-                return basePos;
-            } else {
-                return basePos + glm::vec3(bounds.min.x, bounds.min.y, 0.0f);
-            }
+            return basePos + glm::vec3(bounds.min.x, bounds.min.y, 0.0f);
     }
 }
 
@@ -455,20 +400,8 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     
     // Use enhanced bounds-aware meshing for partial blocks
     for (BlockType blockType : partialBlocks) {
-        auto blockDef = Blocks::getBlock(blockType);
-        bool isStairs = blockDef && blockDef->getId().find("stairs") != std::string::npos;
-        
         for (int faceDir = 0; faceDir < 6; ++faceDir) {
-            std::vector<BinaryGreedyMesher::MeshQuad> quads;
-            
-            if (isStairs) {
-                // Use multi-element meshing for stairs
-                quads = BinaryGreedyMesher::generateQuadsMultiElement(binaryData, blockType, faceDir);
-            } else {
-                // Use regular bounds-aware meshing for simple partial blocks
-                quads = BinaryGreedyMesher::generateQuadsWithBounds(binaryData, blockType, faceDir);
-            }
-            
+            auto quads = BinaryGreedyMesher::generateQuadsWithBounds(binaryData, blockType, faceDir);
             auto faces = BinaryMeshConverter::convertAllQuadsWithAO(quads, chunkWorldPos, chunk, textureArray);
             allFaces.insert(allFaces.end(), faces.begin(), faces.end());
         }
@@ -578,20 +511,8 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     // Note: For now, partial blocks don't use neighbor data for cross-chunk face culling
     // This could be enhanced in the future if needed
     for (BlockType blockType : partialBlocks) {
-        auto blockDef = Blocks::getBlock(blockType);
-        bool isStairs = blockDef && blockDef->getId().find("stairs") != std::string::npos;
-        
         for (int faceDir = 0; faceDir < 6; ++faceDir) {
-            std::vector<BinaryGreedyMesher::MeshQuad> quads;
-            
-            if (isStairs) {
-                // Use multi-element meshing for stairs
-                quads = BinaryGreedyMesher::generateQuadsMultiElement(binaryData, blockType, faceDir);
-            } else {
-                // Use regular bounds-aware meshing for simple partial blocks
-                quads = BinaryGreedyMesher::generateQuadsWithBounds(binaryData, blockType, faceDir);
-            }
-            
+            auto quads = BinaryGreedyMesher::generateQuadsWithBounds(binaryData, blockType, faceDir);
             auto faces = BinaryMeshConverter::convertAllQuadsWithAO(quads, chunkWorldPos, chunk, textureArray);
             allFaces.insert(allFaces.end(), faces.begin(), faces.end());
         }
@@ -665,12 +586,10 @@ bool HybridChunkMeshGenerator::canUseEnhancedBinaryMeshing(
     
     // Allow all blocks including translucent ones like water
     
-    // Allow simple partial blocks like slabs
+    // Allow simple partial blocks like slabs and stairs
     if (blockId.find("slab") != std::string::npos) {
         return true;
     }
-    
-    // Enable stairs to use multi-element greedy meshing
     if (blockId.find("stairs") != std::string::npos) {
         return true;
     }

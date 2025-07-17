@@ -73,9 +73,6 @@ public:
         int faceDirection;      // 0-5 (down, up, north, south, west, east)
         BlockType blockType;    // The block type this quad represents
         FaceBounds faceBounds;  // Face bounds for this quad (for proper UV mapping)
-        int elementIndex;       // Which element of the block model this quad represents (-1 for combined)
-        glm::vec3 elementOffset; // Offset of the element within the block (normalized 0-1)
-        glm::vec3 elementSize;   // Size of the element (normalized 0-1)
     };
     
     // Generate mesh quads for a specific block type and face direction
@@ -87,13 +84,6 @@ public:
     
     // Enhanced greedy meshing with bounds awareness for partial blocks
     static std::vector<MeshQuad> generateQuadsWithBounds(
-        const BinaryChunkData& chunkData,
-        BlockType blockType,
-        int faceDirection
-    );
-    
-    // Multi-element greedy meshing for complex blocks like stairs
-    static std::vector<MeshQuad> generateQuadsMultiElement(
         const BinaryChunkData& chunkData,
         BlockType blockType,
         int faceDirection
@@ -192,19 +182,6 @@ private:
         int sliceIndex,
         int faceDirection,
         BlockType blockType
-    );
-    
-    // Enhanced meshing with specific element bounds for multi-element blocks
-    static std::vector<MeshQuad> meshSliceWithElementBounds(
-        const SliceMask& slice,
-        const BinaryChunkData& chunkData,
-        int sliceIndex,
-        int faceDirection,
-        BlockType blockType,
-        const FaceBounds& elementBounds,
-        int elementIndex,
-        const glm::vec3& elementFrom,
-        const glm::vec3& elementTo
     );
     
     // Try to expand a quad horizontally
