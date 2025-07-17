@@ -105,6 +105,7 @@ add_executable(Zerith
         src/blocks/block_behavior.cpp
         src/blocks/water_block.cpp
         src/blocks/fluid_block.cpp
+        src/world/extended_chunk_data.cpp
         src/ui/imgui_integration.cpp
         third_party/imgui/backends/imgui_impl_glfw.cpp
         third_party/imgui/backends/imgui_impl_vulkan.cpp

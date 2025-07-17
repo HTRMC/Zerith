@@ -502,12 +502,11 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkManager::generateMes
         if (neighborIt != m_chunks.end()) neighborZPlus = neighborIt->second.get();
     }
     
-    // Generate mesh with neighbor awareness
-    auto result = m_meshGenerator->generateChunkMeshWithNeighbors(
-        *chunk,
-        neighborXMinus, neighborXPlus,
-        neighborYMinus, neighborYPlus,
-        neighborZMinus, neighborZPlus);
+    // Create 18x18x18 block data by sampling from loaded chunks
+    auto extendedBlockData = createExtendedBlockData(chunkPos);
+    
+    // Generate mesh with extended 18x18x18 data to prevent border artifacts
+    auto result = m_meshGenerator->generateChunkMeshExtended(*chunk, extendedBlockData);
     
     auto end = std::chrono::high_resolution_clock::now();
     float duration = std::chrono::duration<float, std::milli>(end - start).count();
@@ -735,6 +734,69 @@ std::vector<Chunk*> ChunkManager::getChunksAlongRay(const glm::vec3& origin,
                                                   float maxDistance) const {
     std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
     return m_chunkOctree->getChunksAlongRay(origin, direction, maxDistance);
+}
+
+std::array<BlockType, 18*18*18> ChunkManager::createExtendedBlockData(const glm::ivec3& chunkPos) {
+    std::array<BlockType, 18*18*18> extendedData;
+    
+    // Fill with AIR initially
+    std::fill(extendedData.begin(), extendedData.end(), Blocks::AIR);
+    
+    // Helper function to convert extended coordinates to array index
+    auto getExtendedIndex = [](int x, int y, int z) -> int {
+        int ex = x + 1;  // Convert -1..16 to 0..17
+        int ey = y + 1;
+        int ez = z + 1;
+        return ex + ey * 18 + ez * 18 * 18;
+    };
+    
+    // Helper function to get block from world position
+    auto getWorldBlock = [this](const glm::ivec3& worldPos) -> BlockType {
+        glm::ivec3 worldChunkPos = {
+            worldPos.x / Chunk::CHUNK_SIZE,
+            worldPos.y / Chunk::CHUNK_SIZE,
+            worldPos.z / Chunk::CHUNK_SIZE
+        };
+        
+        // Handle negative coordinates properly
+        if (worldPos.x < 0 && worldPos.x % Chunk::CHUNK_SIZE != 0) worldChunkPos.x--;
+        if (worldPos.y < 0 && worldPos.y % Chunk::CHUNK_SIZE != 0) worldChunkPos.y--;
+        if (worldPos.z < 0 && worldPos.z % Chunk::CHUNK_SIZE != 0) worldChunkPos.z--;
+        
+        auto it = m_chunks.find(worldChunkPos);
+        if (it == m_chunks.end()) {
+            return Blocks::AIR; // Chunk not loaded
+        }
+        
+        glm::ivec3 localPos = {
+            worldPos.x - worldChunkPos.x * Chunk::CHUNK_SIZE,
+            worldPos.y - worldChunkPos.y * Chunk::CHUNK_SIZE,
+            worldPos.z - worldChunkPos.z * Chunk::CHUNK_SIZE
+        };
+        
+        // Handle negative local coordinates
+        if (localPos.x < 0) localPos.x += Chunk::CHUNK_SIZE;
+        if (localPos.y < 0) localPos.y += Chunk::CHUNK_SIZE;
+        if (localPos.z < 0) localPos.z += Chunk::CHUNK_SIZE;
+        
+        return it->second->getBlock(localPos.x, localPos.y, localPos.z);
+    };
+    
+    // Calculate world position of the chunk corner
+    glm::ivec3 chunkWorldPos = chunkPos * Chunk::CHUNK_SIZE;
+    
+    // Sample 18x18x18 region: from -1 to 16 in chunk-local coordinates
+    for (int x = -1; x <= 16; ++x) {
+        for (int y = -1; y <= 16; ++y) {
+            for (int z = -1; z <= 16; ++z) {
+                glm::ivec3 worldPos = chunkWorldPos + glm::ivec3(x, y, z);
+                BlockType blockType = getWorldBlock(worldPos);
+                extendedData[getExtendedIndex(x, y, z)] = blockType;
+            }
+        }
+    }
+    
+    return extendedData;
 }
 
 std::shared_ptr<std::mutex> ChunkManager::getChunkMutex(const glm::ivec3& chunkPos) const {

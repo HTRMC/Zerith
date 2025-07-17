@@ -165,6 +165,9 @@ private:
     
     // Queue mesh generation for a chunk
     void queueMeshGeneration(const glm::ivec3& chunkPos, int priority);
+    
+    // Create 18x18x18 block data by sampling from loaded chunks
+    std::array<BlockType, 18*18*18> createExtendedBlockData(const glm::ivec3& chunkPos);
 
 private:
     // Chunk storage - key is chunk position

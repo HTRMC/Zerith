@@ -7,10 +7,12 @@
 #include "face_instance_pool.h"
 #include "binary_mesh_converter.h"
 #include "blocks.h"
+#include "extended_chunk_data.h"
 #include <memory>
 #include <unordered_map>
 #include <string>
 #include <array>
+#include <cstdint>
 
 namespace Zerith {
 
@@ -74,6 +76,11 @@ public:
         const Chunk* neighborXMinus, const Chunk* neighborXPlus,
         const Chunk* neighborYMinus, const Chunk* neighborYPlus,
         const Chunk* neighborZMinus, const Chunk* neighborZPlus);
+    
+    // Generate chunk mesh using extended 18x18x18 data to prevent border artifacts
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> generateChunkMeshExtended(
+        const Chunk& chunk,
+        const std::array<BlockType, 18*18*18>& extendedBlockData);
 
     // Load block models
     void loadBlockModels();
@@ -135,6 +142,11 @@ private:
                                                const Chunk* neighborXMinus, const Chunk* neighborXPlus,
                                                const Chunk* neighborYMinus, const Chunk* neighborYPlus,
                                                const Chunk* neighborZMinus, const Chunk* neighborZPlus);
+    
+    // Generate faces for a single block using extended chunk data
+    void generateBlockFacesExtended(const ExtendedChunkData& extendedData, int x, int y, int z,
+                                   std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces,
+                                   const glm::ivec3& chunkWorldPos);
 
     // Block model generators
     std::unordered_map<BlockType, std::unique_ptr<BlockbenchInstanceWrapper>> m_blockGenerators;

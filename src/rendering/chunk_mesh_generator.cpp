@@ -1023,4 +1023,109 @@ void ChunkMeshGenerator::generateBlockFacesPooledWithNeighbors(const Chunk& chun
     }
 }
 
+std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMeshExtended(
+    const Chunk& chunk,
+    const std::array<BlockType, 18*18*18>& extendedBlockData) {
+    PROFILE_FUNCTION();
+    
+    // Create extended chunk data from pre-sampled 18x18x18 data
+    ExtendedChunkData extendedData(extendedBlockData, chunk.getChunkPosition());
+    
+    // Early exit for empty chunks
+    bool isEmpty = true;
+    for (int x = 0; x < Chunk::CHUNK_SIZE && isEmpty; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE && isEmpty; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE && isEmpty; ++z) {
+                if (chunk.getBlock(x, y, z) != Blocks::AIR) {
+                    isEmpty = false;
+                }
+            }
+        }
+    }
+    
+    if (isEmpty) {
+        return {}; // Return empty vector for empty chunks
+    }
+    
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
+    
+    // Calculate world position once
+    glm::ivec3 chunkWorldPos = chunk.getChunkPosition() * Chunk::CHUNK_SIZE;
+    
+    // Iterate through all blocks in the chunk
+    for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
+                generateBlockFacesExtended(extendedData, x, y, z, allFaces, chunkWorldPos);
+            }
+        }
+    }
+    
+    return allFaces;
+}
+
+void ChunkMeshGenerator::generateBlockFacesExtended(const ExtendedChunkData& extendedData, int x, int y, int z,
+                                                   std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces,
+                                                   const glm::ivec3& chunkWorldPos) {
+    BlockType blockType = extendedData.getBlock(x, y, z);
+    
+    // Skip air blocks
+    if (blockType == Blocks::AIR) {
+        return;
+    }
+    
+    // Find the generator for this block type
+    auto it = m_blockGenerators.find(blockType);
+    if (it == m_blockGenerators.end()) {
+        return; // No model for this block type
+    }
+    
+    // Calculate world position of this block
+    glm::vec3 blockWorldPos = glm::vec3(chunkWorldPos) + glm::vec3(x, y, z);
+    
+    // Generate faces at this position
+    auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
+    
+    // Face culling: only add faces that are visible using extended data
+    for (auto&& face : blockFaces) {
+        bool shouldRender = false;
+        
+        // Check visibility based on face direction using extended data
+        switch (face.faceDirection) {
+            case 0: // Down face (Y-)
+                shouldRender = extendedData.isFaceVisible(x, y, z, 0, -1, 0);
+                break;
+            case 1: // Up face (Y+)
+                shouldRender = extendedData.isFaceVisible(x, y, z, 0, 1, 0);
+                break;
+            case 2: // North face (Z-)
+                shouldRender = extendedData.isFaceVisible(x, y, z, 0, 0, -1);
+                break;
+            case 3: // South face (Z+)
+                shouldRender = extendedData.isFaceVisible(x, y, z, 0, 0, 1);
+                break;
+            case 4: // West face (X-)
+                shouldRender = extendedData.isFaceVisible(x, y, z, -1, 0, 0);
+                break;
+            case 5: // East face (X+)
+                shouldRender = extendedData.isFaceVisible(x, y, z, 1, 0, 0);
+                break;
+            default:
+                shouldRender = true; // Render unknown faces by default
+                break;
+        }
+        
+        if (shouldRender) {
+            // Calculate ambient occlusion for this face
+            if (m_chunkManager) {
+                face.ao = VoxelAO::calculateFaceAO(m_chunkManager, chunkWorldPos, x, y, z, face.faceDirection);
+            } else {
+                // No ChunkManager available - set default AO (no occlusion)
+                face.ao = glm::vec4(1.0f);
+            }
+            faces.emplace_back(std::move(face));
+        }
+    }
+}
+
 } // namespace Zerith
