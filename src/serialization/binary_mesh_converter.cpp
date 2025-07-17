@@ -33,6 +33,14 @@ std::vector<BinaryMeshConverter::FaceInstance> BinaryMeshConverter::convertQuadT
     // Get texture information
     std::string textureName = getBlockTexture(quad.blockType, quad.faceDirection);
     
+    // Debug: Log texture and face bounds information for slabs and stairs
+    if (blockDef->getId().find("slab") != std::string::npos || blockDef->getId().find("stairs") != std::string::npos) {
+        LOG_INFO("Enhanced meshing: Block ID='%s', BlockType=%d, Texture='%s', FaceDir=%d, Bounds=[%.2f,%.2f,%.2f,%.2f]", 
+                 blockDef->getId().c_str(), quad.blockType, textureName.c_str(), 
+                 quad.faceDirection, quad.faceBounds.min.x, quad.faceBounds.min.y, 
+                 quad.faceBounds.max.x, quad.faceBounds.max.y);
+    }
+    
     // Calculate UV coordinates with proper tiling
     glm::vec4 uv = calculateQuadUV(quad, *blockDef, quad.faceDirection);
     
@@ -116,8 +124,16 @@ glm::vec4 BinaryMeshConverter::calculateQuadUV(
     const BlockDefinition& blockDef,
     int faceDirection
 ) {
-    // Start with default UV coordinates
-    glm::vec4 baseUV = getDefaultFaceUV();
+    // Use face bounds to calculate proper UV coordinates for partial blocks
+    const FaceBounds& bounds = quad.faceBounds;
+    
+    // Convert face bounds (0-1) to texture coordinates (0-16)
+    glm::vec4 baseUV = glm::vec4(
+        bounds.min.x * 16.0f,
+        bounds.min.y * 16.0f,
+        bounds.max.x * 16.0f,
+        bounds.max.y * 16.0f
+    );
     
     // Adjust UV for tiling based on quad size
     return adjustUVForTiling(baseUV, quad.size, faceDirection);
@@ -146,6 +162,11 @@ std::string BinaryMeshConverter::getBlockTexture(
         }
     }
     
+    // Handle slabs and stairs - they use the same texture as their base material
+    if (blockId == "oak_slab" || blockId == "oak_stairs") {
+        return "oak_planks";
+    }
+    
     // For most blocks, use the block ID as the texture name
     return blockId;
 }
@@ -158,40 +179,93 @@ glm::vec3 BinaryMeshConverter::calculateQuadWorldPosition(
     glm::vec3 chunkWorldOffset = glm::vec3(chunkWorldPos) * static_cast<float>(Chunk::CHUNK_SIZE);
     glm::vec3 basePos = chunkWorldOffset + glm::vec3(quad.position);
     
-    // Apply face-specific corner offsets to match original BlockbenchInstanceGenerator behavior
+    // Apply face bounds offset for proper partial block positioning
+    const FaceBounds& bounds = quad.faceBounds;
+    
+    // Apply face-specific corner offsets accounting for face bounds
     switch (quad.faceDirection) {
         case 0: // Down face - position at back corner (from.x, from.y, to.z)
-            return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
+            return basePos + glm::vec3(
+                bounds.min.x,
+                0.0f,
+                bounds.min.y + static_cast<float>(quad.size.z)
+            );
         case 1: // Up face - position at front-top corner (from.x, to.y, from.z)
-            return basePos + glm::vec3(0.0f, static_cast<float>(quad.size.y), 0.0f);
+            // For Up face, get the actual block height from the block definition
+            // The face bounds for Up face represent XZ plane, not Y height
+            // We need to get the actual model height for proper slab positioning
+            {
+                const auto& registry = BlockFaceBoundsRegistry::getInstance();
+                const auto& blockBounds = registry.getFaceBounds(quad.blockType);
+                // For side faces, bounds.max.y represents the actual height
+                float blockHeight = blockBounds.faces[2].max.y; // Use North face bounds for height
+                return basePos + glm::vec3(
+                    bounds.min.x,
+                    blockHeight,  // Use actual block height from side face bounds
+                    bounds.min.y
+                );
+            }
         case 2: // North face - no offset needed (from.x, from.y, from.z)
-            return basePos;
+            return basePos + glm::vec3(bounds.min.x, bounds.min.y, 0.0f);
         case 3: // South face - position at back-bottom corner (to.x, from.y, to.z)
-            return basePos + glm::vec3(static_cast<float>(quad.size.x), 0.0f, static_cast<float>(quad.size.z));
+            return basePos + glm::vec3(
+                bounds.min.x + static_cast<float>(quad.size.x),
+                bounds.min.y,
+                static_cast<float>(quad.size.z)
+            );
         case 4: // West face - position at back corner (from.x, from.y, to.z)
-            return basePos + glm::vec3(0.0f, 0.0f, static_cast<float>(quad.size.z));
+            return basePos + glm::vec3(
+                0.0f,
+                bounds.min.x,
+                bounds.min.y + static_cast<float>(quad.size.z)
+            );
         case 5: // East face - position at front corner (to.x, from.y, from.z)
-            return basePos + glm::vec3(static_cast<float>(quad.size.x), 0.0f, 0.0f);
+            return basePos + glm::vec3(
+                static_cast<float>(quad.size.x),
+                bounds.min.x,
+                bounds.min.y
+            );
         default:
-            return basePos;
+            return basePos + glm::vec3(bounds.min.x, bounds.min.y, 0.0f);
     }
 }
 
 glm::vec3 BinaryMeshConverter::calculateQuadScale(const MeshQuad& quad) {
+    // Calculate the base scale using face bounds for proper partial block rendering
+    const FaceBounds& bounds = quad.faceBounds;
+    float faceWidth = bounds.max.x - bounds.min.x;
+    float faceHeight = bounds.max.y - bounds.min.y;
+    
     // Map quad dimensions to correct axes based on face direction
-    // This matches the original BlockbenchInstanceGenerator scale calculations
+    // Use face bounds for the face dimensions and quad.size for the merged extent
     switch (quad.faceDirection) {
         case 0: // Down face (XZ plane)
         case 1: // Up face (XZ plane)
-            return glm::vec3(static_cast<float>(quad.size.x), static_cast<float>(quad.size.z), 1.0f);
+            return glm::vec3(
+                static_cast<float>(quad.size.x) * faceWidth,
+                static_cast<float>(quad.size.z) * faceHeight,
+                1.0f
+            );
         case 2: // North face (XY plane)
         case 3: // South face (XY plane)
-            return glm::vec3(static_cast<float>(quad.size.x), static_cast<float>(quad.size.y), 1.0f);
+            return glm::vec3(
+                static_cast<float>(quad.size.x) * faceWidth,
+                static_cast<float>(quad.size.y) * faceHeight,
+                1.0f
+            );
         case 4: // West face (ZY plane)
         case 5: // East face (ZY plane)
-            return glm::vec3(static_cast<float>(quad.size.z), static_cast<float>(quad.size.y), 1.0f);
+            return glm::vec3(
+                static_cast<float>(quad.size.z) * faceWidth,
+                static_cast<float>(quad.size.y) * faceHeight,
+                1.0f
+            );
         default:
-            return glm::vec3(static_cast<float>(quad.size.x), static_cast<float>(quad.size.y), static_cast<float>(quad.size.z));
+            return glm::vec3(
+                static_cast<float>(quad.size.x) * faceWidth,
+                static_cast<float>(quad.size.y) * faceHeight,
+                static_cast<float>(quad.size.z)
+            );
     }
 }
 
@@ -276,25 +350,62 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     // Create binary chunk data
     BinaryChunkData binaryData(chunk);
     
-    // Check if all blocks can use binary meshing
-    bool canUseFullBinaryMeshing = true;
+    // Categorize blocks by their meshing requirements
+    std::vector<BlockType> fullCubeBlocks;
+    std::vector<BlockType> partialBlocks;
+    bool hasComplexBlocks = false;
+    
     for (BlockType blockType : binaryData.getActiveBlockTypes()) {
-        if (!canUseBinaryMeshing(blockType)) {
-            canUseFullBinaryMeshing = false;
+        auto blockDef = Blocks::getBlock(blockType);
+        if (!blockDef || blockDef->getId() == "air") {
+            continue;
+        }
+        
+        // All blocks should be able to use enhanced greedy meshing
+        
+        try {
+            std::string modelPath = "assets/zerith/models/block/" + blockDef->getModelName() + ".json";
+            auto model = BlockbenchParser::parseFromFileWithParents(modelPath, nullptr);
+            
+            if (isFullCubeModel(model)) {
+                fullCubeBlocks.push_back(blockType);
+            } else if (canUseEnhancedBinaryMeshing(blockType, model)) {
+                partialBlocks.push_back(blockType);
+            } else {
+                hasComplexBlocks = true;
+                break;
+            }
+        } catch (const std::exception& e) {
+            hasComplexBlocks = true;
             break;
         }
     }
     
     // If any complex blocks are present, signal that traditional meshing should be used
-    if (!canUseFullBinaryMeshing) {
+    if (hasComplexBlocks) {
         return std::nullopt;
     }
     
-    // All blocks are simple - use binary greedy meshing for optimal performance
+    // Generate mesh using appropriate algorithm for each block type
     std::vector<FaceInstance> allFaces;
-    auto allQuads = BinaryGreedyMesher::generateAllQuads(binaryData);
-    auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunk, textureArray);
-    allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+    
+    // Use standard binary meshing for full cube blocks
+    for (BlockType blockType : fullCubeBlocks) {
+        for (int faceDir = 0; faceDir < 6; ++faceDir) {
+            auto quads = BinaryGreedyMesher::generateQuads(binaryData, blockType, faceDir);
+            auto faces = BinaryMeshConverter::convertAllQuadsWithAO(quads, chunkWorldPos, chunk, textureArray);
+            allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+        }
+    }
+    
+    // Use enhanced bounds-aware meshing for partial blocks
+    for (BlockType blockType : partialBlocks) {
+        for (int faceDir = 0; faceDir < 6; ++faceDir) {
+            auto quads = BinaryGreedyMesher::generateQuadsWithBounds(binaryData, blockType, faceDir);
+            auto faces = BinaryMeshConverter::convertAllQuadsWithAO(quads, chunkWorldPos, chunk, textureArray);
+            allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+        }
+    }
     
     return allFaces;
 }
@@ -313,17 +424,39 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
     // Create binary chunk data
     BinaryChunkData binaryData(chunk);
     
-    // Check if all blocks can use binary meshing
-    bool canUseFullBinaryMeshing = true;
+    // Categorize blocks by their meshing requirements
+    std::vector<BlockType> fullCubeBlocks;
+    std::vector<BlockType> partialBlocks;
+    bool hasComplexBlocks = false;
+    
     for (BlockType blockType : binaryData.getActiveBlockTypes()) {
-        if (!canUseBinaryMeshing(blockType)) {
-            canUseFullBinaryMeshing = false;
+        auto blockDef = Blocks::getBlock(blockType);
+        if (!blockDef || blockDef->getId() == "air") {
+            continue;
+        }
+        
+        // All blocks should be able to use enhanced greedy meshing
+        
+        try {
+            std::string modelPath = "assets/zerith/models/block/" + blockDef->getModelName() + ".json";
+            auto model = BlockbenchParser::parseFromFileWithParents(modelPath, nullptr);
+            
+            if (isFullCubeModel(model)) {
+                fullCubeBlocks.push_back(blockType);
+            } else if (canUseEnhancedBinaryMeshing(blockType, model)) {
+                partialBlocks.push_back(blockType);
+            } else {
+                hasComplexBlocks = true;
+                break;
+            }
+        } catch (const std::exception& e) {
+            hasComplexBlocks = true;
             break;
         }
     }
     
     // If any complex blocks are present, signal that traditional meshing should be used
-    if (!canUseFullBinaryMeshing) {
+    if (hasComplexBlocks) {
         return std::nullopt;
     }
     
@@ -355,25 +488,35 @@ std::optional<std::vector<HybridChunkMeshGenerator::FaceInstance>> HybridChunkMe
         neighborZPlusData = std::make_unique<BinaryChunkData>(*neighborZPlus);
     }
     
-    // All blocks are simple - use binary greedy meshing with neighbor data for optimal performance
+    // Generate mesh using appropriate algorithm for each block type
     std::vector<FaceInstance> allFaces;
-    auto allQuads = BinaryGreedyMesher::generateAllQuadsWithNeighbors(
-        binaryData,
-        neighborXMinusData.get(),
-        neighborXPlusData.get(),
-        neighborYMinusData.get(),
-        neighborYPlusData.get(),
-        neighborZMinusData.get(),
-        neighborZPlusData.get(),
-        neighborXMinus,
-        neighborXPlus,
-        neighborYMinus,
-        neighborYPlus,
-        neighborZMinus,
-        neighborZPlus
-    );
-    auto faces = BinaryMeshConverter::convertAllQuadsWithAO(allQuads, chunkWorldPos, chunk, textureArray);
-    allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+    
+    // Use standard binary meshing for full cube blocks
+    for (BlockType blockType : fullCubeBlocks) {
+        for (int faceDir = 0; faceDir < 6; ++faceDir) {
+            auto quads = BinaryGreedyMesher::generateQuadsWithNeighbors(
+                binaryData, blockType, faceDir,
+                neighborXMinusData.get(), neighborXPlusData.get(),
+                neighborYMinusData.get(), neighborYPlusData.get(),
+                neighborZMinusData.get(), neighborZPlusData.get(),
+                neighborXMinus, neighborXPlus, neighborYMinus, neighborYPlus,
+                neighborZMinus, neighborZPlus
+            );
+            auto faces = BinaryMeshConverter::convertAllQuadsWithAO(quads, chunkWorldPos, chunk, textureArray);
+            allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+        }
+    }
+    
+    // Use enhanced bounds-aware meshing for partial blocks
+    // Note: For now, partial blocks don't use neighbor data for cross-chunk face culling
+    // This could be enhanced in the future if needed
+    for (BlockType blockType : partialBlocks) {
+        for (int faceDir = 0; faceDir < 6; ++faceDir) {
+            auto quads = BinaryGreedyMesher::generateQuadsWithBounds(binaryData, blockType, faceDir);
+            auto faces = BinaryMeshConverter::convertAllQuadsWithAO(quads, chunkWorldPos, chunk, textureArray);
+            allFaces.insert(allFaces.end(), faces.begin(), faces.end());
+        }
+    }
     
     return allFaces;
 }
@@ -399,7 +542,13 @@ bool HybridChunkMeshGenerator::canUseBinaryMeshing(
         auto model = BlockbenchParser::parseFromFileWithParents(modelPath, nullptr);
         
         // Check if the model represents a full cube (from 0,0,0 to 16,16,16)
-        return isFullCubeModel(model);
+        if (isFullCubeModel(model)) {
+            return true;
+        }
+        
+        // Enhanced: Also allow partial blocks for bounds-aware greedy meshing
+        // For now, we'll allow simple partial blocks like slabs and stairs
+        return canUseEnhancedBinaryMeshing(blockType, model);
     } catch (const std::exception& e) {
         // If we can't load the model, assume it's complex and use traditional meshing
         return false;
@@ -419,6 +568,47 @@ bool HybridChunkMeshGenerator::canNeighborUseBinaryMeshing(
         }
     }
     
+    return true;
+}
+
+bool HybridChunkMeshGenerator::canUseEnhancedBinaryMeshing(
+    BlockType blockType,
+    const BlockbenchModel::Model& model
+) {
+    // Get block definition
+    auto blockDef = Blocks::getBlock(blockType);
+    if (!blockDef) {
+        return false;
+    }
+    
+    // For now, enable enhanced binary meshing for specific known simple partial blocks
+    std::string blockId = blockDef->getId();
+    
+    // Allow all blocks including translucent ones like water
+    
+    // Allow simple partial blocks like slabs and stairs
+    if (blockId.find("slab") != std::string::npos) {
+        return true;
+    }
+    if (blockId.find("stairs") != std::string::npos) {
+        return true;
+    }
+    
+    // Allow water blocks
+    if (blockId == "water") {
+        return true;
+    }
+    
+    // Check if the model has reasonable complexity (not too many elements)
+    if (model.elements.size() > 5) {
+        return false; // Too complex for enhanced meshing
+    }
+    
+    // Check if all elements are axis-aligned (no rotations)
+    // Note: The current BlockbenchModel::Element doesn't support rotation yet,
+    // so we can assume all elements are axis-aligned for now
+    
+    // If we get here, it's a simple partial block that can use enhanced binary meshing
     return true;
 }
 

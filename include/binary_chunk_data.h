@@ -8,6 +8,7 @@
 #include <glm/glm.hpp>
 #include "chunk.h"
 #include "blocks.h"
+#include "block_face_bounds.h"
 
 namespace Zerith {
 
@@ -71,10 +72,18 @@ public:
         glm::ivec3 size;        // Width, height, depth (one dimension will be 1)
         int faceDirection;      // 0-5 (down, up, north, south, west, east)
         BlockType blockType;    // The block type this quad represents
+        FaceBounds faceBounds;  // Face bounds for this quad (for proper UV mapping)
     };
     
     // Generate mesh quads for a specific block type and face direction
     static std::vector<MeshQuad> generateQuads(
+        const BinaryChunkData& chunkData,
+        BlockType blockType,
+        int faceDirection
+    );
+    
+    // Enhanced greedy meshing with bounds awareness for partial blocks
+    static std::vector<MeshQuad> generateQuadsWithBounds(
         const BinaryChunkData& chunkData,
         BlockType blockType,
         int faceDirection
@@ -166,6 +175,15 @@ private:
         BlockType blockType
     );
     
+    // Enhanced meshing with bounds awareness
+    static std::vector<MeshQuad> meshSliceWithBounds(
+        const SliceMask& slice,
+        const BinaryChunkData& chunkData,
+        int sliceIndex,
+        int faceDirection,
+        BlockType blockType
+    );
+    
     // Try to expand a quad horizontally
     static int expandHorizontal(
         SliceMask& slice,
@@ -176,6 +194,25 @@ private:
     static int expandVertical(
         SliceMask& slice,
         int startX, int startY, int width, int height
+    );
+    
+    // Enhanced expansion that respects face bounds compatibility
+    static int expandHorizontalWithBounds(
+        SliceMask& slice,
+        const BinaryChunkData& chunkData,
+        int faceDirection,
+        int sliceIndex,
+        int startX, int startY, int width, int height,
+        BlockType blockType
+    );
+    
+    static int expandVerticalWithBounds(
+        SliceMask& slice,
+        const BinaryChunkData& chunkData,
+        int faceDirection,
+        int sliceIndex,
+        int startX, int startY, int width, int height,
+        BlockType blockType
     );
     
     // Clear a rectangular region in the slice
@@ -194,6 +231,21 @@ private:
         BlockType currentBlockType,
         int currentFaceDirection,
         BlockType neighborBlockType
+    );
+    
+    // Check if two faces can be merged based on bounds compatibility
+    static bool canMergeFaces(
+        BlockType blockType1,
+        BlockType blockType2,
+        int faceDirection
+    );
+    
+    // Helper to get block type at slice position
+    static BlockType getBlockTypeAtSlicePosition(
+        const BinaryChunkData& chunkData,
+        int faceDirection,
+        int sliceIndex,
+        int u, int v
     );
 };
 
