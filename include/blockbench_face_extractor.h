@@ -43,6 +43,39 @@ inline Zerith::FaceBounds extractFaceBounds(const BlockbenchModel::Element& elem
 inline Zerith::BlockFaceBounds extractBlockFaceBounds(const BlockbenchModel::Model& model) {
     Zerith::BlockFaceBounds result;
     
+    // Special handling for multi-element blocks (like stairs)
+    // For greedy meshing, we want representative bounds, not combined bounds
+    if (model.elements.size() > 1) {
+        // Use the first (largest) element's bounds as representative
+        // This works well for stairs where the first element is the base slab
+        if (!model.elements.empty()) {
+            const auto& firstElement = model.elements[0];
+            for (int faceIndex = 0; faceIndex < 6; ++faceIndex) {
+                // Get the face from the element
+                const BlockbenchModel::Face* face = nullptr;
+                switch (faceIndex) {
+                    case 0: face = &firstElement.down; break;
+                    case 1: face = &firstElement.up; break;
+                    case 2: face = &firstElement.north; break;
+                    case 3: face = &firstElement.south; break;
+                    case 4: face = &firstElement.west; break;
+                    case 5: face = &firstElement.east; break;
+                }
+                
+                // Skip faces without textures (they don't render)
+                if (!face || face->texture.empty()) {
+                    result.faces[faceIndex] = Zerith::FaceBounds(0.0f, 0.0f, 0.0f, 0.0f);
+                    continue;
+                }
+                
+                // Extract bounds for this face
+                result.faces[faceIndex] = extractFaceBounds(firstElement, faceIndex);
+            }
+        }
+        return result;
+    }
+    
+    // Original logic for single-element blocks
     // Initialize with empty bounds (no coverage)
     for (auto& face : result.faces) {
         face = Zerith::FaceBounds(1.0f, 1.0f, 0.0f, 0.0f);  // Invalid bounds (min > max)

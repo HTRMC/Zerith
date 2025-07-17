@@ -1,5 +1,8 @@
 #include "binary_chunk_data.h"
 #include <algorithm>
+#include "blockbench_parser.h"
+#include "blockbench_face_extractor.h"
+#include "block_face_bounds.h"
 
 namespace Zerith {
 
@@ -113,6 +116,76 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateQuadsWithB
     return quads;
 }
 
+std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateQuadsMultiElement(
+    const BinaryChunkData& chunkData,
+    BlockType blockType,
+    int faceDirection
+) {
+    const auto& blockMask = chunkData.getBlockMask(blockType);
+    if (blockMask.none()) {
+        return {};
+    }
+    
+    // Load the block model to get element information
+    auto blockDef = Blocks::getBlock(blockType);
+    if (!blockDef) {
+        return {};
+    }
+    
+    std::string modelPath = "assets/zerith/models/block/" + blockDef->getModelName() + ".json";
+    
+    try {
+        auto model = BlockbenchParser::parseFromFileWithParents(modelPath, nullptr);
+        
+        std::vector<MeshQuad> allQuads;
+        
+        // Generate quads for each element separately
+        for (size_t elementIndex = 0; elementIndex < model.elements.size(); ++elementIndex) {
+            const auto& element = model.elements[elementIndex];
+            
+            // Get face bounds for this specific element
+            auto elementBounds = BlockbenchFaceExtractor::extractFaceBounds(element, faceDirection);
+            
+            // Check if this element has a face in this direction
+            const BlockbenchModel::Face* face = nullptr;
+            switch (faceDirection) {
+                case 0: face = &element.down; break;
+                case 1: face = &element.up; break;
+                case 2: face = &element.north; break;
+                case 3: face = &element.south; break;
+                case 4: face = &element.west; break;
+                case 5: face = &element.east; break;
+            }
+            
+            // Skip if this element doesn't have a face in this direction
+            if (!face || face->texture.empty()) {
+                continue;
+            }
+            
+            // Generate quads for this element using enhanced bounds-aware meshing
+            auto slices = extractSlices(blockMask, faceDirection);
+            
+            for (int sliceIndex = 0; sliceIndex < static_cast<int>(slices.size()); ++sliceIndex) {
+                // Generate visible face mask for this slice
+                auto visibleMask = generateVisibleFaceMask(chunkData, blockType, faceDirection, sliceIndex);
+                
+                // Use enhanced meshing with this element's specific bounds
+                auto sliceQuads = meshSliceWithElementBounds(visibleMask, chunkData, sliceIndex, 
+                                                           faceDirection, blockType, elementBounds, 
+                                                           static_cast<int>(elementIndex),
+                                                           element.from, element.to);
+                allQuads.insert(allQuads.end(), sliceQuads.begin(), sliceQuads.end());
+            }
+        }
+        
+        return allQuads;
+        
+    } catch (const std::exception& e) {
+        // If we can't load the model, fall back to regular bounds-aware meshing
+        return generateQuadsWithBounds(chunkData, blockType, faceDirection);
+    }
+}
+
 std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::generateAllQuads(
     const BinaryChunkData& chunkData
 ) {
@@ -219,6 +292,9 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::meshSlice(
             MeshQuad quad;
             quad.blockType = blockType;
             quad.faceDirection = faceDirection;
+            quad.elementIndex = -1; // Single element block
+            quad.elementOffset = glm::vec3(0.0f); // No offset for single element blocks
+            quad.elementSize = glm::vec3(1.0f); // Full block size for single element blocks
             
             // Set face bounds for this quad
             const auto& registry = BlockFaceBoundsRegistry::getInstance();
@@ -294,11 +370,95 @@ std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::meshSliceWithBound
             MeshQuad quad;
             quad.blockType = blockType;
             quad.faceDirection = faceDirection;
+            quad.elementIndex = -1; // Single element block
+            quad.elementOffset = glm::vec3(0.0f); // No offset for single element blocks
+            quad.elementSize = glm::vec3(1.0f); // Full block size for single element blocks
             
             // Set face bounds for this quad
             const auto& registry = BlockFaceBoundsRegistry::getInstance();
             const auto& blockBounds = registry.getFaceBounds(blockType);
             quad.faceBounds = blockBounds.faces[faceDirection];
+            
+            // Set position and size based on face direction
+            // Note: (x,y) in the slice corresponds to different world coordinates based on face direction
+            switch (faceDirection) {
+                case 0: // Down (Y- faces, sliced along XZ planes)
+                case 1: // Up (Y+ faces, sliced along XZ planes)
+                    // x,y in slice = x,z in world coords
+                    quad.position = glm::ivec3(x, sliceIndex, y);
+                    quad.size = glm::ivec3(width, 1, height);
+                    break;
+                case 2: // North (Z- faces, sliced along XY planes)
+                case 3: // South (Z+ faces, sliced along XY planes)
+                    // x,y in slice = x,y in world coords
+                    quad.position = glm::ivec3(x, y, sliceIndex);
+                    quad.size = glm::ivec3(width, height, 1);
+                    break;
+                case 4: // West (X- faces, sliced along YZ planes)
+                case 5: // East (X+ faces, sliced along YZ planes)
+                    // x,y in slice = y,z in world coords
+                    quad.position = glm::ivec3(sliceIndex, x, y);
+                    quad.size = glm::ivec3(1, width, height);
+                    break;
+            }
+            
+            quads.push_back(quad);
+            
+            // Clear the processed rectangle
+            clearRect(workingSlice, x, y, width, height);
+        }
+    }
+    
+    return quads;
+}
+
+std::vector<BinaryGreedyMesher::MeshQuad> BinaryGreedyMesher::meshSliceWithElementBounds(
+    const SliceMask& slice,
+    const BinaryChunkData& chunkData,
+    int sliceIndex,
+    int faceDirection,
+    BlockType blockType,
+    const FaceBounds& elementBounds,
+    int elementIndex,
+    const glm::vec3& elementFrom,
+    const glm::vec3& elementTo
+) {
+    constexpr int SIZE = BinaryChunkData::CHUNK_SIZE;
+    std::vector<MeshQuad> quads;
+    auto workingSlice = slice; // Copy for modification
+    
+    int originalBits = static_cast<int>(slice.count());
+    if (originalBits == 0) return quads; // No visible faces in this slice
+    
+    // Enhanced greedy meshing algorithm with element-specific bounds
+    for (int y = 0; y < SIZE; ++y) {
+        for (int x = 0; x < SIZE; ++x) {
+            if (!workingSlice.test(coords2D(x, y))) {
+                continue; // No block at this position
+            }
+            
+            // Find the width of the quad by expanding horizontally with bounds checking
+            int width = expandHorizontalWithBounds(
+                workingSlice, chunkData, faceDirection, sliceIndex, x, y, 1, 1, blockType
+            );
+            
+            // Find the height of the quad by expanding vertically with bounds checking
+            int height = expandVerticalWithBounds(
+                workingSlice, chunkData, faceDirection, sliceIndex, x, y, width, 1, blockType
+            );
+            
+            // Create the quad
+            MeshQuad quad;
+            quad.blockType = blockType;
+            quad.faceDirection = faceDirection;
+            quad.elementIndex = elementIndex; // Set the specific element index
+            
+            // Use the provided element bounds instead of block bounds
+            quad.faceBounds = elementBounds;
+            
+            // Calculate element offset and size (convert from Blockbench coordinates 0-16 to normalized 0-1)
+            quad.elementOffset = elementFrom / 16.0f;
+            quad.elementSize = (elementTo - elementFrom) / 16.0f;
             
             // Set position and size based on face direction
             // Note: (x,y) in the slice corresponds to different world coordinates based on face direction
