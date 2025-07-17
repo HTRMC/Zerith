@@ -210,7 +210,28 @@ Chunk* ChunkManager::getChunk(const glm::ivec3& chunkPos) {
 }
 
 BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
-    glm::ivec3 chunkPos = worldToChunkPos(worldPos);
+    // Fast path: calculate chunk position and local position together
+    const int chunkX = static_cast<int>(std::floor(worldPos.x / Chunk::CHUNK_SIZE));
+    const int chunkY = static_cast<int>(std::floor(worldPos.y / Chunk::CHUNK_SIZE));
+    const int chunkZ = static_cast<int>(std::floor(worldPos.z / Chunk::CHUNK_SIZE));
+    const glm::ivec3 chunkPos(chunkX, chunkY, chunkZ);
+    
+    // Calculate local position directly to avoid redundant computation
+    const int localX = static_cast<int>(worldPos.x) - chunkX * Chunk::CHUNK_SIZE;
+    const int localY = static_cast<int>(worldPos.y) - chunkY * Chunk::CHUNK_SIZE;
+    const int localZ = static_cast<int>(worldPos.z) - chunkZ * Chunk::CHUNK_SIZE;
+    
+    // Handle negative coordinates properly
+    const int adjustedLocalX = (localX < 0) ? localX + Chunk::CHUNK_SIZE : localX;
+    const int adjustedLocalY = (localY < 0) ? localY + Chunk::CHUNK_SIZE : localY;
+    const int adjustedLocalZ = (localZ < 0) ? localZ + Chunk::CHUNK_SIZE : localZ;
+    
+    // Bounds check to avoid accessing invalid memory
+    if (adjustedLocalX < 0 || adjustedLocalX >= Chunk::CHUNK_SIZE ||
+        adjustedLocalY < 0 || adjustedLocalY >= Chunk::CHUNK_SIZE ||
+        adjustedLocalZ < 0 || adjustedLocalZ >= Chunk::CHUNK_SIZE) {
+        return Blocks::AIR;
+    }
     
     std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
     auto it = m_chunks.find(chunkPos);
@@ -218,7 +239,8 @@ BlockType ChunkManager::getBlock(const glm::vec3& worldPos) const {
         return Blocks::AIR;
     }
     
-    return it->second->getBlockWorld(worldPos);
+    // Direct block access instead of going through getBlockWorld
+    return it->second->getBlock(adjustedLocalX, adjustedLocalY, adjustedLocalZ);
 }
 
 void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
@@ -750,36 +772,9 @@ std::array<BlockType, 18*18*18> ChunkManager::createExtendedBlockData(const glm:
         return ex + ey * 18 + ez * 18 * 18;
     };
     
-    // Helper function to get block from world position
+    // Helper function to get block from world position - use the thread-safe getBlock method
     auto getWorldBlock = [this](const glm::ivec3& worldPos) -> BlockType {
-        glm::ivec3 worldChunkPos = {
-            worldPos.x / Chunk::CHUNK_SIZE,
-            worldPos.y / Chunk::CHUNK_SIZE,
-            worldPos.z / Chunk::CHUNK_SIZE
-        };
-        
-        // Handle negative coordinates properly
-        if (worldPos.x < 0 && worldPos.x % Chunk::CHUNK_SIZE != 0) worldChunkPos.x--;
-        if (worldPos.y < 0 && worldPos.y % Chunk::CHUNK_SIZE != 0) worldChunkPos.y--;
-        if (worldPos.z < 0 && worldPos.z % Chunk::CHUNK_SIZE != 0) worldChunkPos.z--;
-        
-        auto it = m_chunks.find(worldChunkPos);
-        if (it == m_chunks.end()) {
-            return Blocks::AIR; // Chunk not loaded
-        }
-        
-        glm::ivec3 localPos = {
-            worldPos.x - worldChunkPos.x * Chunk::CHUNK_SIZE,
-            worldPos.y - worldChunkPos.y * Chunk::CHUNK_SIZE,
-            worldPos.z - worldChunkPos.z * Chunk::CHUNK_SIZE
-        };
-        
-        // Handle negative local coordinates
-        if (localPos.x < 0) localPos.x += Chunk::CHUNK_SIZE;
-        if (localPos.y < 0) localPos.y += Chunk::CHUNK_SIZE;
-        if (localPos.z < 0) localPos.z += Chunk::CHUNK_SIZE;
-        
-        return it->second->getBlock(localPos.x, localPos.y, localPos.z);
+        return getBlock(glm::vec3(worldPos.x, worldPos.y, worldPos.z));
     };
     
     // Calculate world position of the chunk corner
