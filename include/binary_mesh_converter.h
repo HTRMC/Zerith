@@ -169,16 +169,6 @@ private:
      * Check if a model represents a full cube (from 0,0,0 to 16,16,16).
      */
     static bool isFullCubeModel(const BlockbenchModel::Model& model);
-    
-    /**
-     * Check if a block type can use enhanced binary meshing for partial blocks.
-     * This allows blocks like slabs and stairs to use greedy meshing when
-     * their face bounds are compatible.
-     */
-    static bool canUseEnhancedBinaryMeshing(
-        BlockType blockType,
-        const BlockbenchModel::Model& model
-    );
 };
 
 } // namespace Zerith
