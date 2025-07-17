@@ -100,7 +100,7 @@ std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::gener
     
     // Use binary meshing if enabled
     LOG_INFO("MESH GENERATOR: Binary meshing enabled = %s", m_binaryMeshingEnabled ? "true" : "false");
-    if (false) { // Force disable binary meshing
+    if (m_binaryMeshingEnabled) { // Enable binary meshing
         // Get chunk world position from the chunk itself
         glm::ivec3 chunkWorldPos = chunk.getChunkPosition();
         auto binaryResult = HybridChunkMeshGenerator::generateOptimizedMesh(
