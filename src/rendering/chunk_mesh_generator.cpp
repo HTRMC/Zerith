@@ -1128,4 +1128,104 @@ void ChunkMeshGenerator::generateBlockFacesExtended(const ExtendedChunkData& ext
     }
 }
 
+void ChunkMeshGenerator::generateBlockFacesWithMask(const ExtendedChunkData& extendedData, int x, int y, int z,
+                                                   const FaceVisibilityMask& visibilityMask,
+                                                   std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces,
+                                                   const glm::ivec3& chunkWorldPos) {
+    BlockType blockType = extendedData.getBlock(x, y, z);
+    
+    // Skip air blocks
+    if (blockType == Blocks::AIR) {
+        return;
+    }
+    
+    // Find the generator for this block type
+    auto it = m_blockGenerators.find(blockType);
+    if (it == m_blockGenerators.end()) {
+        return; // No model for this block type
+    }
+    
+    // Calculate world position of this block
+    glm::vec3 blockWorldPos = glm::vec3(chunkWorldPos) + glm::vec3(x, y, z);
+    
+    // Generate faces at this position
+    auto blockFaces = it->second->generateInstancesAtPosition(blockWorldPos);
+    
+    // Face culling: only add faces that are visible using pre-computed mask
+    for (auto&& face : blockFaces) {
+        bool shouldRender = false;
+        
+        // Check visibility using the pre-computed mask (O(1) bit lookup)
+        switch (face.faceDirection) {
+            case 0: // Down face (Y-)
+                shouldRender = visibilityMask.isFaceVisible(x, y, z, FaceVisibilityMask::FaceDirection::DOWN);
+                break;
+            case 1: // Up face (Y+)
+                shouldRender = visibilityMask.isFaceVisible(x, y, z, FaceVisibilityMask::FaceDirection::UP);
+                break;
+            case 2: // North face (Z-)
+                shouldRender = visibilityMask.isFaceVisible(x, y, z, FaceVisibilityMask::FaceDirection::NORTH);
+                break;
+            case 3: // South face (Z+)
+                shouldRender = visibilityMask.isFaceVisible(x, y, z, FaceVisibilityMask::FaceDirection::SOUTH);
+                break;
+            case 4: // West face (X-)
+                shouldRender = visibilityMask.isFaceVisible(x, y, z, FaceVisibilityMask::FaceDirection::WEST);
+                break;
+            case 5: // East face (X+)
+                shouldRender = visibilityMask.isFaceVisible(x, y, z, FaceVisibilityMask::FaceDirection::EAST);
+                break;
+            default:
+                shouldRender = true; // Render unknown faces by default
+                break;
+        }
+        
+        if (shouldRender) {
+            // Calculate ambient occlusion for this face
+            if (m_chunkManager) {
+                face.ao = VoxelAO::calculateFaceAO(m_chunkManager, chunkWorldPos, x, y, z, face.faceDirection);
+            } else {
+                // No ChunkManager available - set default AO (no occlusion)
+                face.ao = glm::vec4(1.0f);
+            }
+            faces.emplace_back(std::move(face));
+        }
+    }
+}
+
+std::vector<BlockbenchInstanceGenerator::FaceInstance> ChunkMeshGenerator::generateChunkMeshWithVisibilityMask(
+    const ExtendedChunkData& extendedData,
+    const glm::ivec3& chunkWorldPos) {
+    PROFILE_FUNCTION();
+    
+    // Generate the face visibility mask once for the entire chunk
+    FaceVisibilityMask visibilityMask = FaceVisibilityMaskGenerator::generateMask(extendedData);
+    
+    LOG_TRACE("Generated visibility mask with %zu visible faces for chunk (%d, %d, %d)", 
+             visibilityMask.getTotalVisibleFaces(), chunkWorldPos.x, chunkWorldPos.y, chunkWorldPos.z);
+    
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> allFaces;
+    
+    // Early exit if no faces are visible
+    if (visibilityMask.getTotalVisibleFaces() == 0) {
+        return allFaces;
+    }
+    
+    // Estimate capacity based on visible faces
+    allFaces.reserve(visibilityMask.getTotalVisibleFaces());
+    
+    // Iterate through all blocks in the chunk
+    for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
+        for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
+            for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
+                // Use the optimized mask-based face generation
+                generateBlockFacesWithMask(extendedData, x, y, z, visibilityMask, allFaces, chunkWorldPos);
+            }
+        }
+    }
+    
+    LOG_TRACE("Generated %zu face instances using visibility mask", allFaces.size());
+    return allFaces;
+}
+
 } // namespace Zerith

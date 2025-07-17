@@ -8,6 +8,8 @@
 #include "binary_mesh_converter.h"
 #include "blocks.h"
 #include "extended_chunk_data.h"
+#include "face_visibility_mask.h"
+#include "face_visibility_mask_generator.h"
 #include <memory>
 #include <unordered_map>
 #include <string>
@@ -81,6 +83,11 @@ public:
     std::vector<BlockbenchInstanceGenerator::FaceInstance> generateChunkMeshExtended(
         const Chunk& chunk,
         const std::array<BlockType, 18*18*18>& extendedBlockData);
+    
+    // Generate chunk mesh using pre-computed face visibility mask (optimized)
+    std::vector<BlockbenchInstanceGenerator::FaceInstance> generateChunkMeshWithVisibilityMask(
+        const ExtendedChunkData& extendedData,
+        const glm::ivec3& chunkWorldPos);
 
     // Load block models
     void loadBlockModels();
@@ -147,7 +154,14 @@ private:
     void generateBlockFacesExtended(const ExtendedChunkData& extendedData, int x, int y, int z,
                                    std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces,
                                    const glm::ivec3& chunkWorldPos);
+    
+    // Generate faces for a single block using pre-computed face visibility mask
+    void generateBlockFacesWithMask(const ExtendedChunkData& extendedData, int x, int y, int z,
+                                   const FaceVisibilityMask& visibilityMask,
+                                   std::vector<BlockbenchInstanceGenerator::FaceInstance>& faces,
+                                   const glm::ivec3& chunkWorldPos);
 
+private:
     // Block model generators
     std::unordered_map<BlockType, std::unique_ptr<BlockbenchInstanceWrapper>> m_blockGenerators;
     
