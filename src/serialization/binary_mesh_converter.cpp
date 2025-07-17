@@ -183,19 +183,6 @@ std::string BinaryMeshConverter::getBlockTexture(
         return baseMaterial + "_planks";
     }
     
-    // Handle crafting table - different textures per face
-    if (blockId == "crafting_table") {
-        switch (faceDirection) {
-            case 0: return "crafting_table_top";      // Down face (bottom)
-            case 1: return "crafting_table_top";      // Up face (top)
-            case 2: return "crafting_table_front";    // North face (front)
-            case 3: return "crafting_table_side";     // South face (back)
-            case 4: return "crafting_table_side";     // West face (left side)
-            case 5: return "crafting_table_side";     // East face (right side)
-            default: return "crafting_table_side";
-        }
-    }
-    
     // For most blocks, use the block ID as the texture name
     return blockId;
 }

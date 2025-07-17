@@ -873,16 +873,7 @@ bool BinaryGreedyMesher::isFaceVisibleAgainstNeighbor(
         }
     }
     
-    // Special case: Same transparent blocks should cull faces between them
-    // (e.g., glass blocks adjacent to each other)
-    if (currentBlockType == neighborBlockType) {
-        if (neighborRenderLayer == RenderLayer::CUTOUT || 
-            (neighborRenderLayer == RenderLayer::TRANSLUCENT && neighborBlockDef->getId() != "water")) {
-            return false; // Hide faces between identical transparent blocks
-        }
-    }
-    
-    // Transparent/translucent blocks don't cull faces behind them (except same type)
+    // Transparent/translucent blocks don't cull faces behind them
     if (neighborRenderLayer == RenderLayer::TRANSLUCENT || neighborRenderLayer == RenderLayer::CUTOUT) {
         return true;
     }
