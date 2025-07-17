@@ -42,7 +42,7 @@ void TerrainGenerator::generateTerrain(Chunk& chunk) {
         }
     }
     
-    // Generate blocks
+    // Generate blocks for standard 16x16x16 area
     for (int y = 0; y < Chunk::CHUNK_SIZE; ++y) {
         for (int z = 0; z < Chunk::CHUNK_SIZE; ++z) {
             for (int x = 0; x < Chunk::CHUNK_SIZE; ++x) {
@@ -52,6 +52,21 @@ void TerrainGenerator::generateTerrain(Chunk& chunk) {
                 
                 BlockType blockType = getBlockTypeForPosition(worldX, worldY, worldZ, terrainHeights[x][z]);
                 chunk.setBlock(x, y, z, blockType);
+            }
+        }
+    }
+    
+    // Generate extended blocks for 18x18x18 area (includes overlapping border data)
+    for (int y = -1; y <= 16; ++y) {
+        for (int z = -1; z <= 16; ++z) {
+            for (int x = -1; x <= 16; ++x) {
+                int worldX = worldChunkStart.x + x;
+                int worldY = worldChunkStart.y + y;
+                int worldZ = worldChunkStart.z + z;
+                
+                int terrainHeight = getTerrainHeight(worldX, worldZ);
+                BlockType blockType = getBlockTypeForPosition(worldX, worldY, worldZ, terrainHeight);
+                chunk.setExtendedBlock(x, y, z, blockType);
             }
         }
     }

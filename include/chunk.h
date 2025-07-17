@@ -13,7 +13,9 @@ using BlockType = uint8_t;
 class Chunk {
 public:
     static constexpr int CHUNK_SIZE = 16;
+    static constexpr int EXTENDED_SIZE = 18;  // Store overlapping data for neighbor-free meshing
     static constexpr int CHUNK_VOLUME = CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE;
+    static constexpr int EXTENDED_VOLUME = EXTENDED_SIZE * EXTENDED_SIZE * EXTENDED_SIZE;
 
     Chunk(glm::ivec3 chunkPosition = glm::ivec3(0));
     
@@ -25,9 +27,13 @@ public:
     Chunk(const Chunk&) = delete;
     Chunk& operator=(const Chunk&) = delete;
 
-    // Block access
+    // Block access (standard 16x16x16 range: 0-15)
     BlockType getBlock(int x, int y, int z) const;
     void setBlock(int x, int y, int z, BlockType type);
+    
+    // Extended block access (18x18x18 range: -1 to 16)
+    BlockType getExtendedBlock(int x, int y, int z) const;
+    void setExtendedBlock(int x, int y, int z, BlockType type);
     
     // Get block at world coordinates
     BlockType getBlockWorld(const glm::vec3& worldPos) const;
@@ -47,11 +53,14 @@ public:
 private:
     // Convert 3D coordinates to 1D array index
     constexpr int getIndex(int x, int y, int z) const;
+    constexpr int getExtendedIndex(int x, int y, int z) const;
     
     // Check if coordinates are within chunk bounds
     constexpr bool isInBounds(int x, int y, int z) const;
+    constexpr bool isInExtendedBounds(int x, int y, int z) const;
 
-    std::array<BlockType, CHUNK_VOLUME> m_blocks;
+    std::array<BlockType, CHUNK_VOLUME> m_blocks;           // Standard 16x16x16 storage
+    std::array<BlockType, EXTENDED_VOLUME> m_extendedBlocks; // Extended 18x18x18 storage
     glm::ivec3 m_chunkPosition; // Position of chunk in chunk coordinates
 };
 

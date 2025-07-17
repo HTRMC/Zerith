@@ -761,32 +761,25 @@ std::vector<Chunk*> ChunkManager::getChunksAlongRay(const glm::vec3& origin,
 std::array<BlockType, 18*18*18> ChunkManager::createExtendedBlockData(const glm::ivec3& chunkPos) {
     std::array<BlockType, 18*18*18> extendedData;
     
-    // Fill with AIR initially
-    std::fill(extendedData.begin(), extendedData.end(), Blocks::AIR);
+    // Get the chunk and return its extended data directly
+    std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
+    auto it = m_chunks.find(chunkPos);
+    if (it == m_chunks.end()) {
+        // Chunk not loaded, return all AIR
+        std::fill(extendedData.begin(), extendedData.end(), Blocks::AIR);
+        return extendedData;
+    }
     
-    // Helper function to convert extended coordinates to array index
-    auto getExtendedIndex = [](int x, int y, int z) -> int {
-        int ex = x + 1;  // Convert -1..16 to 0..17
-        int ey = y + 1;
-        int ez = z + 1;
-        return ex + ey * 18 + ez * 18 * 18;
-    };
-    
-    // Helper function to get block from world position - use the thread-safe getBlock method
-    auto getWorldBlock = [this](const glm::ivec3& worldPos) -> BlockType {
-        return getBlock(glm::vec3(worldPos.x, worldPos.y, worldPos.z));
-    };
-    
-    // Calculate world position of the chunk corner
-    glm::ivec3 chunkWorldPos = chunkPos * Chunk::CHUNK_SIZE;
-    
-    // Sample 18x18x18 region: from -1 to 16 in chunk-local coordinates
+    // Copy the chunk's extended block data
+    const auto& chunk = *it->second;
     for (int x = -1; x <= 16; ++x) {
         for (int y = -1; y <= 16; ++y) {
             for (int z = -1; z <= 16; ++z) {
-                glm::ivec3 worldPos = chunkWorldPos + glm::ivec3(x, y, z);
-                BlockType blockType = getWorldBlock(worldPos);
-                extendedData[getExtendedIndex(x, y, z)] = blockType;
+                int ex = x + 1;  // Convert -1..16 to 0..17
+                int ey = y + 1;
+                int ez = z + 1;
+                int index = ex + ey * 18 + ez * 18 * 18;
+                extendedData[index] = chunk.getExtendedBlock(x, y, z);
             }
         }
     }

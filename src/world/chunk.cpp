@@ -10,6 +10,7 @@ Chunk::Chunk(glm::ivec3 chunkPosition)
     : m_chunkPosition(std::move(chunkPosition)) {
     // Initialize all blocks to air
     std::fill(m_blocks.begin(), m_blocks.end(), Blocks::AIR);
+    std::fill(m_extendedBlocks.begin(), m_extendedBlocks.end(), Blocks::AIR);
     LOG_TRACE("Created chunk at position (%d, %d, %d)", m_chunkPosition.x, m_chunkPosition.y, m_chunkPosition.z);
 }
 
@@ -183,6 +184,33 @@ constexpr int Chunk::getIndex(int x, int y, int z) const {
     
     // Combine the lookup values
     return morton_x[x] | morton_y[y] | morton_z[z];
+}
+
+BlockType Chunk::getExtendedBlock(int x, int y, int z) const {
+    if (!isInExtendedBounds(x, y, z)) {
+        return Blocks::AIR;
+    }
+    return m_extendedBlocks[getExtendedIndex(x, y, z)];
+}
+
+void Chunk::setExtendedBlock(int x, int y, int z, BlockType type) {
+    if (isInExtendedBounds(x, y, z)) {
+        m_extendedBlocks[getExtendedIndex(x, y, z)] = type;
+    }
+}
+
+constexpr int Chunk::getExtendedIndex(int x, int y, int z) const {
+    // Convert -1..16 to 0..17 range
+    int ex = x + 1;
+    int ey = y + 1;
+    int ez = z + 1;
+    return ex + ey * EXTENDED_SIZE + ez * EXTENDED_SIZE * EXTENDED_SIZE;
+}
+
+constexpr bool Chunk::isInExtendedBounds(int x, int y, int z) const {
+    return x >= -1 && x <= 16 &&
+           y >= -1 && y <= 16 &&
+           z >= -1 && z <= 16;
 }
 
 constexpr bool Chunk::isInBounds(int x, int y, int z) const {
