@@ -1234,6 +1234,17 @@ namespace Zerith
         
         // Basic terrain blocks
         BEDROCK = registerBlock("bedrock", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Water with custom fluid behavior  
+        auto waterSettings = BlockSettings::create().material(BlockMaterial::LIQUID);
+        auto waterBehavior = std::make_unique<FluidBlock>(waterSettings);
+        WATER = registerBlock("water", waterSettings, std::move(waterBehavior));
+        
+        // Lava with custom fluid behavior
+        auto lavaSettings = BlockSettings::create().material(BlockMaterial::LIQUID);
+        auto lavaBehavior = std::make_unique<FluidBlock>(lavaSettings);
+        LAVA = registerBlock("lava", lavaSettings, std::move(lavaBehavior));
+        
         SAND = registerBlock("sand", BlockSettings::create().material(BlockMaterial::SOLID));
         SUSPICIOUS_SAND = registerBlock("suspicious_sand", BlockSettings::create().material(BlockMaterial::SOLID));
         RED_SAND = registerBlock("red_sand", BlockSettings::create().material(BlockMaterial::SOLID));
@@ -2108,15 +2119,417 @@ namespace Zerith
         CAVE_AIR = registerBlock("cave_air", BlockSettings::create().material(BlockMaterial::AIR));
         BUBBLE_COLUMN = registerBlock("bubble_column", BlockSettings::create().material(BlockMaterial::LIQUID).noCollision());
         
-        // Water with custom fluid behavior  
-        auto waterSettings = BlockSettings::create().material(BlockMaterial::LIQUID);
-        auto waterBehavior = std::make_unique<FluidBlock>(waterSettings);
-        WATER = registerBlock("water", waterSettings, std::move(waterBehavior));
+        // Stairs
+        POLISHED_GRANITE_STAIRS = registerBlock("polished_granite_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_RED_SANDSTONE_STAIRS = registerBlock("smooth_red_sandstone_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        MOSSY_STONE_BRICK_STAIRS = registerBlock("mossy_stone_brick_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_DIORITE_STAIRS = registerBlock("polished_diorite_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        MOSSY_COBBLESTONE_STAIRS = registerBlock("mossy_cobblestone_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        END_STONE_BRICK_STAIRS = registerBlock("end_stone_brick_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        STONE_STAIRS = registerBlock("stone_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_SANDSTONE_STAIRS = registerBlock("smooth_sandstone_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_QUARTZ_STAIRS = registerBlock("smooth_quartz_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        GRANITE_STAIRS = registerBlock("granite_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        ANDESITE_STAIRS = registerBlock("andesite_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        RED_NETHER_BRICK_STAIRS = registerBlock("red_nether_brick_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_ANDESITE_STAIRS = registerBlock("polished_andesite_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        DIORITE_STAIRS = registerBlock("diorite_stairs", BlockSettings::create().material(BlockMaterial::STONE));
         
-        // Lava with custom fluid behavior
-        auto lavaSettings = BlockSettings::create().material(BlockMaterial::LIQUID);
-        auto lavaBehavior = std::make_unique<FluidBlock>(lavaSettings);
-        LAVA = registerBlock("lava", lavaSettings, std::move(lavaBehavior));
+        // Slabs
+        POLISHED_GRANITE_SLAB = registerBlock("polished_granite_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_RED_SANDSTONE_SLAB = registerBlock("smooth_red_sandstone_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        MOSSY_STONE_BRICK_SLAB = registerBlock("mossy_stone_brick_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_DIORITE_SLAB = registerBlock("polished_diorite_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        MOSSY_COBBLESTONE_SLAB = registerBlock("mossy_cobblestone_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        END_STONE_BRICK_SLAB = registerBlock("end_stone_brick_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_SANDSTONE_SLAB = registerBlock("smooth_sandstone_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_QUARTZ_SLAB = registerBlock("smooth_quartz_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        GRANITE_SLAB = registerBlock("granite_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        ANDESITE_SLAB = registerBlock("andesite_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        RED_NETHER_BRICK_SLAB = registerBlock("red_nether_brick_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_ANDESITE_SLAB = registerBlock("polished_andesite_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        DIORITE_SLAB = registerBlock("diorite_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Walls
+        BRICK_WALL = registerBlock("brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        PRISMARINE_WALL = registerBlock("prismarine_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        RED_SANDSTONE_WALL = registerBlock("red_sandstone_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        MOSSY_STONE_BRICK_WALL = registerBlock("mossy_stone_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        GRANITE_WALL = registerBlock("granite_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        STONE_BRICK_WALL = registerBlock("stone_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        MUD_BRICK_WALL = registerBlock("mud_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        NETHER_BRICK_WALL = registerBlock("nether_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        ANDESITE_WALL = registerBlock("andesite_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        RED_NETHER_BRICK_WALL = registerBlock("red_nether_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        SANDSTONE_WALL = registerBlock("sandstone_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        END_STONE_BRICK_WALL = registerBlock("end_stone_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        DIORITE_WALL = registerBlock("diorite_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Utility blocks
+        SCAFFOLDING = registerBlock("scaffolding", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        LOOM = registerBlock("loom", BlockSettings::create().material(BlockMaterial::WOOD));
+        BARREL = registerBlock("barrel", BlockSettings::create().material(BlockMaterial::WOOD));
+        SMOKER = registerBlock("smoker", BlockSettings::create().material(BlockMaterial::STONE));
+        BLAST_FURNACE = registerBlock("blast_furnace", BlockSettings::create().material(BlockMaterial::STONE));
+        CARTOGRAPHY_TABLE = registerBlock("cartography_table", BlockSettings::create().material(BlockMaterial::WOOD));
+        FLETCHING_TABLE = registerBlock("fletching_table", BlockSettings::create().material(BlockMaterial::WOOD));
+        GRINDSTONE = registerBlock("grindstone", BlockSettings::create().material(BlockMaterial::STONE));
+        LECTERN = registerBlock("lectern", BlockSettings::create().material(BlockMaterial::WOOD));
+        SMITHING_TABLE = registerBlock("smithing_table", BlockSettings::create().material(BlockMaterial::WOOD));
+        STONECUTTER = registerBlock("stonecutter", BlockSettings::create().material(BlockMaterial::STONE));
+        BELL = registerBlock("bell", BlockSettings::create().material(BlockMaterial::SOLID));
+        LANTERN = registerBlock("lantern", BlockSettings::create().material(BlockMaterial::SOLID));
+        SOUL_LANTERN = registerBlock("soul_lantern", BlockSettings::create().material(BlockMaterial::SOLID));
+        CAMPFIRE = registerBlock("campfire", BlockSettings::create().material(BlockMaterial::WOOD));
+        SOUL_CAMPFIRE = registerBlock("soul_campfire", BlockSettings::create().material(BlockMaterial::WOOD));
+        SWEET_BERRY_BUSH = registerBlock("sweet_berry_bush", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        
+        // Nether wood blocks
+        WARPED_STEM = registerBlock("warped_stem", BlockSettings::create().material(BlockMaterial::WOOD));
+        STRIPPED_WARPED_STEM = registerBlock("stripped_warped_stem", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_HYPHAE = registerBlock("warped_hyphae", BlockSettings::create().material(BlockMaterial::WOOD));
+        STRIPPED_WARPED_HYPHAE = registerBlock("stripped_warped_hyphae", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_NYLIUM = registerBlock("warped_nylium", BlockSettings::create().material(BlockMaterial::SOLID));
+        WARPED_FUNGUS = registerBlock("warped_fungus", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        WARPED_WART_BLOCK = registerBlock("warped_wart_block", BlockSettings::create().material(BlockMaterial::SOLID));
+        WARPED_ROOTS = registerBlock("warped_roots", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        NETHER_SPROUTS = registerBlock("nether_sprouts", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        CRIMSON_STEM = registerBlock("crimson_stem", BlockSettings::create().material(BlockMaterial::WOOD));
+        STRIPPED_CRIMSON_STEM = registerBlock("stripped_crimson_stem", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_HYPHAE = registerBlock("crimson_hyphae", BlockSettings::create().material(BlockMaterial::WOOD));
+        STRIPPED_CRIMSON_HYPHAE = registerBlock("stripped_crimson_hyphae", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_NYLIUM = registerBlock("crimson_nylium", BlockSettings::create().material(BlockMaterial::SOLID));
+        CRIMSON_FUNGUS = registerBlock("crimson_fungus", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        SHROOMLIGHT = registerBlock("shroomlight", BlockSettings::create().material(BlockMaterial::SOLID));
+        WEEPING_VINES = registerBlock("weeping_vines", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        WEEPING_VINES_PLANT = registerBlock("weeping_vines_plant", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        TWISTING_VINES = registerBlock("twisting_vines", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        TWISTING_VINES_PLANT = registerBlock("twisting_vines_plant", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        CRIMSON_ROOTS = registerBlock("crimson_roots", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        
+        // Nether planks and variants
+        CRIMSON_PLANKS = registerBlock("crimson_planks", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_PLANKS = registerBlock("warped_planks", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_SLAB = registerBlock("crimson_slab", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_SLAB = registerBlock("warped_slab", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_PRESSURE_PLATE = registerBlock("crimson_pressure_plate", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        WARPED_PRESSURE_PLATE = registerBlock("warped_pressure_plate", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        CRIMSON_FENCE = registerBlock("crimson_fence", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_FENCE = registerBlock("warped_fence", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_TRAPDOOR = registerBlock("crimson_trapdoor", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_TRAPDOOR = registerBlock("warped_trapdoor", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_FENCE_GATE = registerBlock("crimson_fence_gate", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_FENCE_GATE = registerBlock("warped_fence_gate", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_STAIRS = registerBlock("crimson_stairs", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_STAIRS = registerBlock("warped_stairs", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_BUTTON = registerBlock("crimson_button", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        WARPED_BUTTON = registerBlock("warped_button", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        CRIMSON_DOOR = registerBlock("crimson_door", BlockSettings::create().material(BlockMaterial::WOOD));
+        WARPED_DOOR = registerBlock("warped_door", BlockSettings::create().material(BlockMaterial::WOOD));
+        CRIMSON_SIGN = registerBlock("crimson_sign", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        WARPED_SIGN = registerBlock("warped_sign", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        CRIMSON_WALL_SIGN = registerBlock("crimson_wall_sign", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        WARPED_WALL_SIGN = registerBlock("warped_wall_sign", BlockSettings::create().material(BlockMaterial::WOOD).noCollision());
+        
+        // Structure and debug blocks
+        STRUCTURE_BLOCK = registerBlock("structure_block", BlockSettings::create().material(BlockMaterial::STONE));
+        JIGSAW = registerBlock("jigsaw", BlockSettings::create().material(BlockMaterial::STONE));
+        TEST_BLOCK = registerBlock("test_block", BlockSettings::create().material(BlockMaterial::STONE));
+        TEST_INSTANCE_BLOCK = registerBlock("test_instance_block", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Utility blocks
+        COMPOSTER = registerBlock("composter", BlockSettings::create().material(BlockMaterial::WOOD));
+        TARGET = registerBlock("target", BlockSettings::create().material(BlockMaterial::SOLID));
+        BEE_NEST = registerBlock("bee_nest", BlockSettings::create().material(BlockMaterial::WOOD));
+        BEEHIVE = registerBlock("beehive", BlockSettings::create().material(BlockMaterial::WOOD));
+        HONEY_BLOCK = registerBlock("honey_block", BlockSettings::create().material(BlockMaterial::SOLID));
+        HONEYCOMB_BLOCK = registerBlock("honeycomb_block", BlockSettings::create().material(BlockMaterial::SOLID));
+        NETHERITE_BLOCK = registerBlock("netherite_block", BlockSettings::create().material(BlockMaterial::STONE));
+        ANCIENT_DEBRIS = registerBlock("ancient_debris", BlockSettings::create().material(BlockMaterial::STONE));
+        CRYING_OBSIDIAN = registerBlock("crying_obsidian", BlockSettings::create().material(BlockMaterial::STONE));
+        RESPAWN_ANCHOR = registerBlock("respawn_anchor", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Potted plants
+        POTTED_CRIMSON_FUNGUS = registerBlock("potted_crimson_fungus", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        POTTED_WARPED_FUNGUS = registerBlock("potted_warped_fungus", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        POTTED_CRIMSON_ROOTS = registerBlock("potted_crimson_roots", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        POTTED_WARPED_ROOTS = registerBlock("potted_warped_roots", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        
+        // Blackstone variants
+        LODESTONE = registerBlock("lodestone", BlockSettings::create().material(BlockMaterial::STONE));
+        BLACKSTONE = registerBlock("blackstone", BlockSettings::create().material(BlockMaterial::STONE));
+        BLACKSTONE_STAIRS = registerBlock("blackstone_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        BLACKSTONE_WALL = registerBlock("blackstone_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        BLACKSTONE_SLAB = registerBlock("blackstone_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE = registerBlock("polished_blackstone", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_BRICKS = registerBlock("polished_blackstone_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        CRACKED_POLISHED_BLACKSTONE_BRICKS = registerBlock("cracked_polished_blackstone_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        CHISELED_POLISHED_BLACKSTONE = registerBlock("chiseled_polished_blackstone", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_BRICK_SLAB = registerBlock("polished_blackstone_brick_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_BRICK_STAIRS = registerBlock("polished_blackstone_brick_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_BRICK_WALL = registerBlock("polished_blackstone_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        GILDED_BLACKSTONE = registerBlock("gilded_blackstone", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_STAIRS = registerBlock("polished_blackstone_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_SLAB = registerBlock("polished_blackstone_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_BLACKSTONE_PRESSURE_PLATE = registerBlock("polished_blackstone_pressure_plate", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        POLISHED_BLACKSTONE_BUTTON = registerBlock("polished_blackstone_button", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        POLISHED_BLACKSTONE_WALL = registerBlock("polished_blackstone_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Nether variants
+        CHISELED_NETHER_BRICKS = registerBlock("chiseled_nether_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        CRACKED_NETHER_BRICKS = registerBlock("cracked_nether_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        QUARTZ_BRICKS = registerBlock("quartz_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Candles
+        CANDLE = registerBlock("candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        WHITE_CANDLE = registerBlock("white_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        ORANGE_CANDLE = registerBlock("orange_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        MAGENTA_CANDLE = registerBlock("magenta_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        LIGHT_BLUE_CANDLE = registerBlock("light_blue_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        YELLOW_CANDLE = registerBlock("yellow_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        LIME_CANDLE = registerBlock("lime_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        PINK_CANDLE = registerBlock("pink_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        GRAY_CANDLE = registerBlock("gray_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        LIGHT_GRAY_CANDLE = registerBlock("light_gray_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        CYAN_CANDLE = registerBlock("cyan_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        PURPLE_CANDLE = registerBlock("purple_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        BLUE_CANDLE = registerBlock("blue_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        BROWN_CANDLE = registerBlock("brown_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        GREEN_CANDLE = registerBlock("green_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        RED_CANDLE = registerBlock("red_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        BLACK_CANDLE = registerBlock("black_candle", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        
+        // Candle cakes
+        CANDLE_CAKE = registerBlock("candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        WHITE_CANDLE_CAKE = registerBlock("white_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        ORANGE_CANDLE_CAKE = registerBlock("orange_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        MAGENTA_CANDLE_CAKE = registerBlock("magenta_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        LIGHT_BLUE_CANDLE_CAKE = registerBlock("light_blue_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        YELLOW_CANDLE_CAKE = registerBlock("yellow_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        LIME_CANDLE_CAKE = registerBlock("lime_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        PINK_CANDLE_CAKE = registerBlock("pink_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        GRAY_CANDLE_CAKE = registerBlock("gray_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        LIGHT_GRAY_CANDLE_CAKE = registerBlock("light_gray_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        CYAN_CANDLE_CAKE = registerBlock("cyan_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        PURPLE_CANDLE_CAKE = registerBlock("purple_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        BLUE_CANDLE_CAKE = registerBlock("blue_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        BROWN_CANDLE_CAKE = registerBlock("brown_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        GREEN_CANDLE_CAKE = registerBlock("green_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        RED_CANDLE_CAKE = registerBlock("red_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        BLACK_CANDLE_CAKE = registerBlock("black_candle_cake", BlockSettings::create().material(BlockMaterial::SOLID));
+        
+        // Amethyst blocks
+        AMETHYST_BLOCK = registerBlock("amethyst_block", BlockSettings::create().material(BlockMaterial::STONE));
+        BUDDING_AMETHYST = registerBlock("budding_amethyst", BlockSettings::create().material(BlockMaterial::STONE));
+        AMETHYST_CLUSTER = registerBlock("amethyst_cluster", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        LARGE_AMETHYST_BUD = registerBlock("large_amethyst_bud", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        MEDIUM_AMETHYST_BUD = registerBlock("medium_amethyst_bud", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        SMALL_AMETHYST_BUD = registerBlock("small_amethyst_bud", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        
+        // Tuff blocks
+        TUFF = registerBlock("tuff", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_SLAB = registerBlock("tuff_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_STAIRS = registerBlock("tuff_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_WALL = registerBlock("tuff_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_TUFF = registerBlock("polished_tuff", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_TUFF_SLAB = registerBlock("polished_tuff_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_TUFF_STAIRS = registerBlock("polished_tuff_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_TUFF_WALL = registerBlock("polished_tuff_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        CHISELED_TUFF = registerBlock("chiseled_tuff", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_BRICKS = registerBlock("tuff_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_BRICK_SLAB = registerBlock("tuff_brick_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_BRICK_STAIRS = registerBlock("tuff_brick_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        TUFF_BRICK_WALL = registerBlock("tuff_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        CHISELED_TUFF_BRICKS = registerBlock("chiseled_tuff_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Special blocks
+        CALCITE = registerBlock("calcite", BlockSettings::create().material(BlockMaterial::STONE));
+        TINTED_GLASS = registerBlock("tinted_glass", BlockSettings::create().material(BlockMaterial::GLASS));
+        POWDER_SNOW = registerBlock("powder_snow", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        SCULK_SENSOR = registerBlock("sculk_sensor", BlockSettings::create().material(BlockMaterial::STONE));
+        CALIBRATED_SCULK_SENSOR = registerBlock("calibrated_sculk_sensor", BlockSettings::create().material(BlockMaterial::STONE));
+        SCULK = registerBlock("sculk", BlockSettings::create().material(BlockMaterial::STONE));
+        SCULK_VEIN = registerBlock("sculk_vein", BlockSettings::create().material(BlockMaterial::STONE));
+        SCULK_CATALYST = registerBlock("sculk_catalyst", BlockSettings::create().material(BlockMaterial::STONE));
+        SCULK_SHRIEKER = registerBlock("sculk_shrieker", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Copper blocks
+        COPPER_BLOCK = registerBlock("copper_block", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_COPPER = registerBlock("exposed_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_COPPER = registerBlock("weathered_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        OXIDIZED_COPPER = registerBlock("oxidized_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        COPPER_ORE = registerBlock("copper_ore", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_COPPER_ORE = registerBlock("deepslate_copper_ore", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Cut copper blocks
+        OXIDIZED_CUT_COPPER = registerBlock("oxidized_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_CUT_COPPER = registerBlock("weathered_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_CUT_COPPER = registerBlock("exposed_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        CUT_COPPER = registerBlock("cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Chiseled copper blocks
+        OXIDIZED_CHISELED_COPPER = registerBlock("oxidized_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_CHISELED_COPPER = registerBlock("weathered_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_CHISELED_COPPER = registerBlock("exposed_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        CHISELED_COPPER = registerBlock("chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Waxed chiseled copper blocks
+        WAXED_OXIDIZED_CHISELED_COPPER = registerBlock("waxed_oxidized_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_CHISELED_COPPER = registerBlock("waxed_weathered_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_CHISELED_COPPER = registerBlock("waxed_exposed_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_CHISELED_COPPER = registerBlock("waxed_chiseled_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Cut copper stairs
+        OXIDIZED_CUT_COPPER_STAIRS = registerBlock("oxidized_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_CUT_COPPER_STAIRS = registerBlock("weathered_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_CUT_COPPER_STAIRS = registerBlock("exposed_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        CUT_COPPER_STAIRS = registerBlock("cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Cut copper slabs
+        OXIDIZED_CUT_COPPER_SLAB = registerBlock("oxidized_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_CUT_COPPER_SLAB = registerBlock("weathered_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_CUT_COPPER_SLAB = registerBlock("exposed_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        CUT_COPPER_SLAB = registerBlock("cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Waxed copper blocks
+        WAXED_COPPER_BLOCK = registerBlock("waxed_copper_block", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_COPPER = registerBlock("waxed_weathered_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_COPPER = registerBlock("waxed_exposed_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_OXIDIZED_COPPER = registerBlock("waxed_oxidized_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Waxed cut copper blocks
+        WAXED_OXIDIZED_CUT_COPPER = registerBlock("waxed_oxidized_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_CUT_COPPER = registerBlock("waxed_weathered_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_CUT_COPPER = registerBlock("waxed_exposed_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_CUT_COPPER = registerBlock("waxed_cut_copper", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Waxed cut copper stairs
+        WAXED_OXIDIZED_CUT_COPPER_STAIRS = registerBlock("waxed_oxidized_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_CUT_COPPER_STAIRS = registerBlock("waxed_weathered_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_CUT_COPPER_STAIRS = registerBlock("waxed_exposed_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_CUT_COPPER_STAIRS = registerBlock("waxed_cut_copper_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Waxed cut copper slabs
+        WAXED_OXIDIZED_CUT_COPPER_SLAB = registerBlock("waxed_oxidized_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_CUT_COPPER_SLAB = registerBlock("waxed_weathered_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_CUT_COPPER_SLAB = registerBlock("waxed_exposed_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_CUT_COPPER_SLAB = registerBlock("waxed_cut_copper_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Copper doors
+        COPPER_DOOR = registerBlock("copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_COPPER_DOOR = registerBlock("exposed_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        OXIDIZED_COPPER_DOOR = registerBlock("oxidized_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_COPPER_DOOR = registerBlock("weathered_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_COPPER_DOOR = registerBlock("waxed_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_COPPER_DOOR = registerBlock("waxed_exposed_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_OXIDIZED_COPPER_DOOR = registerBlock("waxed_oxidized_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_COPPER_DOOR = registerBlock("waxed_weathered_copper_door", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Copper trapdoors
+        COPPER_TRAPDOOR = registerBlock("copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_COPPER_TRAPDOOR = registerBlock("exposed_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        OXIDIZED_COPPER_TRAPDOOR = registerBlock("oxidized_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_COPPER_TRAPDOOR = registerBlock("weathered_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_COPPER_TRAPDOOR = registerBlock("waxed_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_COPPER_TRAPDOOR = registerBlock("waxed_exposed_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_OXIDIZED_COPPER_TRAPDOOR = registerBlock("waxed_oxidized_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_COPPER_TRAPDOOR = registerBlock("waxed_weathered_copper_trapdoor", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Copper grates
+        COPPER_GRATE = registerBlock("copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_COPPER_GRATE = registerBlock("exposed_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_COPPER_GRATE = registerBlock("weathered_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        OXIDIZED_COPPER_GRATE = registerBlock("oxidized_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_COPPER_GRATE = registerBlock("waxed_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_COPPER_GRATE = registerBlock("waxed_exposed_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_COPPER_GRATE = registerBlock("waxed_weathered_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_OXIDIZED_COPPER_GRATE = registerBlock("waxed_oxidized_copper_grate", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Copper bulbs
+        COPPER_BULB = registerBlock("copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        EXPOSED_COPPER_BULB = registerBlock("exposed_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        WEATHERED_COPPER_BULB = registerBlock("weathered_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        OXIDIZED_COPPER_BULB = registerBlock("oxidized_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_COPPER_BULB = registerBlock("waxed_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_EXPOSED_COPPER_BULB = registerBlock("waxed_exposed_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_WEATHERED_COPPER_BULB = registerBlock("waxed_weathered_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        WAXED_OXIDIZED_COPPER_BULB = registerBlock("waxed_oxidized_copper_bulb", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Cave and nature blocks
+        LIGHTNING_ROD = registerBlock("lightning_rod", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        POINTED_DRIPSTONE = registerBlock("pointed_dripstone", BlockSettings::create().material(BlockMaterial::STONE).noCollision());
+        DRIPSTONE_BLOCK = registerBlock("dripstone_block", BlockSettings::create().material(BlockMaterial::STONE));
+        CAVE_VINES = registerBlock("cave_vines", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        CAVE_VINES_PLANT = registerBlock("cave_vines_plant", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        SPORE_BLOSSOM = registerBlock("spore_blossom", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        AZALEA = registerBlock("azalea", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        FLOWERING_AZALEA = registerBlock("flowering_azalea", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        MOSS_CARPET = registerBlock("moss_carpet", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        PINK_PETALS = registerBlock("pink_petals", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        WILDFLOWERS = registerBlock("wildflowers", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        LEAF_LITTER = registerBlock("leaf_litter", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        MOSS_BLOCK = registerBlock("moss_block", BlockSettings::create().material(BlockMaterial::SOLID));
+        BIG_DRIPLEAF = registerBlock("big_dripleaf", BlockSettings::create().material(BlockMaterial::SOLID));
+        BIG_DRIPLEAF_STEM = registerBlock("big_dripleaf_stem", BlockSettings::create().material(BlockMaterial::SOLID));
+        SMALL_DRIPLEAF = registerBlock("small_dripleaf", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        HANGING_ROOTS = registerBlock("hanging_roots", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        ROOTED_DIRT = registerBlock("rooted_dirt", BlockSettings::create().material(BlockMaterial::SOLID));
+        MUD = registerBlock("mud", BlockSettings::create().material(BlockMaterial::SOLID));
+        
+        // Deepslate blocks
+        DEEPSLATE = registerBlock("deepslate", BlockSettings::create().material(BlockMaterial::STONE));
+        COBBLED_DEEPSLATE = registerBlock("cobbled_deepslate", BlockSettings::create().material(BlockMaterial::STONE));
+        COBBLED_DEEPSLATE_STAIRS = registerBlock("cobbled_deepslate_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        COBBLED_DEEPSLATE_SLAB = registerBlock("cobbled_deepslate_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        COBBLED_DEEPSLATE_WALL = registerBlock("cobbled_deepslate_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_DEEPSLATE = registerBlock("polished_deepslate", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_DEEPSLATE_STAIRS = registerBlock("polished_deepslate_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_DEEPSLATE_SLAB = registerBlock("polished_deepslate_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        POLISHED_DEEPSLATE_WALL = registerBlock("polished_deepslate_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_TILES = registerBlock("deepslate_tiles", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_TILE_STAIRS = registerBlock("deepslate_tile_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_TILE_SLAB = registerBlock("deepslate_tile_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_TILE_WALL = registerBlock("deepslate_tile_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_BRICKS = registerBlock("deepslate_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_BRICK_STAIRS = registerBlock("deepslate_brick_stairs", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_BRICK_SLAB = registerBlock("deepslate_brick_slab", BlockSettings::create().material(BlockMaterial::STONE));
+        DEEPSLATE_BRICK_WALL = registerBlock("deepslate_brick_wall", BlockSettings::create().material(BlockMaterial::STONE));
+        CHISELED_DEEPSLATE = registerBlock("chiseled_deepslate", BlockSettings::create().material(BlockMaterial::STONE));
+        CRACKED_DEEPSLATE_BRICKS = registerBlock("cracked_deepslate_bricks", BlockSettings::create().material(BlockMaterial::STONE));
+        CRACKED_DEEPSLATE_TILES = registerBlock("cracked_deepslate_tiles", BlockSettings::create().material(BlockMaterial::STONE));
+        INFESTED_DEEPSLATE = registerBlock("infested_deepslate", BlockSettings::create().material(BlockMaterial::STONE));
+        SMOOTH_BASALT = registerBlock("smooth_basalt", BlockSettings::create().material(BlockMaterial::STONE));
+        RAW_IRON_BLOCK = registerBlock("raw_iron_block", BlockSettings::create().material(BlockMaterial::STONE));
+        RAW_COPPER_BLOCK = registerBlock("raw_copper_block", BlockSettings::create().material(BlockMaterial::STONE));
+        RAW_GOLD_BLOCK = registerBlock("raw_gold_block", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Final potted plants
+        POTTED_AZALEA_BUSH = registerBlock("potted_azalea_bush", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        POTTED_FLOWERING_AZALEA_BUSH = registerBlock("potted_flowering_azalea_bush", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        
+        // Frog-related blocks
+        OCHRE_FROGLIGHT = registerBlock("ochre_froglight", BlockSettings::create().material(BlockMaterial::SOLID));
+        VERDANT_FROGLIGHT = registerBlock("verdant_froglight", BlockSettings::create().material(BlockMaterial::SOLID));
+        PEARLESCENT_FROGLIGHT = registerBlock("pearlescent_froglight", BlockSettings::create().material(BlockMaterial::SOLID));
+        FROGSPAWN = registerBlock("frogspawn", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        
+        // Latest blocks
+        REINFORCED_DEEPSLATE = registerBlock("reinforced_deepslate", BlockSettings::create().material(BlockMaterial::STONE));
+        DECORATED_POT = registerBlock("decorated_pot", BlockSettings::create().material(BlockMaterial::SOLID));
+        CRAFTER = registerBlock("crafter", BlockSettings::create().material(BlockMaterial::STONE));
+        TRIAL_SPAWNER = registerBlock("trial_spawner", BlockSettings::create().material(BlockMaterial::STONE));
+        VAULT = registerBlock("vault", BlockSettings::create().material(BlockMaterial::STONE));
+        HEAVY_CORE = registerBlock("heavy_core", BlockSettings::create().material(BlockMaterial::STONE));
+        
+        // Pale garden blocks
+        PALE_MOSS_BLOCK = registerBlock("pale_moss_block", BlockSettings::create().material(BlockMaterial::SOLID));
+        PALE_MOSS_CARPET = registerBlock("pale_moss_carpet", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        PALE_HANGING_MOSS = registerBlock("pale_hanging_moss", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        OPEN_EYEBLOSSOM = registerBlock("open_eyeblossom", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        CLOSED_EYEBLOSSOM = registerBlock("closed_eyeblossom", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        POTTED_OPEN_EYEBLOSSOM = registerBlock("potted_open_eyeblossom", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        POTTED_CLOSED_EYEBLOSSOM = registerBlock("potted_closed_eyeblossom", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
+        FIREFLY_BUSH = registerBlock("firefly_bush", BlockSettings::create().material(BlockMaterial::SOLID).noCollision());
 
         initialized_ = true;
         LOG_INFO("Blocks system initialized with %zu blocks", blocks_.size());
