@@ -3,6 +3,7 @@
 #include "logger.h"
 #include "world_constants.h"
 #include "profiler.h"
+#include "extended_chunk_data.h"
 #include <algorithm>
 #include <chrono>
 
@@ -285,6 +286,48 @@ void ChunkManager::setBlock(const glm::vec3& worldPos, BlockType type) {
                  worldPos.x, worldPos.y, worldPos.z,
                  chunkPos.x, chunkPos.y, chunkPos.z,
                  localPos.x, localPos.y, localPos.z);
+    }
+    
+    // Update extended blocks in neighboring chunks if block is on edge
+    {
+        std::shared_lock<std::shared_mutex> lock(m_chunksMutex);
+        
+        if (localPos.x == 0) {
+            auto it = m_chunks.find(chunkPos + glm::ivec3(-1, 0, 0));
+            if (it != m_chunks.end()) {
+                it->second->setExtendedBlock(Chunk::CHUNK_SIZE, localPos.y, localPos.z, type);
+            }
+        }
+        if (localPos.x == Chunk::CHUNK_SIZE - 1) {
+            auto it = m_chunks.find(chunkPos + glm::ivec3(1, 0, 0));
+            if (it != m_chunks.end()) {
+                it->second->setExtendedBlock(-1, localPos.y, localPos.z, type);
+            }
+        }
+        if (localPos.y == 0) {
+            auto it = m_chunks.find(chunkPos + glm::ivec3(0, -1, 0));
+            if (it != m_chunks.end()) {
+                it->second->setExtendedBlock(localPos.x, Chunk::CHUNK_SIZE, localPos.z, type);
+            }
+        }
+        if (localPos.y == Chunk::CHUNK_SIZE - 1) {
+            auto it = m_chunks.find(chunkPos + glm::ivec3(0, 1, 0));
+            if (it != m_chunks.end()) {
+                it->second->setExtendedBlock(localPos.x, -1, localPos.z, type);
+            }
+        }
+        if (localPos.z == 0) {
+            auto it = m_chunks.find(chunkPos + glm::ivec3(0, 0, -1));
+            if (it != m_chunks.end()) {
+                it->second->setExtendedBlock(localPos.x, localPos.y, Chunk::CHUNK_SIZE, type);
+            }
+        }
+        if (localPos.z == Chunk::CHUNK_SIZE - 1) {
+            auto it = m_chunks.find(chunkPos + glm::ivec3(0, 0, 1));
+            if (it != m_chunks.end()) {
+                it->second->setExtendedBlock(localPos.x, localPos.y, -1, type);
+            }
+        }
     }
     
     // Regenerate mesh for this chunk

@@ -24,6 +24,8 @@ BlockType Chunk::getBlock(int x, int y, int z) const {
 void Chunk::setBlock(int x, int y, int z, BlockType type) {
     if (isInBounds(x, y, z)) {
         m_blocks[getIndex(x, y, z)] = type;
+        // Also update the extended block at the same position
+        setExtendedBlock(x, y, z, type);
     }
 }
 
